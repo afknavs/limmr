@@ -1,0 +1,63 @@
+name: Dot engines
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'engine/**'
+      - 'integrations/**'
+      - 'scripts/linux/**'
+      - 'scripts/release/dot-source.sh'
+      - 'app/Tests/LimmrKitTests/Fixtures/**'
+      - '.github/workflows/dot-engine.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test bootstrap without network
+        run: nice -n 15 python3 scripts/linux/build-test.py < /dev/null
+      - name: Build, test and smoke-test native engine
+        run: scripts/linux/build.sh --test < /dev/null
+      - name: Package binary and checksum
+        run: |
+          mkdir -p dist
+          cp "$HOME/.local/bin/limmr-engine" dist/limmr-engine-linux-${{ matrix.arch }}
+          cd dist
+          sha256sum limmr-engine-linux-${{ matrix.arch }} > limmr-engine-linux-${{ matrix.arch }}.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: limmr-engine-linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+      - name: Create complete source archive
+        if: matrix.arch == 'amd64'
+        run: scripts/release/dot-source.sh dist/limmr-dot-source.tar.gz < /dev/null
+      - uses: actions/upload-artifact@v4
+        if: matrix.arch == 'amd64'
+        with:
+          name: limmr-dot-source
+          path: dist/limmr-dot-source.tar.gz*
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test extracted ZIP with no git metadata
+        run: |
+          archive_dir=$(mktemp -d)
+          git archive --format=zip HEAD -o "$archive_dir/source.zip"
+          unzip -q "$archive_dir/source.zip" -d "$archive_dir/source"
+          test ! -e "$archive_dir/source/.git"
+          cd "$archive_dir/source"
+          scripts/linux/build.sh --test < /dev/null

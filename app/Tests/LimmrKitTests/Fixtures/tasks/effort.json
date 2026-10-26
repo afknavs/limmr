@@ -1,0 +1,137 @@
+{
+  "agent_action_refs": [],
+  "chats": [
+    {
+      "id": "120363000003@g.us",
+      "name": "University class"
+    },
+    {
+      "id": "120363000004@g.us",
+      "name": "Unofficial class"
+    },
+    {
+      "id": "15550100007@s.whatsapp.net",
+      "name": "Dr. Morgan"
+    },
+    {
+      "id": "15550100008@s.whatsapp.net",
+      "name": "Ms. Taylor"
+    }
+  ],
+  "circle_ids": [
+    "university"
+  ],
+  "confidence": 0.75,
+  "created_by": "Limmr",
+  "first_at": "2026-10-17T11:36:00Z",
+  "hidden": false,
+  "id": "effort-95c52b2c6f233249fb8995d6",
+  "last_at": "2026-10-17T11:40:00Z",
+  "message_refs": [
+    {
+      "chat_jid": "15550100008@s.whatsapp.net",
+      "message_id": "university-04-02"
+    },
+    {
+      "chat_jid": "15550100007@s.whatsapp.net",
+      "message_id": "university-03-02"
+    },
+    {
+      "chat_jid": "120363000004@g.us",
+      "message_id": "university-01-02"
+    },
+    {
+      "chat_jid": "120363000003@g.us",
+      "message_id": "university-00-02"
+    }
+  ],
+  "people": [
+    {
+      "id": "me",
+      "name": "Alex"
+    },
+    {
+      "id": "person-04",
+      "name": "Maya Rao"
+    },
+    {
+      "id": "person-06",
+      "name": "Sam Patel"
+    },
+    {
+      "id": "person-07",
+      "name": "Dr. Morgan"
+    },
+    {
+      "id": "person-08",
+      "name": "Ms. Taylor"
+    }
+  ],
+  "pinned": false,
+  "status": "moving",
+  "summary": "",
+  "task_id": "tsk_demo_linked",
+  "timeline": [
+    {
+      "at": "2026-10-17T11:40:00Z",
+      "id": "120363000003@g.us\u0000university-00-02",
+      "message": {
+        "author": {
+          "type": ""
+        },
+        "chat_jid": "120363000003@g.us",
+        "content": "Check the assignment references before submission.",
+        "id": "university-00-02",
+        "is_from_me": false,
+        "sender": "15550100001@s.whatsapp.net",
+        "timestamp": "2026-10-17T11:40:00Z"
+      }
+    },
+    {
+      "at": "2026-10-17T11:39:00Z",
+      "id": "120363000004@g.us\u0000university-01-02",
+      "message": {
+        "author": {
+          "type": ""
+        },
+        "chat_jid": "120363000004@g.us",
+        "content": "Check the assignment references before submission.",
+        "id": "university-01-02",
+        "is_from_me": false,
+        "sender": "15550100004@s.whatsapp.net",
+        "timestamp": "2026-10-17T11:39:00Z"
+      }
+    },
+    {
+      "at": "2026-10-17T11:37:00Z",
+      "id": "15550100007@s.whatsapp.net\u0000university-03-02",
+      "message": {
+        "author": {
+          "type": ""
+        },
+        "chat_jid": "15550100007@s.whatsapp.net",
+        "content": "Check the assignment references before submission.",
+        "id": "university-03-02",
+        "is_from_me": false,
+        "sender": "15550100006@s.whatsapp.net",
+        "timestamp": "2026-10-17T11:37:00Z"
+      }
+    },
+    {
+      "at": "2026-10-17T11:36:00Z",
+      "id": "15550100008@s.whatsapp.net\u0000university-04-02",
+      "message": {
+        "author": {
+          "type": ""
+        },
+        "chat_jid": "15550100008@s.whatsapp.net",
+        "content": "Check the assignment references before submission.",
+        "id": "university-04-02",
+        "is_from_me": false,
+        "sender": "15550100007@s.whatsapp.net",
+        "timestamp": "2026-10-17T11:36:00Z"
+      }
+    }
+  ],
+  "title": ""
+}

@@ -1,0 +1,75 @@
+# Verify the hosted runner has macOS 26 SDK / Swift 6.2+ before release.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  paths:
+    name: Detect available lanes
+    runs-on: macos-latest
+    outputs:
+      engine: ${{ steps.check.outputs.engine }}
+      app: ${{ steps.check.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check lane directories
+        id: check
+        shell: bash
+        run: |
+          if [[ -d engine ]]; then
+            echo "engine=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "engine=false" >> "$GITHUB_OUTPUT"
+            echo "Engine lane is absent; its job will be skipped."
+          fi
+          if [[ -d app ]]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+            echo "App lane is absent; its job will be skipped."
+          fi
+
+  engine:
+    name: Go tests
+    needs: paths
+    if: needs.paths.outputs.engine == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: engine/go.mod
+          cache: false
+      - name: Create isolated home
+        shell: bash
+        run: echo "LIMMR_HOME=$(mktemp -d)" >> "$GITHUB_ENV"
+      - name: Test engine with fake transports
+        working-directory: engine
+        env:
+          GOFLAGS: -mod=mod
+          GOCACHE: ${{ github.workspace }}/.cache/go-build
+        run: go test ./... < /dev/null
+
+  app:
+    name: Swift build and tests
+    needs: paths
+    if: needs.paths.outputs.app == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create isolated home
+        shell: bash
+        run: echo "LIMMR_HOME=$(mktemp -d)" >> "$GITHUB_ENV"
+      - name: Build app
+        working-directory: app
+        run: swift build < /dev/null
+      - name: Test app
+        working-directory: app
+        run: python3 scripts/test_serial.py < /dev/null

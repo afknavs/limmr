@@ -1,0 +1,11 @@
+Limmr engine ports message storage, history-sync handling, group directory,
+LID mapping, media download/path confinement, log bounding, and approve-on-Mac
+OAuth design from lharries/whatsapp-mcp and the Very Good Plugins fork.
+Original work Copyright (c) 2025 Luke Harries
+Modifications Copyright (c) 2026 Very Good Plugins
+See LICENSE for the upstream MIT terms.
+
+third_party/go-sqlite3 is v1.14.52, vendored from the offline module cache.
+Its upstream license is retained there. limmr_fts5.go enables FTS5 in the
+bundled SQLite amalgamation so ordinary offline go test/build needs no tags.
+Whatsmeow and the Go MCP SDK are separate dependencies under their own licenses.

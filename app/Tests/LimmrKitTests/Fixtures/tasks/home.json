@@ -1,0 +1,116 @@
+{
+  "queued": [
+    {
+      "body": "Hi Maya, your revision notes are ready to review.",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "circle_id": "",
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": "agent-2",
+      "draft_source": "ai",
+      "draft_text": "Hi Maya, your revision notes are ready to review.",
+      "expires_at": "2027-01-15T12:00:00Z",
+      "id": "tsk_demo_study:check_in:2026-10-17T12:00:00Z",
+      "kind": "check_in",
+      "state": "pending",
+      "task_id": "tsk_demo_study",
+      "variations": [
+        "Hi Maya, your revision notes are ready to review."
+      ],
+      "why": "Update for Maya's study plan is due"
+    },
+    {
+      "body": "Hi Maya, just checking in on the project syllabus. No rush!",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "circle_id": "",
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": "agent-2",
+      "draft_source": "template",
+      "draft_text": "Hi Maya, just checking in on the project syllabus. No rush!",
+      "expires_at": "2027-01-15T12:00:00Z",
+      "id": "tsk_demo_waiting:nudge:2026-10-16T12:00:00Z",
+      "kind": "nudge",
+      "state": "pending",
+      "task_id": "tsk_demo_waiting",
+      "variations": [
+        "Hi Maya, just checking in on the project syllabus. No rush!"
+      ],
+      "why": "A gentle follow-up is ready"
+    }
+  ],
+  "tasks": [
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "effort_id": "effort-95c52b2c6f233249fb8995d6",
+      "id": "tsk_demo_linked",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "owner",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "active",
+      "title": "Track festival review"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_short",
+      "kind": "short",
+      "needs_you": false,
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 1
+      },
+      "status": "active",
+      "title": "Book a dentist appointment"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_study",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "next_check_in_at": "2026-10-24T12:00:00Z",
+      "origin": "agent",
+      "progress": {
+        "done": 1,
+        "total": 2
+      },
+      "status": "active",
+      "title": "Maya's study plan"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_waiting",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "waiting",
+      "title": "Wait for the project syllabus",
+      "waiting": {
+        "days": 4,
+        "on_name": "Maya Rao",
+        "since": "2026-10-13T12:00:00Z",
+        "what": "the project syllabus"
+      }
+    }
+  ]
+}

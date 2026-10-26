@@ -1,0 +1,16 @@
+{
+  "accessory_cue": {
+    "color": "#5e5ce6",
+    "enabled": false,
+    "quiet_hours": {
+      "end": "08:00",
+      "start": "23:00",
+      "timezone": "Asia/Kolkata"
+    }
+  },
+  "current_days": 180,
+  "hidden_chats": [],
+  "max_circles": 8,
+  "owner": "Alex",
+  "retention_days": 180
+}

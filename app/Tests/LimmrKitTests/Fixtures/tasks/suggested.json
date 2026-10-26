@@ -1,0 +1,52 @@
+{
+  "tasks": [
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "id": "tsk_demo_application",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "limmr",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "suggested",
+      "suggestion": {
+        "confidence": 0.7,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "The application has a deadline"
+        ]
+      },
+      "title": "Prepare the fundraiser application"
+    },
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "id": "tsk_demo_guide",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "limmr",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "suggested",
+      "suggestion": {
+        "confidence": 0.7,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "You discussed exam material on three different days"
+        ]
+      },
+      "title": "Print the revision guide"
+    }
+  ]
+}

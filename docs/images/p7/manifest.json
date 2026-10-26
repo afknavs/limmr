@@ -1,0 +1,147 @@
+{
+  "fixture": "P4DenseMapFixture: 300 invented people, 8 circles, 400 memberships; overview budget 120",
+  "executable": "app/.build/release/Limmr",
+  "executable_sha256": "57e2a37f17f719bceefc7cc3f9d52940317550690ac1ab86fdde5285206b070a",
+  "snapshots": [
+    {
+      "file": "overview-1100-light-lines-off.png",
+      "width": 1100,
+      "height": 740,
+      "hover": false,
+      "lines": false,
+      "sha256": "fea8ea9f611c6a6ec597e7147294e804928ca354eddc2c5be5d7a332fa9e9826"
+    },
+    {
+      "file": "overview-1100-light-lines-on.png",
+      "width": 1100,
+      "height": 740,
+      "hover": false,
+      "lines": true,
+      "sha256": "da49d867b80437b976dc3441ee43c46e3a4d3d44bf5744e702b60f915a66285e"
+    },
+    {
+      "file": "hover-1100-light-lines-off.png",
+      "width": 1100,
+      "height": 740,
+      "hover": true,
+      "lines": false,
+      "sha256": "b5215b4ffcb88f694ba47b7cf9dde1de20f3199a03673f78b9a28ff1f89e6a11"
+    },
+    {
+      "file": "hover-1100-light-lines-on.png",
+      "width": 1100,
+      "height": 740,
+      "hover": true,
+      "lines": true,
+      "sha256": "a5e1b62c312f3b48452744155e75abb3c768c6df216408c1af4815dbd1d9e64e"
+    },
+    {
+      "file": "overview-1100-dark-lines-off.png",
+      "width": 1100,
+      "height": 740,
+      "hover": false,
+      "lines": false,
+      "sha256": "dd6e7433a4254902c6e729d8c33edc3cf995476c659efb7e048a7dc74f848df7"
+    },
+    {
+      "file": "overview-1100-dark-lines-on.png",
+      "width": 1100,
+      "height": 740,
+      "hover": false,
+      "lines": true,
+      "sha256": "0f921a3258da916692fd7e7c7ba7cf39eb230c2e17bc2ffdd23a2e80f2b7a2ca"
+    },
+    {
+      "file": "hover-1100-dark-lines-off.png",
+      "width": 1100,
+      "height": 740,
+      "hover": true,
+      "lines": false,
+      "sha256": "77cc10570e9830965f04ccf066c2f6fc040472ac3910052c5df0ce8bf462dec5"
+    },
+    {
+      "file": "hover-1100-dark-lines-on.png",
+      "width": 1100,
+      "height": 740,
+      "hover": true,
+      "lines": true,
+      "sha256": "6d14dfcbe5cff0f6babedaf9c107e744fe36181e2837b61239ed5c1b82264af6"
+    },
+    {
+      "file": "overview-1440-light-lines-off.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": false,
+      "lines": false,
+      "sha256": "f7d0b2f4a2d11262e0a8cfac6fcdc2aee44745a82a63e0fdbae38519ce815596"
+    },
+    {
+      "file": "overview-1440-light-lines-on.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": false,
+      "lines": true,
+      "sha256": "c092f57ff194a9f1dfa5652fa8ebaec1774d317a8d5ef8f30a15dd5ea28aa324"
+    },
+    {
+      "file": "hover-1440-light-lines-off.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": true,
+      "lines": false,
+      "sha256": "93461093302a668f8f65c1427679df6831a87ea724d09fad3fce97e6edeea847"
+    },
+    {
+      "file": "hover-1440-light-lines-on.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": true,
+      "lines": true,
+      "sha256": "8820e30e35dfffaec9a78bd84aaf49e7f83e8881f171df1caa553fdadf3652a8"
+    },
+    {
+      "file": "overview-1440-dark-lines-off.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": false,
+      "lines": false,
+      "sha256": "0e8e8e367ab65c4f7f363c25c57138a39536d456b973139be34ae62b75831ff7"
+    },
+    {
+      "file": "overview-1440-dark-lines-on.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": false,
+      "lines": true,
+      "sha256": "6052ea2200425220c4162954a341163dcab35f3fd627275ccf2379a9dada297a"
+    },
+    {
+      "file": "hover-1440-dark-lines-off.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": true,
+      "lines": false,
+      "sha256": "2af3775619bcee5d27e0eb37eebb0e9a0222fc62d18e4f642e872a371b3059b3"
+    },
+    {
+      "file": "hover-1440-dark-lines-on.png",
+      "width": 1440,
+      "height": 1000,
+      "hover": true,
+      "lines": true,
+      "sha256": "770415dbe4fb411c70d7b7240d69838d17354f5650b886f427bcba7ca048ea5d"
+    },
+    {
+      "file": "focus-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "c92fae677425989834d720f6b102a931022c4e15d9443bd81b4bfadbddf38822"
+    },
+    {
+      "file": "focus-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "ce9a07a53df4ea4abee3b7029ac71f56113aaafd477ec9869f733c2bf66aa550"
+    }
+  ]
+}

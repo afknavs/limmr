@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible problem without real WhatsApp data.
+title: "Bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use invented chats and people. Never attach databases, message text,
+        phone numbers, tokens, client configs, QR codes or pairing codes.
+        For vulnerabilities, follow SECURITY.md instead of posting exploit details here.
+  - type: input
+    id: version
+    attributes:
+      label: Limmr version or commit
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac chip
+      placeholder: macOS 26, Apple M2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use invented data. Include the client and connection type if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Reviewed, redacted diagnostics
+      description: Use Health → Copy diagnostics. Review and remove personal data before pasting. Leave blank if unavailable.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I checked this report and its attachments for personal data and credentials.
+          required: true

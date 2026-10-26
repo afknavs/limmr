@@ -1,0 +1,56 @@
+Limmr
+Copyright (c) 2026 Abhinav
+Limmr's own code and documentation are licensed under MIT; see LICENSE.
+Third-party components retain their own licences and copyright notices.
+
+whatsapp-mcp (original work and fork) — MIT
+  Original work Copyright (c) 2025 Luke Harries
+  Modifications Copyright (c) 2026 Very Good Plugins
+  https://github.com/lharries/whatsapp-mcp
+  https://github.com/verygoodplugins/whatsapp-mcp
+  Limmr ports bridge storage, history sync, directory, media handling,
+  bounded logging and approve-on-Mac OAuth design from this work. The upstream
+  MIT copyright lines and permission terms are retained in LICENSE and in the
+  engine's own notices.
+
+whatsmeow — Mozilla Public License 2.0 (MPL-2.0)
+  Copyright (c) 2021 Tulir Asokan and contributors
+  https://github.com/tulir/whatsmeow
+  go.mau.fi/whatsmeow v0.0.0-20261015105041-df33a485cc46
+  Verified against that module's LICENSE and source headers. Its MPL-covered
+  files keep their licence; Limmr's MIT licence does not relicense them.
+  Licence text: https://www.mozilla.org/MPL/2.0/
+  Matching source: https://github.com/tulir/whatsmeow/tree/df33a485cc46
+  Binary distributions must provide the covered source, including modifications
+  if any, and retain the upstream notices and licence information.
+
+Model Context Protocol Go SDK — Apache-2.0 and retained MIT contributions
+  github.com/modelcontextprotocol/go-sdk v1.8.0
+  https://github.com/modelcontextprotocol/go-sdk
+  The cached v1.8.0 LICENSE states that new code and consented contributions are
+  Apache-2.0; contributions without relicensing consent remain MIT. It also
+  identifies non-specification documentation as CC-BY-4.0.
+  Retained MIT notice:
+  Copyright (c) 2024-2025 Model Context Protocol a Series of LF Projects, LLC.
+  Preserve that release's complete LICENSE and any applicable upstream notices
+  with distributions; do not describe this version as MIT-only.
+
+go-sqlite3 — MIT (SQLite amalgamation is public domain)
+  github.com/mattn/go-sqlite3 v1.14.52
+  Copyright (c) 2014 Yasuhiro Matsumoto
+  https://github.com/mattn/go-sqlite3
+  The local source copy and its MIT terms are under engine/third_party/go-sqlite3.
+  Limmr enables FTS5 for the bundled SQLite build; see engine/NOTICE.
+
+go-qrcode — MIT
+  github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+  Copyright (c) 2014 Tom Harwood
+  https://github.com/skip2/go-qrcode
+  Licence verified in the cached module. Listed as a planned component in the
+  build spec; it is not a dependency in engine/go.mod at the time of this notice.
+  The Swift app renders QR codes with Apple's system CoreImage API.
+
+This is the direct-component notice, not a complete transitive dependency bill
+of materials. Consult engine/go.mod and each pinned dependency's licence.
+Release packages must include applicable licence texts/notices for all bundled
+dependencies and source-availability information for MPL-covered components.

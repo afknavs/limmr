@@ -1,0 +1,274 @@
+{
+  "review_date": "2026-10-19",
+  "revision": "Owner review follow-up: compact full-width dashboard and similar-height circle pairing",
+  "capture_binary_sha256": "ca8b30792ccd10fdce38d2ddd1049d60e640890b7af812dc49cc7fc33b8a2b0b",
+  "method": "Every final PNG visually inspected through 19 light/dark comparison panels. Primary 1100/1440 layouts and increased contrast also inspected at full resolution. Edges, overflow, card bottom space, grid alignment, chips and empty states checked.",
+  "snapshots": [
+    {
+      "file": "demo-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "a821799af8eaa963448228790ea17bab351f1f507c7266c77a668380c42043fa",
+      "visually_reviewed": true
+    },
+    {
+      "file": "demo-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "10f0ab334c5443130223599c96c2048990aa5acd4cce8ef899bb63f967421d9c",
+      "visually_reviewed": true
+    },
+    {
+      "file": "demo-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "30f531470a1e5edaf8556b033710c431270e6c5b591a4db0f58e1b3fb8eef68a",
+      "visually_reviewed": true
+    },
+    {
+      "file": "demo-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "0c70c405d6f7521419f2dee2e02987ea97ae201a93ed446e20b1eedcd859c6c3",
+      "visually_reviewed": true
+    },
+    {
+      "file": "demo-900x1000-light.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "6e398b2a5ef166ab80514ea304e9766e3bccf73a444b466f6136b428758c9c5f",
+      "visually_reviewed": true
+    },
+    {
+      "file": "demo-900x1000-dark.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "c1bb77b2186bf13bf155a2d506dd982a4c87c690130a39b5cf23a8381e51e9fa",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "29401cf22c6e990e9056a72630d2814921ec4fe75cfb0936d8add8979cd33fb4",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "c773097d6c08926e28ebf3045792239a6488fd348aaf6e330a0c6f6df37a0f0a",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "abf98adf606c26e8225a036b30477a4e19a39ce340abfbbbd3c1bc35e594376b",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "3191ed65d7c9a1ed4df2dfc5b7a01469498715cb431853de5b179e9ed700556e",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-900x1000-light.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "0cc534b7e1193abc8313c47c9ba895a366d3a8b6b5020ce1bd00417946c0ebe2",
+      "visually_reviewed": true
+    },
+    {
+      "file": "replies-900x1000-dark.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "ae4d391c6ad5ae89038d1e7e36b23d1091f9365857f0de06180dae18cbeb3cb4",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "5ced0c1de19708718749a8452c0f86e639da69b83b10c0fe1ec5318259bcc4dd",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "e658a2d74539684e7dbf873b6679e55cfec2cd8f9bfee600c272e7365962c3b6",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "9e4e36cb25acd7cd6708a3dedabcf6df4972dd0559550ff36bf9b8785609881f",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "2da5298a4b980b118e93a6740cb44602098560d08c4cac5294c713b97e0d680a",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-900x1000-light.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "d22c17d0039459132aeb53d3ae76f07a61861dcdcc7d8178dbabd78b079f2060",
+      "visually_reviewed": true
+    },
+    {
+      "file": "history-900x1000-dark.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "ec14382dc4e7109ba6c140b22f61ec8ae753eb908a4098612c00742ecd45cef5",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "24dc56a9fa13ce84dc24f2609a3c42eb46844926fc3b5086b29c0fb8dfa17579",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "e199c9a8e1c66608732741060895e6c8dcde4582bf0b11c9c72bdfd114964e74",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4ee10d30576b90120ce8539d5bc00f07b5270c696ee60cc3c29c9259aae64f58",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "9291e7314e5dcb25dbd4af793595f0fcf50d1df920bed126511ae0de0f5477b2",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-900x1000-light.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "cfa8ea182fdadbdd121b57ede410f87d41f14529b80c904dd4563fc3ff02fb2a",
+      "visually_reviewed": true
+    },
+    {
+      "file": "server-900x1000-dark.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "46ef668155dc66362f1c90aaa4f851b9a8a0854fa0634d87d6b1704cbe1ba12a",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "fd3d46f7db98a6b6c8c4c511b9ba468780e34afacd01855de61d1a144da3913c",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "16263ca32dbbed3e876bd611b9c02b49572ba818959e21d59c614fd9731ca97e",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "591b631a5ca047aab9f799e49d08ec5f698172602dbeb302d0b8b030dcccb838",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "566677de6d42a755dc73aeba5f26e88a94ccf048f79aa86a762eb1c6545b2d77",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-900x1000-light.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "549509f07b815cea55333bf128f855fea57449a859d4468ba89fa7653616a50b",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-900x1000-dark.png",
+      "width": 900,
+      "height": 1000,
+      "sha256": "e24791ffc76484a6f5230ba5084fd22be8e35fd51b4ba40e652fa4765e2c874c",
+      "visually_reviewed": true
+    },
+    {
+      "file": "empty-1100x740-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "98336de24238a29227e6b8523cafb32fb674210c76980918dcb84117b9e380fc",
+      "visually_reviewed": true
+    },
+    {
+      "file": "empty-1100x740-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "4e69951869be615435306cfd58dfe69051f6bcef60f2c25988c0515c7a0da968",
+      "visually_reviewed": true
+    },
+    {
+      "file": "empty-1440x1000-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "01384f1d2c721f9298e13a917fee65d6e5a7e1c20f338a5d1c4f3dcbf665142e",
+      "visually_reviewed": true
+    },
+    {
+      "file": "empty-1440x1000-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "a38dd881751a969986bc1f7580d6757932bb0a8cf44c8525ce9932a68b382929",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1440x1000-light-accessible.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "d94e9df4e009a98b8cbbf061ab42d8a09a40fbd608aca378c96c0d17b9d3f8fd",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-1440x1000-dark-accessible.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4481e2a99d124fd0eb26af9038bc5e9883a7c96a04ff122b42b299106d418927",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-760x1400-light.png",
+      "width": 760,
+      "height": 1400,
+      "sha256": "5699ef2d5ef46ebb3515930798de4ae5f793c584ce0841fc9bc9cf62d25f46ea",
+      "visually_reviewed": true
+    },
+    {
+      "file": "odd-760x1400-dark.png",
+      "width": 760,
+      "height": 1400,
+      "sha256": "8be1c9e30891a3089501ec7c317478e8005e7e61dc95cfa49bdb25d5929f0eb4",
+      "visually_reviewed": true
+    }
+  ]
+}

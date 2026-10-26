@@ -1,0 +1,113 @@
+{
+  "chats": [
+    {
+      "id": "15550100004@s.whatsapp.net",
+      "name": "Maya Rao"
+    }
+  ],
+  "check_in": {
+    "at_time": "12:00",
+    "last_at": "2026-10-17T12:00:00Z",
+    "next_at": "2026-10-24T12:00:00Z",
+    "note": "Learning progress",
+    "rule": "weekly",
+    "to": "15550100004@s.whatsapp.net",
+    "weekday": 6
+  },
+  "checklist": [
+    {
+      "done": true,
+      "done_at": "2026-10-17T12:00:00Z",
+      "id": "stp_study_0",
+      "order": 0,
+      "text": "Collect syllabus"
+    },
+    {
+      "done": false,
+      "id": "stp_study_1",
+      "order": 1,
+      "text": "Prepare revision notes"
+    }
+  ],
+  "circle_ids": [],
+  "created_at": "2026-10-17T12:00:00Z",
+  "created_by": {
+    "agent_id": "agent-2",
+    "name": "Codex"
+  },
+  "goal": "Make revision material and track learning",
+  "history": [
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "item_added",
+      "text": "Workspace item added"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "created",
+      "text": "Task created"
+    }
+  ],
+  "id": "tsk_demo_study",
+  "items": [
+    {
+      "added_at": "2026-10-17T12:00:00Z",
+      "added_by": "you",
+      "id": "item_study_0",
+      "kind": "note",
+      "source": "owner",
+      "text": "Review memory exercises",
+      "title": "Next session"
+    }
+  ],
+  "kind": "long",
+  "latest": [
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-02",
+      "sender": "Maya Rao",
+      "text": "Choose the morning or afternoon slot.",
+      "timestamp": "2026-10-17T11:39:00Z"
+    },
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-01",
+      "sender": "Maya Rao",
+      "text": "Maya found a shorter route.",
+      "timestamp": "2026-10-17T10:19:00Z"
+    },
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-00",
+      "sender": "Maya Rao",
+      "text": "Maya and Noor are planning a Saturday walk after coursework. The route starts at the library.",
+      "timestamp": "2026-10-17T08:59:00Z"
+    }
+  ],
+  "lifespan_days": 14,
+  "needs_you": true,
+  "needs_you_reason": "An update is ready for your review",
+  "origin": "agent",
+  "people": [
+    {
+      "id": "person-04",
+      "name": "Maya Rao"
+    }
+  ],
+  "progress": {
+    "done": 1,
+    "total": 2
+  },
+  "status": "active",
+  "summary": {
+    "text": "Maya has started revision.",
+    "updated_at": "2026-10-17T12:00:00Z",
+    "updated_by": "you"
+  },
+  "title": "Maya's study plan",
+  "updated_at": "2026-10-17T12:00:00Z",
+  "updates_sent": []
+}

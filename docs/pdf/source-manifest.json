@@ -1,0 +1,522 @@
+{
+  "round": 3,
+  "edition": "D3 R2",
+  "documents": {
+    "what-limmr-is": {
+      "pages": 26,
+      "images": 26,
+      "headings": [
+        "What Limmr is.",
+        "One place for context",
+        "Underneath",
+        "Allow the background helper.",
+        "Wait for a real state",
+        "Underneath",
+        "Scan from Linked devices.",
+        "Use the current code",
+        "Underneath",
+        "If linking is interrupted.",
+        "A useful recovery path",
+        "Underneath",
+        "Let history arrive.",
+        "Let the first pass settle",
+        "Underneath",
+        "Enter Home when you are ready.",
+        "Connection is only the beginning",
+        "Underneath",
+        "See what needs your attention.",
+        "Read the page in layers",
+        "Underneath",
+        "A map of the people in your life.",
+        "A few useful circles",
+        "Underneath",
+        "Open a circle\u2019s shared brief.",
+        "Keep understanding checkable",
+        "Underneath",
+        "Open the person behind the name.",
+        "Correct context once",
+        "Underneath",
+        "Review suggested circles.",
+        "Start small",
+        "Underneath",
+        "Give your AIs a starting point.",
+        "Choose useful context",
+        "Underneath",
+        "Choose the AI you use.",
+        "Own AI or given AI",
+        "Underneath",
+        "Follow the ChatGPT steps.",
+        "Match the code",
+        "Underneath",
+        "Approve a connection you started.",
+        "Make the boundary explicit",
+        "Underneath",
+        "What a lookup brings back.",
+        "An illustrated lookup",
+        "Underneath",
+        "Check the exact message.",
+        "Know what confirmation means",
+        "Underneath",
+        "When this happens, do that.",
+        "Stay in control",
+        "Underneath",
+        "See work grouped by purpose.",
+        "Open the task",
+        "Underneath",
+        "Follow a task into its evidence.",
+        "Read before acting",
+        "Underneath",
+        "Names can come from This Mac.",
+        "Keep the credit visible",
+        "Underneath",
+        "Inspect the detailed log.",
+        "A record, not a guess",
+        "Underneath",
+        "Choose each AI\u2019s circles.",
+        "Ending access has a limit",
+        "Underneath",
+        "Hide conversations from every AI.",
+        "What stays on this Mac",
+        "Underneath",
+        "Check without opening the full window.",
+        "Counts with a purpose",
+        "Underneath",
+        "Review an update before restarting.",
+        "Keep work safe",
+        "Underneath"
+      ],
+      "snapshots": [
+        "welcome-panel",
+        "helper-panel",
+        "pairing-panel",
+        "error-panel",
+        "syncing-panel",
+        "ready-panel",
+        "home-focus",
+        "map-focus",
+        "circle-focus",
+        "person-focus",
+        "suggestions-panel",
+        "about-focus",
+        "picker-panel",
+        "chatgpt-panel",
+        "access-card",
+        "circle-focus",
+        "send-panel",
+        "watch-card",
+        "activity-focus",
+        "effort-focus",
+        "naming-focus",
+        "log-focus",
+        "access-card",
+        "hidden-focus",
+        "menu-panel",
+        "updates-panel"
+      ],
+      "placements": [
+        {
+          "page": 1,
+          "image": "../assets/details/welcome-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1440
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 2,
+          "image": "../assets/details/helper-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1440
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 3,
+          "image": "../assets/details/pairing-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1950
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 4,
+          "image": "../assets/details/error-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1440
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 5,
+          "image": "../assets/details/syncing-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1350
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 6,
+          "image": "../assets/details/ready-panel.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1350
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 7,
+          "image": "../assets/details/home-focus.png",
+          "width_mm": 174.0,
+          "ppi": 400.71,
+          "pixels": [
+            2745,
+            1335
+          ],
+          "logical_width": 915.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 7.01
+        },
+        {
+          "page": 8,
+          "image": "../assets/details/map-focus.png",
+          "width_mm": 174.0,
+          "ppi": 345.97,
+          "pixels": [
+            2370,
+            1365
+          ],
+          "logical_width": 790.0,
+          "ui_reference_pt": 11.0,
+          "max_width_ui_pt": 6.87
+        },
+        {
+          "page": 9,
+          "image": "../assets/details/circle-focus.png",
+          "width_mm": 174.0,
+          "ppi": 348.16,
+          "pixels": [
+            2385,
+            2070
+          ],
+          "logical_width": 795.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 8.07
+        },
+        {
+          "page": 10,
+          "image": "../assets/details/person-focus.png",
+          "width_mm": 174.0,
+          "ppi": 345.97,
+          "pixels": [
+            2370,
+            2055
+          ],
+          "logical_width": 790.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 8.12
+        },
+        {
+          "page": 11,
+          "image": "../assets/details/suggestions-panel.png",
+          "width_mm": 174.0,
+          "ppi": 280.28,
+          "pixels": [
+            1920,
+            1635
+          ],
+          "logical_width": 640.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.02
+        },
+        {
+          "page": 12,
+          "image": "../assets/details/about-focus.png",
+          "width_mm": 174.0,
+          "ppi": 313.12,
+          "pixels": [
+            2145,
+            1725
+          ],
+          "logical_width": 715.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 8.97
+        },
+        {
+          "page": 13,
+          "image": "../assets/details/picker-panel.png",
+          "width_mm": 174.0,
+          "ppi": 227.72,
+          "pixels": [
+            1560,
+            900
+          ],
+          "logical_width": 520.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 12.33
+        },
+        {
+          "page": 14,
+          "image": "../assets/details/chatgpt-panel.png",
+          "width_mm": 174.0,
+          "ppi": 280.28,
+          "pixels": [
+            1920,
+            2100
+          ],
+          "logical_width": 640.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.02
+        },
+        {
+          "page": 15,
+          "image": "../assets/details/access-card.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1980
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 16,
+          "image": "../assets/details/circle-focus.png",
+          "width_mm": 174.0,
+          "ppi": 348.16,
+          "pixels": [
+            2385,
+            2070
+          ],
+          "logical_width": 795.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 8.07
+        },
+        {
+          "page": 17,
+          "image": "../assets/details/send-panel.png",
+          "width_mm": 174.0,
+          "ppi": 280.28,
+          "pixels": [
+            1920,
+            915
+          ],
+          "logical_width": 640.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.02
+        },
+        {
+          "page": 18,
+          "image": "../assets/details/watch-card.png",
+          "width_mm": 115.5,
+          "ppi": 222.99,
+          "pixels": [
+            1014,
+            585
+          ],
+          "logical_width": 338.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 12.59
+        },
+        {
+          "page": 19,
+          "image": "../assets/details/activity-focus.png",
+          "width_mm": 174.0,
+          "ppi": 372.24,
+          "pixels": [
+            2550,
+            1770
+          ],
+          "logical_width": 850.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 7.54
+        },
+        {
+          "page": 20,
+          "image": "../assets/details/effort-focus.png",
+          "width_mm": 174.0,
+          "ppi": 251.81,
+          "pixels": [
+            1725,
+            2055
+          ],
+          "logical_width": 575.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 11.15
+        },
+        {
+          "page": 21,
+          "image": "../assets/details/naming-focus.png",
+          "width_mm": 174.0,
+          "ppi": 370.05,
+          "pixels": [
+            2535,
+            1950
+          ],
+          "logical_width": 845.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 7.59
+        },
+        {
+          "page": 22,
+          "image": "../assets/details/log-focus.png",
+          "width_mm": 174.0,
+          "ppi": 372.24,
+          "pixels": [
+            2550,
+            2205
+          ],
+          "logical_width": 850.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 7.54
+        },
+        {
+          "page": 23,
+          "image": "../assets/details/access-card.png",
+          "width_mm": 174.0,
+          "ppi": 262.76,
+          "pixels": [
+            1800,
+            1980
+          ],
+          "logical_width": 600.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.69
+        },
+        {
+          "page": 24,
+          "image": "../assets/details/hidden-focus.png",
+          "width_mm": 174.0,
+          "ppi": 321.88,
+          "pixels": [
+            2205,
+            2295
+          ],
+          "logical_width": 735.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 8.72
+        },
+        {
+          "page": 25,
+          "image": "../assets/details/menu-panel.png",
+          "width_mm": 133.26,
+          "ppi": 223.01,
+          "pixels": [
+            1170,
+            1860
+          ],
+          "logical_width": 390.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 12.59
+        },
+        {
+          "page": 26,
+          "image": "../assets/details/updates-panel.png",
+          "width_mm": 174.0,
+          "ppi": 280.28,
+          "pixels": [
+            1920,
+            1680
+          ],
+          "logical_width": 640.0,
+          "ui_reference_pt": 13.0,
+          "max_width_ui_pt": 10.02
+        }
+      ],
+      "sha256": "0443034da0584caaa44bcb98fc483472841dacce89f882bc9f92216acbcfb653"
+    },
+    "how-it-was-made": {
+      "pages": 4,
+      "images": 0,
+      "headings": [
+        "How it was made.",
+        "Write the contract first.",
+        "Give Codex bounded ownership.",
+        "Have Claude review the combined product.",
+        "Turn a failure into the next brief.",
+        "Six audits. Different questions.",
+        "Readable history",
+        "Keep evidence close to the claim",
+        "The bugs the running app caught.",
+        "01 / An update that rejected its own startup",
+        "02 / A contract with a missing half",
+        "03 / Lots of messages, very little meaning",
+        "The numbers need their conditions.",
+        "Reproducible evidence in the repo",
+        "The later regression stays in the story"
+      ],
+      "snapshots": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "placements": [],
+      "sha256": "f4ae632d9c564ce20c71a84c4ce6adf69be079f5c1af65050a47f3a682e6437d"
+    },
+    "how-to-pitch-it": {
+      "pages": 4,
+      "images": 0,
+      "headings": [
+        "How to pitch it.",
+        "The problem",
+        "Who it is for",
+        "The promise",
+        "People, not just search",
+        "One engine, several clients",
+        "Local and inspectable",
+        "Permission is part of the product",
+        "The 90-second demo.",
+        "AI tools are becoming places to do ongoing work",
+        "The limits belong in the demo.",
+        "Messaging context needs a boundary",
+        "Three rooms. The same promise.",
+        "To a friend / about 20 seconds",
+        "To a hackathon judge / about 30 seconds",
+        "To an investor / about 30 seconds"
+      ],
+      "snapshots": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "placements": [],
+      "sha256": "89cddf241b854b07fcda5f4ea96570f3d487a86d5b94a9b2c669f15d7d978aba"
+    }
+  },
+  "min_required_ppi": 220,
+  "min_reference_ui_pt": 6.75,
+  "stylesheet_sha256": "7d272aa83734fd1f53464f920bff659b1626e3d478998aa511116db926413680",
+  "render_status": "PDF sizes, counts and embedded ppi checked; visual page review pending"
+}

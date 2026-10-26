@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>dev.limmr.app</string>
+<key>CFBundleName</key><string>Limmr</string>
+<key>CFBundleDisplayName</key><string>Limmr</string>
+<key>CFBundleExecutable</key><string>Limmr</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>LSMinimumSystemVersion</key><string>26.0</string>
+<key>LSUIElement</key><false/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>CFBundleIconFile</key><string>Limmr.icns</string>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>dev.limmr.navigation</string><key>CFBundleURLSchemes</key><array><string>limmr</string></array></dict></array>
+<key>LimmrUpdateFeed</key><string></string>
+<key>LimmrUpdatePublicKey</key><string></string>
+<key>NSContactsUsageDescription</key>
+<string>Limmr matches your contacts to WhatsApp people by phone number, so profiles show their photo, email and birthday. Only matched details are imported. Imported profile details and photos sync to your paired engine.</string>
+</dict></plist>

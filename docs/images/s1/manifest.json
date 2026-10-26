@@ -1,0 +1,50 @@
+[
+  {
+    "file": "agent-detail-light.png",
+    "page": "permissions",
+    "dark": false,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "1fbb6a674fce1c7b24fd5a78e135d93a355f55fb6dd0e12a7f23597dedeed5aa"
+  },
+  {
+    "file": "agent-detail-dark.png",
+    "page": "permissions",
+    "dark": true,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "0d25a1049dbbcf51520772c664aead3b9d216523dc013411491298194fcf20e2"
+  },
+  {
+    "file": "home-light.png",
+    "page": "home",
+    "dark": false,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "4f599524278ad5b232a8caa1b5315a976221dd1bb102e6cc7369b7f8a2faf916"
+  },
+  {
+    "file": "home-dark.png",
+    "page": "home",
+    "dark": true,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "9d241300df8deea243e6d9ea09601cc740a06b28399c9c651d7203ce2645c488"
+  },
+  {
+    "file": "activity-light.png",
+    "page": "activity",
+    "dark": false,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "0204ffd122fc59822b421719e507351764f4db3023b95c4ec315a8f760cc4f64"
+  },
+  {
+    "file": "activity-dark.png",
+    "page": "activity",
+    "dark": true,
+    "width": 1440,
+    "height": 1000,
+    "sha256": "231e012ac110ff722a468a92f19e4be631ad00356c5ff913817675844d8068aa"
+  }
+]

@@ -1,0 +1,16 @@
+cask "limmr" do
+  version "@VERSION@"
+  sha256 "@DMG_SHA256@"
+
+  url "https://github.com/@REPO@/releases/download/v#{version}/Limmr-#{version}-arm64.dmg"
+  name "Limmr"
+  desc "Connect WhatsApp context to your AI tools, with controls on your Mac"
+  homepage "https://github.com/@REPO@"
+
+  depends_on arch: :arm64
+  depends_on macos: ">= :tahoe"
+  auto_updates true
+  app "Limmr.app"
+
+  # Keep messages, session keys and permissions on uninstall. No zap stanza.
+end

@@ -1,0 +1,30 @@
+name: Feature request
+description: Describe a problem Limmr could help you solve.
+title: "Feature: "
+body:
+  - type: markdown
+    attributes:
+      value: Use invented examples and keep private conversations and credentials out of the report.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation and what gets in your way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: Explain what you would expect to see or do in Limmr.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or current workaround
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions or privacy implications
+      description: Does this need new access to chats, people, files or sending?

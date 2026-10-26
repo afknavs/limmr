@@ -1,0 +1,1201 @@
+{
+  "phase": "after",
+  "pages": [
+    "replies-sheet",
+    "brief-version",
+    "people-focus",
+    "people-loading",
+    "settings-people",
+    "approval",
+    "chat-picker",
+    "effort-sheet",
+    "activity-detail",
+    "circle-changes",
+    "update-notes",
+    "empty-people",
+    "empty-activity",
+    "empty-log",
+    "empty-integrations",
+    "empty-menubar",
+    "setup-phone",
+    "h2-home",
+    "h2-empty-triggers",
+    "h2-odd",
+    "h2-effort",
+    "h2-chat",
+    "e1-activity",
+    "e1-search",
+    "e1-detail",
+    "e1-log",
+    "e1-home",
+    "u5-home",
+    "u5-home-quiet",
+    "home-structure",
+    "home-structure-review",
+    "u4-home",
+    "u4-dashboard",
+    "u4-circles",
+    "u4-replies",
+    "u4-activity",
+    "u4-activity-expanded",
+    "u4-activity-log",
+    "u4-icon-picker",
+    "u4-settings-search",
+    "people-dense",
+    "people-dense-hover",
+    "person-inferred",
+    "engine-updating",
+    "agent-renaming",
+    "agent-rename-error",
+    "agent-renamed",
+    "activity-sends",
+    "activity-reads",
+    "home-dashboard",
+    "home-waiting-0",
+    "home-waiting-1",
+    "home-waiting-4",
+    "n1-home",
+    "about-you",
+    "setup-about-you",
+    "person-you",
+    "settings-advanced-reset",
+    "people-current",
+    "remote-approval-work",
+    "setup-who",
+    "home-setup",
+    "proposals-review",
+    "remote-approval",
+    "integration-everything",
+    "integration-work",
+    "integration-ended",
+    "connect-claude-code",
+    "settings-briefs",
+    "settings-sources",
+    "settings-integrations-access",
+    "people-fill",
+    "person-full",
+    "person-review",
+    "person-forget",
+    "person-add",
+    "people-circles",
+    "people-people",
+    "people-map-hover",
+    "people-replay",
+    "settings-general",
+    "home-today",
+    "home-watch",
+    "home-suggested",
+    "home-proposals",
+    "circles",
+    "circle",
+    "person",
+    "settings-integrations",
+    "integration-detail",
+    "home",
+    "overview",
+    "empty-home",
+    "people",
+    "agents",
+    "agent-detail",
+    "permissions",
+    "activity",
+    "setup-welcome",
+    "setup-link",
+    "setup-qr",
+    "setup-qr-long",
+    "setup-syncing",
+    "setup-connect",
+    "setup-done",
+    "setup-helper-error",
+    "connect-picker",
+    "connect-chatgpt",
+    "connect-codex",
+    "menubar",
+    "settings",
+    "settings-hidden",
+    "settings-remote",
+    "settings-health",
+    "settings-advanced",
+    "s2-sidebar",
+    "s2-settings",
+    "s2-about-settings",
+    "s2-about-people",
+    "s2-hidden-people",
+    "s2-hidden-groups",
+    "remote"
+  ],
+  "sizes": [
+    "760x520",
+    "1100x740",
+    "1440x1000"
+  ],
+  "appearances": [
+    "light",
+    "dark"
+  ],
+  "captures": 732,
+  "sheets": [
+    {
+      "file": "after-760x520-light-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-760x520-light-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-760x520-light-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-760x520-light-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-760x520-light-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-760x520-light-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-760x520-light-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-760x520-light-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-760x520-light-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-760x520-light-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-760x520-light-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-760x520-dark-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-1100x740-light-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-1100x740-dark-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-1440x1000-light-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-01.jpg",
+      "pages": [
+        "replies-sheet",
+        "brief-version",
+        "people-focus",
+        "people-loading",
+        "settings-people",
+        "approval",
+        "chat-picker",
+        "effort-sheet",
+        "activity-detail",
+        "circle-changes",
+        "update-notes",
+        "empty-people"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-02.jpg",
+      "pages": [
+        "empty-activity",
+        "empty-log",
+        "empty-integrations",
+        "empty-menubar",
+        "setup-phone",
+        "h2-home",
+        "h2-empty-triggers",
+        "h2-odd",
+        "h2-effort",
+        "h2-chat",
+        "e1-activity",
+        "e1-search"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-03.jpg",
+      "pages": [
+        "e1-detail",
+        "e1-log",
+        "e1-home",
+        "u5-home",
+        "u5-home-quiet",
+        "home-structure",
+        "home-structure-review",
+        "u4-home",
+        "u4-dashboard",
+        "u4-circles",
+        "u4-replies",
+        "u4-activity"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-04.jpg",
+      "pages": [
+        "u4-activity-expanded",
+        "u4-activity-log",
+        "u4-icon-picker",
+        "u4-settings-search",
+        "people-dense",
+        "people-dense-hover",
+        "person-inferred",
+        "engine-updating",
+        "agent-renaming",
+        "agent-rename-error",
+        "agent-renamed",
+        "activity-sends"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-05.jpg",
+      "pages": [
+        "activity-reads",
+        "home-dashboard",
+        "home-waiting-0",
+        "home-waiting-1",
+        "home-waiting-4",
+        "n1-home",
+        "about-you",
+        "setup-about-you",
+        "person-you",
+        "settings-advanced-reset",
+        "people-current",
+        "remote-approval-work"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-06.jpg",
+      "pages": [
+        "setup-who",
+        "home-setup",
+        "proposals-review",
+        "remote-approval",
+        "integration-everything",
+        "integration-work",
+        "integration-ended",
+        "connect-claude-code",
+        "settings-briefs",
+        "settings-sources",
+        "settings-integrations-access",
+        "people-fill"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-07.jpg",
+      "pages": [
+        "person-full",
+        "person-review",
+        "person-forget",
+        "person-add",
+        "people-circles",
+        "people-people",
+        "people-map-hover",
+        "people-replay",
+        "settings-general",
+        "home-today",
+        "home-watch",
+        "home-suggested"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-08.jpg",
+      "pages": [
+        "home-proposals",
+        "circles",
+        "circle",
+        "person",
+        "settings-integrations",
+        "integration-detail",
+        "home",
+        "overview",
+        "empty-home",
+        "people",
+        "agents",
+        "agent-detail"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-09.jpg",
+      "pages": [
+        "permissions",
+        "activity",
+        "setup-welcome",
+        "setup-link",
+        "setup-qr",
+        "setup-qr-long",
+        "setup-syncing",
+        "setup-connect",
+        "setup-done",
+        "setup-helper-error",
+        "connect-picker",
+        "connect-chatgpt"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-10.jpg",
+      "pages": [
+        "connect-codex",
+        "menubar",
+        "settings",
+        "settings-hidden",
+        "settings-remote",
+        "settings-health",
+        "settings-advanced",
+        "s2-sidebar",
+        "s2-settings",
+        "s2-about-settings",
+        "s2-about-people",
+        "s2-hidden-people"
+      ]
+    },
+    {
+      "file": "after-1440x1000-dark-11.jpg",
+      "pages": [
+        "s2-hidden-groups",
+        "remote"
+      ]
+    }
+  ]
+}

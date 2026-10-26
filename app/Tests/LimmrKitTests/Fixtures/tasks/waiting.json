@@ -1,0 +1,101 @@
+{
+  "chats": [
+    {
+      "id": "15550100004@s.whatsapp.net",
+      "name": "Maya Rao"
+    }
+  ],
+  "checklist": [],
+  "circle_ids": [],
+  "created_at": "2026-10-17T12:00:00Z",
+  "created_by": {
+    "agent_id": "agent-2",
+    "name": "Codex"
+  },
+  "goal": "",
+  "history": [
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "nudge_queued",
+      "text": "Follow-up queued"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "status_changed",
+      "text": "Status changed to waiting"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "waiting_set",
+      "text": "Waiting changed"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "created",
+      "text": "Task created"
+    }
+  ],
+  "id": "tsk_demo_waiting",
+  "items": [],
+  "kind": "long",
+  "latest": [
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-02",
+      "sender": "Maya Rao",
+      "text": "Choose the morning or afternoon slot.",
+      "timestamp": "2026-10-17T11:39:00Z"
+    },
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-01",
+      "sender": "Maya Rao",
+      "text": "Maya found a shorter route.",
+      "timestamp": "2026-10-17T10:19:00Z"
+    },
+    {
+      "chat": "Maya Rao",
+      "chat_jid": "15550100004@s.whatsapp.net",
+      "message_id": "friends-01-00",
+      "sender": "Maya Rao",
+      "text": "Maya and Noor are planning a Saturday walk after coursework. The route starts at the library.",
+      "timestamp": "2026-10-17T08:59:00Z"
+    }
+  ],
+  "lifespan_days": 14,
+  "needs_you": true,
+  "needs_you_reason": "An update is ready for your review",
+  "origin": "agent",
+  "people": [
+    {
+      "id": "person-04",
+      "name": "Maya Rao"
+    }
+  ],
+  "progress": {
+    "done": 0,
+    "total": 0
+  },
+  "status": "waiting",
+  "summary": {
+    "text": "",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "updated_by": ""
+  },
+  "title": "Wait for the project syllabus",
+  "updated_at": "2026-10-17T12:00:00Z",
+  "updates_sent": [],
+  "waiting": {
+    "nudge_after_days": 3,
+    "nudge_state": "queued",
+    "nudge_suggestion_id": "tsk_demo_waiting:nudge:2026-10-16T12:00:00Z",
+    "on": {
+      "id": "person-04",
+      "name": "Maya Rao"
+    },
+    "since": "2026-10-13T12:00:00Z",
+    "what": "the project syllabus"
+  }
+}

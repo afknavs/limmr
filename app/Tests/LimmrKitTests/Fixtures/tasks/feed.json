@@ -1,0 +1,134 @@
+{
+  "tasks": [
+    {
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "effort_id": "effort-95c52b2c6f233249fb8995d6",
+      "events": [
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "created",
+          "text": "Task created"
+        }
+      ],
+      "id": "tsk_demo_linked",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "owner",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "active",
+      "title": "Track festival review",
+      "updated_at": "2026-10-17T12:00:00Z"
+    },
+    {
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "events": [
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "created",
+          "text": "Task created"
+        }
+      ],
+      "id": "tsk_demo_short",
+      "kind": "short",
+      "needs_you": false,
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 1
+      },
+      "status": "active",
+      "title": "Book a dentist appointment",
+      "updated_at": "2026-10-17T12:00:00Z"
+    },
+    {
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "events": [
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "created",
+          "text": "Task created"
+        },
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "item_added",
+          "text": "Workspace item added"
+        }
+      ],
+      "id": "tsk_demo_study",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "next_check_in_at": "2026-10-24T12:00:00Z",
+      "origin": "agent",
+      "progress": {
+        "done": 1,
+        "total": 2
+      },
+      "status": "active",
+      "title": "Maya's study plan",
+      "updated_at": "2026-10-17T12:00:00Z"
+    },
+    {
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "events": [
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "created",
+          "text": "Task created"
+        },
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "nudge_queued",
+          "text": "Follow-up queued"
+        },
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "status_changed",
+          "text": "Status changed to waiting"
+        },
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "waiting_set",
+          "text": "Waiting changed"
+        }
+      ],
+      "id": "tsk_demo_waiting",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "waiting",
+      "title": "Wait for the project syllabus",
+      "updated_at": "2026-10-17T12:00:00Z",
+      "waiting": {
+        "days": 4,
+        "on_name": "Maya Rao",
+        "since": "2026-10-13T12:00:00Z",
+        "what": "the project syllabus"
+      }
+    }
+  ]
+}

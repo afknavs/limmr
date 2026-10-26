@@ -1,0 +1,102 @@
+:root { --ink:#1d1d1f; --muted:#6e6e73; --line:#d2d2d7; --blue:#007aff; }
+* { box-sizing:border-box; }
+html { background:#eee; color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif; }
+body { margin:0; font-size:11.5pt; line-height:1.48; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.page { width:210mm; height:297mm; padding:15mm 18mm 18mm; margin:8mm auto; background:white; position:relative; break-after:page; }
+.page:last-child { break-after:auto; }
+.running { display:flex; justify-content:space-between; font-size:8pt; color:var(--muted); border-bottom:1px solid var(--line); padding-bottom:3mm; margin-bottom:6mm; letter-spacing:normal; }
+.eyebrow { color:var(--blue); font-size:9pt; font-weight:600; text-transform:uppercase; margin:0 0 3mm; }
+/* Tracking is zero on every display style, including the word spaces. */
+h1,h2,h3,.lead,.metric,.quote { letter-spacing:normal; word-spacing:normal; }
+h1 { font-size:34pt; line-height:1.12; font-weight:650; margin:0 0 5mm; }
+h2 { font-size:25pt; line-height:1.17; font-weight:650; margin:0 0 5mm; }
+h3 { font-size:14pt; line-height:1.3; margin:5mm 0 2mm; }
+p { margin:0 0 3.5mm; } .lead { font-size:16pt; line-height:1.4; }
+.small,.source { font-size:8.5pt; line-height:1.45; color:var(--muted); } .source { margin-top:3mm; }
+a { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+footer { position:absolute; bottom:8mm; left:18mm; right:18mm; display:flex; justify-content:space-between; border-top:1px solid var(--line); padding-top:3mm; font-size:8pt; color:var(--muted); }
+.rule { border-top:1px solid var(--line); margin:5mm 0; }
+.grid,.columns { display:grid; grid-template-columns:1fr 1fr; gap:6mm; } .three { grid-template-columns:repeat(3,1fr); }
+.cell { border-top:1px solid var(--line); padding-top:3mm; }
+.metric { font-size:28pt; font-weight:600; line-height:1.16; margin-bottom:2mm; } .label { color:var(--muted); font-size:9pt; }
+figure { margin:0 0 4mm; break-inside:avoid; } figure img { display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:10pt; }
+figcaption { margin-top:2mm; font-size:9pt; line-height:1.35; color:var(--muted); }
+.tour h2 { font-size:24pt; margin-bottom:3mm; } .tour .dek { font-size:11pt; color:var(--muted); margin-bottom:4mm; }
+.overview { display:grid; grid-template-columns:2.25fr 1fr; gap:5mm; align-items:center; margin-bottom:5mm; }
+.overview figcaption { margin:0; }
+.detail { margin-bottom:4mm; } .detail img { max-width:100%; }
+.detail-pair { display:grid; grid-template-columns:1fr 1fr; gap:6mm; align-items:start; }
+.explain { border-top:1px solid var(--line); padding-top:3mm; margin-top:4mm; display:grid; grid-template-columns:1fr 1fr; gap:6mm; font-size:10.5pt; }
+.explain h3 { font-size:12pt; margin:0 0 2mm; }
+.card-page .card-grid { display:grid; grid-template-columns:1.15fr 1fr; gap:7mm; align-items:start; }
+.card-grid .detail { margin:0; } .card-grid h3:first-child { margin-top:0; }
+.card-page .card-stage { width:100%; margin:6mm 0; }
+.card-stage img { width:100%; } .panel-pair { display:grid; grid-template-columns:1fr 1fr; gap:6mm; }
+ul,ol { padding-left:5mm; margin:2mm 0 4mm; } li { margin-bottom:2mm; }
+.steps { padding:0; list-style:none; counter-reset:step; }
+.steps li { counter-increment:step; display:grid; grid-template-columns:9mm 1fr; gap:3mm; padding:3mm 0; border-top:1px solid var(--line); margin:0; }
+.steps li::before { content:counter(step,decimal-leading-zero); color:var(--blue); font-size:16pt; font-weight:500; }
+.steps p { margin-bottom:0; }
+table { width:100%; border-collapse:collapse; font-size:10pt; margin:3mm 0; }
+th,td { text-align:left; vertical-align:top; padding:2.5mm 2mm 2.5mm 0; border-bottom:1px solid var(--line); } th { font-weight:600; }
+.note { border-left:2px solid var(--blue); padding-left:4mm; margin:4mm 0; }
+.quote { font-size:20pt; line-height:1.4; margin:4mm 0 6mm; }
+svg { width:100%; height:auto; margin:3mm 0 4mm; } svg text { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif; fill:#1d1d1f; }
+code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.87em; overflow-wrap:anywhere; }
+.band { border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:4mm 0; margin:5mm 0; }
+.body { min-height:0; } .text-page .body { font-size:11.5pt; }
+.compact { font-size:10.5pt; line-height:1.45; } .compact h3 { margin-top:4mm; }
+.architecture { max-height:114mm; } .model-diagram { max-height:83mm; }
+/* Print audit marks any overflow rather than silently hiding it. */
+.page[data-layout-overflow="true"] { outline:2px solid #007aff; }
+@page { size:A4; margin:0; }
+@media print { html { background:white; } .page { margin:0; } }
+/* Consolidated content and visuals fill a consistent composition down to the footer. */
+.page { display:flex; flex-direction:column; padding-bottom:26mm; }
+.page > header,.page > h1,.page > h2,.page > .eyebrow { flex-shrink:0; }
+.body { flex:1; display:flex; flex-direction:column; justify-content:space-between; gap:2mm; }
+.body > * { flex-shrink:0; }
+.overview { grid-template-columns:1.5fr 1fr; }
+.card-page .card-grid { grid-template-columns:1.4fr 1fr; }
+.text-page .quote { font-size:16pt; line-height:1.4; }
+.compact h3 { font-size:12pt; margin:3mm 0 2mm; }
+.workflow h3 { margin-top:1mm; }
+.performance-table th:first-child,.performance-table td:first-child { width:56%; }
+.performance-table th:not(:first-child),.performance-table td:not(:first-child) { width:22%; }
+.audit-table th:first-child,.audit-table td:first-child { width:10%; }
+.audit-table th:nth-child(2),.audit-table td:nth-child(2) { width:32%; }
+.audit-table th:nth-child(3),.audit-table td:nth-child(3) { width:58%; }
+.body { gap:1.5mm; }
+.text-page .body > svg:not(.architecture):not(.model-diagram) { margin:1.5mm 0; }
+/* D3: one source screen per page, physical widths capped for native-pixel detail. */
+.journey h1 { font-size:32pt; }
+.journey h2 { font-size:25pt; }
+.journey .body { justify-content:flex-start; gap:14pt; }
+.journey-screen { margin:0; }
+.journey-screen img { width:var(--render-width,var(--print-width)); max-width:100%; margin:0 auto; }
+.journey-screen figcaption { color:var(--ink); font-size:11pt; line-height:1.45; margin-top:14pt; }
+.journey-context h3,.underneath h3 { font-size:10pt; margin:0 0 2mm; }
+.journey-context p { font-size:10.5pt; line-height:1.45; margin:0; }
+.underneath { border-top:1px solid var(--line); padding-top:8pt; }
+.underneath h3 { color:var(--muted); }
+.underneath p { font-size:9.5pt; line-height:1.45; margin:0; }
+.journey .source { margin:0; font-size:8pt; }
+h1,h2,h3 { break-after:avoid; }
+/* Z3 setup guide: the same ink/blue palette, with a Letter-safe inner area. */
+.setup { padding:18mm 18mm 29mm; }
+.setup .body { justify-content:flex-start; gap:3mm; }
+.setup h1 { font-size:32pt; }
+.setup h2 { font-size:28pt; }
+.setup .lead { font-size:17pt; line-height:1.42; }
+.setup .body p,.setup .body li { font-size:11pt; }
+.setup .body h3 { font-size:13pt; margin:2mm 0; }
+.setup footer { bottom:12mm; }
+.setup .guide-screen img { width:var(--print-width); max-width:100%; margin:0 auto; }
+.setup .guide-screen figcaption { color:var(--ink); font-size:10pt; margin-top:3mm; }
+.setup .guide-screen { margin:0; }
+.setup .cover-mark { width:23mm; height:23mm; border-radius:7mm; display:grid; place-items:center; background:#007aff; color:white; font-size:30pt; font-weight:600; margin:10mm 0 16mm; }
+.setup .route { padding:3mm 0; border-top:1px solid var(--line); }
+.setup .step-number { color:var(--blue); font-weight:600; }
+.setup .body > svg { margin:0; flex-shrink:0; }
+.setup .prompt { background:#f5f8fc; border-radius:3mm; padding:5mm; font-size:13pt; line-height:1.5; }
+.setup .fine { font-size:9pt!important; color:var(--muted); }

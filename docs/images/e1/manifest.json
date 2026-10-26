@@ -1,0 +1,86 @@
+{
+  "renderer": "unbundled app/.build/release/Limmr --snapshot",
+  "fixture": "invented demo data",
+  "images": [
+    {
+      "file": "activity-light.png",
+      "page": "e1-activity",
+      "theme": "light",
+      "width": 1100,
+      "height": 900,
+      "sha256": "02761fecfca5dda4ffef84bc63822300c0ab32a45ff0fa2388a5f12a69906032"
+    },
+    {
+      "file": "activity-dark.png",
+      "page": "e1-activity",
+      "theme": "dark",
+      "width": 1100,
+      "height": 900,
+      "sha256": "5540700cbc324a11d21d3f4cf9a3e4b9029a333fd2dfcfb516d2827a62c09ba0"
+    },
+    {
+      "file": "search-light.png",
+      "page": "e1-search",
+      "theme": "light",
+      "width": 1100,
+      "height": 900,
+      "sha256": "c950161e9b4ad8c96ef8e18b67581b61428bf1678c0a8543106bcf2857fae014"
+    },
+    {
+      "file": "search-dark.png",
+      "page": "e1-search",
+      "theme": "dark",
+      "width": 1100,
+      "height": 900,
+      "sha256": "2a34092ead5ab45e00c1b78afdc2e6e64f6e73c9b21de2a78b1d4c7c9e55e42e"
+    },
+    {
+      "file": "detail-light.png",
+      "page": "e1-detail",
+      "theme": "light",
+      "width": 1100,
+      "height": 900,
+      "sha256": "de4b3a15d0545e287feac38b9d64236ab4b97bde9d29607d5bbe401fac4c489a"
+    },
+    {
+      "file": "detail-dark.png",
+      "page": "e1-detail",
+      "theme": "dark",
+      "width": 1100,
+      "height": 900,
+      "sha256": "b2384c2abf2e0c88324164a46ebf6b550de638e9a422ce18fa26f849f5934fcc"
+    },
+    {
+      "file": "log-light.png",
+      "page": "e1-log",
+      "theme": "light",
+      "width": 1100,
+      "height": 900,
+      "sha256": "bf6f564ac3384c97af3be4a9b977ca7912d9e49e29138024c73346363700c58c"
+    },
+    {
+      "file": "log-dark.png",
+      "page": "e1-log",
+      "theme": "dark",
+      "width": 1100,
+      "height": 900,
+      "sha256": "a2f1a369f83e4dc3fa00d370eb296ee98eb5eef4e2ca155a76592c41250af3d2"
+    },
+    {
+      "file": "home-light.png",
+      "page": "e1-home",
+      "theme": "light",
+      "width": 1100,
+      "height": 900,
+      "sha256": "3c770f73860a1cce4acb37b62dde772593746ebf82799d795e6cec358b9790ed"
+    },
+    {
+      "file": "home-dark.png",
+      "page": "e1-home",
+      "theme": "dark",
+      "width": 1100,
+      "height": 900,
+      "sha256": "bbe9a172a40b1a129222ab47be91f1e4aae9ec3f5dac5b791bbba1371640ae3b"
+    }
+  ]
+}

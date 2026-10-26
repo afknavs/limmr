@@ -1,0 +1,76 @@
+{
+  "chats": [
+    {
+      "id": "15550100007@s.whatsapp.net",
+      "name": "Dr. Morgan"
+    }
+  ],
+  "checklist": [
+    {
+      "done": false,
+      "id": "stp_short_0",
+      "order": 0,
+      "text": "Choose an appointment time"
+    }
+  ],
+  "circle_ids": [],
+  "created_at": "2026-10-17T12:00:00Z",
+  "created_by": {
+    "agent_id": "agent-2",
+    "name": "Codex"
+  },
+  "goal": "",
+  "history": [
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "created",
+      "text": "Task created"
+    }
+  ],
+  "id": "tsk_demo_short",
+  "items": [],
+  "kind": "short",
+  "latest": [
+    {
+      "chat": "Dr. Morgan",
+      "chat_jid": "15550100007@s.whatsapp.net",
+      "message_id": "university-03-02",
+      "sender": "Sam Patel",
+      "text": "Check the assignment references before submission.",
+      "timestamp": "2026-10-17T11:37:00Z"
+    },
+    {
+      "chat": "Dr. Morgan",
+      "chat_jid": "15550100007@s.whatsapp.net",
+      "message_id": "university-03-01",
+      "sender": "Sam Patel",
+      "text": "The unofficial class group shared a revised reading list.",
+      "timestamp": "2026-10-17T10:17:00Z"
+    },
+    {
+      "chat": "Dr. Morgan",
+      "chat_jid": "15550100007@s.whatsapp.net",
+      "message_id": "university-03-00",
+      "sender": "Sam Patel",
+      "text": "The class has a psychology assignment due Tuesday. Dr. Morgan clarified the marking rubric; Ms. Taylor is collecting workshop ideas. Noor is booking the club room.",
+      "timestamp": "2026-10-17T08:57:00Z"
+    }
+  ],
+  "lifespan_days": 14,
+  "needs_you": false,
+  "origin": "agent",
+  "people": [],
+  "progress": {
+    "done": 0,
+    "total": 1
+  },
+  "status": "active",
+  "summary": {
+    "text": "",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "updated_by": ""
+  },
+  "title": "Book a dentist appointment",
+  "updated_at": "2026-10-17T12:00:00Z",
+  "updates_sent": []
+}

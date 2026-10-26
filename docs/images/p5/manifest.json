@@ -1,0 +1,96 @@
+{
+  "fixture": "P4DenseMapFixture: invented 300 people, 8 circles, 400 memberships",
+  "executable": "app/.build/release/Limmr",
+  "executable_sha256": "4d604ea6153c0efe7054daa6631771923c9ee62d1e2ec5c99c3e5da654e95937",
+  "bundled_executable_sha256": "9f5f9be2e5754945f0d4473e7ab0864558d3eb195d3f388f16cd7e952caf44aa",
+  "binary_sections_match": true,
+  "binary_section_sha256": {
+    "__TEXT,__text": "ff31d8f30f03d1fe1db16dbae178dff1bf55672c18d4a7d382cda3ae9ecf5f09",
+    "__TEXT,__stubs": "d62829f9ff8e763dc111758dd9e3bc96be2bf263cf52a56b30e9d21599b0e5b9",
+    "__TEXT,__objc_stubs": "dd25f40e65b23d674414479b5b3b20c0f2301375b369ee32f32540ad9db2b56c",
+    "__TEXT,__objc_methlist": "e4ceda3144c617c55975e5bbe971a92f1a7966fbab737698e0c19e4068fecc98",
+    "__TEXT,__const": "5276941350e262903466537adba8c399f8dcc335b6c4291a8272fa77f487727e",
+    "__TEXT,__constg_swiftt": "f9896092a6a62ce401b2816a0132395dab7c26c8f77906638ead20428df07a4f",
+    "__TEXT,__swift5_typeref": "93c24311d33794e3ee3aad6e76a08e0ec64bca2b6999de812661b38cbd246c3e",
+    "__TEXT,__swift5_builtin": "2ffecb4651f206644fdc1e97a8adb371cf28b66e6ed92b9ef87295b2319d3712",
+    "__TEXT,__swift5_reflstr": "121a2f93d9c1c1918829b599d69198f756044e33f1fd368f5f60ca12410091de",
+    "__TEXT,__swift5_fieldmd": "06e0e3f9fde00863752a538adcc8306f96f4da785677e3d4248c09c21db97f46",
+    "__TEXT,__swift5_assocty": "5c6abfbdf41bfe0be2bda8b7280b6568d1f8708afb40aa7cac11d389bc87bee0",
+    "__TEXT,__cstring": "b0bb28c5cd287eaccc95f4c94dd6e7badff260e9c2b2cf1b9707cd5c80f4f3e4",
+    "__TEXT,__swift5_capture": "66ba7fe229521df38b4a55da026ecb3cff09340e6f251c776da2737d414c0e57",
+    "__TEXT,__swift5_proto": "5e9292effd29c2edc7e419802136249baf0ae78cd9d38ba6c9befef553cf9092",
+    "__TEXT,__swift5_types": "4d75bdf6d6be887300b892df882467c41c6cce486503fc31bef75fc65145c509",
+    "__TEXT,__swift_as_entry": "86c8d44b0b13b27bf3c235d72165fe923409fcd450016b4aeca2e0b03004d94a",
+    "__TEXT,__swift_as_ret": "c1903b44ca9819812505a5e1107ec7b8d6f20e07884599489d9919b41a48a57c",
+    "__TEXT,__swift_as_cont": "e5a1b00e15ea27607d423b5f4251c2f8979fb73125986009653e881156fbde28",
+    "__TEXT,__objc_classname": "dfafac46c9ad3670bbda9ac62efdd1c890c2770851f49b938976c081bc265b96",
+    "__TEXT,__objc_methname": "e96235412f142b5c75d1ef6f6a33e8095a921aadc1c8a7c032e38fa1f8de0e63",
+    "__TEXT,__swift5_mpenum": "803ab21e7cfd476b83102c237da8543a6c9053fc325f216aadaa31f1442b7673",
+    "__TEXT,__objc_methtype": "90cf010a3682cbb9ebe296b34f7d2575360480e99ac85f5f529475b15cc99b5b",
+    "__TEXT,__oslogstring": "64c0f1320b3f5e43f355c6153c921e768cd7d58f2b35f031f1d730ca1b8c7129",
+    "__TEXT,__swift5_protos": "eaba90662bfc217e8058262bfd05f7a26498708b0f3602a558693e8c80fc083d",
+    "__TEXT,__swift5_entry": "7473924bdef094bfab63f0ad247b26d7e6c0da0c0e0a8ca1f60858a7af562aed",
+    "__TEXT,__unwind_info": "4491655d478bf92cdbcb42b7c869c03c210445a3a3ae88fa829d6aa9c10da1a4",
+    "__TEXT,__eh_frame": "41dcc1d877d5aecdeace6f1e0006d8bf522438f6b2a124c3644d063c65ee5a20",
+    "__DATA_CONST,__const": "2120be56eaae5434c064e5512570f811af29498fa011fad5e7fb330e4f3b98d7",
+    "__DATA_CONST,__objc_classlist": "edb93d5884db3ee3f937226ba1883f06828c206b6db7930a2bae339901d7dbf2",
+    "__DATA_CONST,__objc_protolist": "da750278e77a58dbffb2eb53f4963bb018e61192451b081d48f897bb59bf9f6f",
+    "__DATA_CONST,__objc_imageinfo": "7408fcdda372aaed9b8d62d262bd8e7ad4da66abeb61efb31e7c98020b1321ce",
+    "__DATA_CONST,__objc_protorefs": "f2fe79c3e794e7a5fea2a9d1e49f9ab1dd500056c8734b267c7f5bf01dfece5b",
+    "__DATA_CONST,__got": "4da3b23c2ac79140977cfee13e1807cbf02f1bfa8192fff7ab8f3f0a07994784",
+    "__DATA,__objc_const": "c0734d72a638a53d5c2584876c39890db18e775d5a5e6308d49594b0bef84f2a",
+    "__DATA,__objc_selrefs": "cd93e7897e2cddde46ce60f56d249deea4e9498f68d4af06054157af86cb477b",
+    "__DATA,__objc_data": "8fb9b7c441521df99cd69919d319309d77779989837393a097d5c2286acb4d6c",
+    "__DATA,__data": "31067337adb81ac452c32cb2d4197a0934b4c4daeffafc4e0eca6322ba5e4837"
+  },
+  "images": [
+    {
+      "file": "focus-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "ff643390a402e7d26b2400014b33dd01cf59bdfcd5688f24a66602ec801d5fb6"
+    },
+    {
+      "file": "focus-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "71ae5d41c73c52034bbbe16f66740ba31e5f5dfcecceb5704d11c5fcfbb49979"
+    },
+    {
+      "file": "hover-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "346806400c997c2444f8dd4bf0f4ad253b8f30986c2ff7496a0267abad6e5d1e"
+    },
+    {
+      "file": "hover-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "1022dfcedf9b5b2ae3987e8950858e095ce01d29d017aeaa2ed5a33b8064485a"
+    },
+    {
+      "file": "overview-1100-dark.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "c3d51c11f6c67fbf9a229d850e642556a058227e61a851d6f8fbeecd80c16caf"
+    },
+    {
+      "file": "overview-1100-light.png",
+      "width": 1100,
+      "height": 740,
+      "sha256": "b7828b8d1b00a4cfd2cdb89fae887360dcbe7f1ca42ce134b75a14b990a1b51a"
+    },
+    {
+      "file": "overview-1440-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "46fe740ac8349aeba07157e6f47fd1ce51e3db2089d3d791c3e57ec2e752d3bc"
+    },
+    {
+      "file": "overview-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "4b3fc1a375207f85862a6b6f94c7566eab1ab2d18df08e3a5f03e49020912fd2"
+    }
+  ]
+}

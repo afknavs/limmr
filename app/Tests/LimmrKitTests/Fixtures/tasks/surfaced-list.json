@@ -1,0 +1,152 @@
+{
+  "tasks": [
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "id": "tsk_demo_application",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "limmr",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "suggested",
+      "suggestion": {
+        "confidence": 0.7,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "The application has a deadline"
+        ]
+      },
+      "title": "Prepare the fundraiser application"
+    },
+    {
+      "auto_kept_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_cv",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "active",
+      "suggestion": {
+        "confidence": 0.75,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "Atlas has sent 4 messages here in the last 14 days"
+        ]
+      },
+      "title": "Review the family CV",
+      "undo_change_id": "chg_demo_cv"
+    },
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "id": "tsk_demo_guide",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "limmr",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "suggested",
+      "suggestion": {
+        "confidence": 0.7,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "You discussed exam material on three different days"
+        ]
+      },
+      "title": "Print the revision guide"
+    },
+    {
+      "created_by": {
+        "agent_id": "you",
+        "name": "You"
+      },
+      "effort_id": "effort-95c52b2c6f233249fb8995d6",
+      "id": "tsk_demo_linked",
+      "kind": "long",
+      "needs_you": false,
+      "origin": "owner",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "active",
+      "title": "Track festival review"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_short",
+      "kind": "short",
+      "needs_you": false,
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 1
+      },
+      "status": "active",
+      "title": "Book a dentist appointment"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_study",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "next_check_in_at": "2026-10-24T12:00:00Z",
+      "origin": "agent",
+      "progress": {
+        "done": 1,
+        "total": 2
+      },
+      "status": "active",
+      "title": "Maya's study plan"
+    },
+    {
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "id": "tsk_demo_waiting",
+      "kind": "long",
+      "needs_you": true,
+      "needs_you_reason": "An update is ready for your review",
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "waiting",
+      "title": "Wait for the project syllabus",
+      "waiting": {
+        "days": 4,
+        "on_name": "Maya Rao",
+        "since": "2026-10-13T12:00:00Z",
+        "what": "the project syllabus"
+      }
+    }
+  ]
+}

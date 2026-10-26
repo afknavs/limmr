@@ -1,0 +1,67 @@
+{
+  "fixture": {
+    "people": 300,
+    "circles": 8,
+    "memberships": 400
+  },
+  "renderer": "Unbundled SwiftPM Limmr --snapshot; invented data only",
+  "visually_inspected": true,
+  "images": [
+    {
+      "file": "focus-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 160928,
+      "sha256": "0c2fe59347319007ae5139d75af3c335f5f1aa69a097804dbcadfe51a7f1eb59"
+    },
+    {
+      "file": "focus-light.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 159009,
+      "sha256": "ea738a1fef8550b523132118129ca98f7a17799ca62ed1274e35fc9ffabd3a98"
+    },
+    {
+      "file": "hover-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 179374,
+      "sha256": "4f8325dcd5469a7cdab1b6b635f10565ef1e870ea2563bea4e1a8a723e27be15"
+    },
+    {
+      "file": "hover-light.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 174521,
+      "sha256": "25881d307127c0fe635371eb1922ec83c4bf4a94a48227cd0c86da13e0530a59"
+    },
+    {
+      "file": "overview-1100-dark.png",
+      "width": 1100,
+      "height": 740,
+      "bytes": 147809,
+      "sha256": "0fd9ffb1afffb59b67610fa8da50797a2c13e9b11e8704e46407dedce6062d44"
+    },
+    {
+      "file": "overview-1100-light.png",
+      "width": 1100,
+      "height": 740,
+      "bytes": 144657,
+      "sha256": "989847b10a54436a690e98223af45a4bf044579970613c9d0a89f6aec929bdac"
+    },
+    {
+      "file": "overview-1440-dark.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 185899,
+      "sha256": "d9dbaa7c342452cd35e4ad1618c9be3f8b17fa9bb187f3d6cf9a1a54c456dc65"
+    },
+    {
+      "file": "overview-1440-light.png",
+      "width": 1440,
+      "height": 1000,
+      "bytes": 181471,
+      "sha256": "1b609fb753658921c276ced817d2743ef218582cf0297ab32a3b670899df3e08"
+    }
+  ]
+}

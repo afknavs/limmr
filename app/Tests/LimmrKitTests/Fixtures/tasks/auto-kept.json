@@ -1,0 +1,81 @@
+{
+  "auto_kept_at": "2026-10-17T12:00:00Z",
+  "chats": [
+    {
+      "id": "15550100010@s.whatsapp.net",
+      "name": "Riley Park"
+    }
+  ],
+  "checklist": [],
+  "circle_ids": [],
+  "created_at": "2026-10-17T12:00:00Z",
+  "created_by": {
+    "agent_id": "agent-2",
+    "name": "Codex"
+  },
+  "goal": "",
+  "history": [
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "auto_kept",
+      "text": "Started tracking automatically · Codex"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "suggested",
+      "text": "Task suggested"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "created",
+      "text": "Task created"
+    }
+  ],
+  "id": "tsk_demo_cv",
+  "items": [],
+  "kind": "long",
+  "latest": [
+    {
+      "chat": "Riley Park",
+      "chat_jid": "15550100010@s.whatsapp.net",
+      "message_id": "e1-3-2",
+      "sender": "Riley Park",
+      "text": "garden supplies",
+      "timestamp": "2026-10-01T09:00:00Z"
+    },
+    {
+      "chat": "Riley Park",
+      "chat_jid": "15550100010@s.whatsapp.net",
+      "message_id": "e1-3-0",
+      "sender": "Riley Park",
+      "text": "garden supplies",
+      "timestamp": "2026-09-29T09:00:00Z"
+    }
+  ],
+  "lifespan_days": 14,
+  "needs_you": false,
+  "origin": "agent",
+  "people": [],
+  "progress": {
+    "done": 0,
+    "total": 0
+  },
+  "status": "active",
+  "suggestion": {
+    "confidence": 0.75,
+    "detected_at": "2026-10-17T12:00:00Z",
+    "effort_ids": [],
+    "signals": [
+      "Atlas has sent 4 messages here in the last 14 days"
+    ]
+  },
+  "summary": {
+    "text": "",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "updated_by": ""
+  },
+  "title": "Review the family CV",
+  "undo_change_id": "chg_demo_cv",
+  "updated_at": "2026-10-17T12:00:00Z",
+  "updates_sent": []
+}

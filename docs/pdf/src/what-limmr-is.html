@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>What Limmr is</title><link rel="stylesheet" href="style.css"><script defer src="../scripts/layout-check.js"></script></head><body><main>
+<section class="page journey" aria-label="Page 1" data-snapshot="welcome-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">01 / Install and first launch</p><h1>What Limmr is.</h1>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/welcome-panel.png" width="1800" height="1440" data-logical-width="600" data-ui-reference-pt="13" alt="What Limmr is: invented sample screen"><figcaption>Limmr connects WhatsApp to the AI tools you choose. The first window introduces the connection before you link anything; install Limmr on your Mac, open it, then begin setup.</figcaption></figure>
+<div class="journey-context"><h3>One place for context</h3><p>People, circle briefs and ongoing tasks can be shared across permitted AIs, so each conversation does not have to start from scratch. All screens in this document use invented sample data.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The window is a native Mac app written in SwiftUI. A small background program, called the engine, handles the WhatsApp link and checks each AI’s access; Go is used for that program because it can use the maintained WhatsApp multi-device library.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>01 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 2" data-snapshot="helper-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">01 / Install and first launch</p><h2>Allow the background helper.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/helper-panel.png" width="1800" height="1440" data-logical-width="600" data-ui-reference-pt="13" alt="Allow the background helper: invented sample screen"><figcaption>Setup shows the helper being registered before it asks you to link WhatsApp. If macOS asks for permission to run it in the background, allow Limmr and return to this window.</figcaption></figure>
+<div class="journey-context"><h3>Wait for a real state</h3><p>A helper that is still starting is different from an empty account. If registration fails, use the offered retry or recovery route rather than repeating WhatsApp linking.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>macOS manages the engine as a background job. It can keep the connection and waiting tasks running when you close the main window; the app shows a starting or recovery state while the helper becomes ready.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>02 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 3" data-snapshot="pairing-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">02 / Link WhatsApp</p><h2>Scan from Linked devices.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/pairing-panel.png" width="1800" height="1950" data-logical-width="600" data-ui-reference-pt="13" alt="Scan from Linked devices: invented sample screen"><figcaption>Open WhatsApp on your phone, choose Linked devices, then scan the QR code shown by Limmr. This pairs the Mac as another device, like linking WhatsApp Desktop; the QR here is an invented fixture.</figcaption></figure>
+<div class="journey-context"><h3>Use the current code</h3><p>Keep the phone online and use the newest QR if it refreshes. Linking gives this Mac access to the history WhatsApp makes available; it does not give every AI access to that history.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine receives a short-lived pairing code and the app draws the QR on your Mac. It uses an unofficial WhatsApp multi-device library, not the official business API, and stores the resulting device keys locally.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>03 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 4" data-snapshot="error-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">02 / Link WhatsApp</p><h2>If linking is interrupted.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/error-panel.png" width="1800" height="1440" data-logical-width="600" data-ui-reference-pt="13" alt="If linking is interrupted: invented sample screen"><figcaption>A failed link stays in setup with a plain explanation and a way to try again. This sample shows interrupted pairing, rather than pretending that the account is connected.</figcaption></figure>
+<div class="journey-context"><h3>A useful recovery path</h3><p>Check the phone’s connection and return to Linked devices before retrying. Back and finish-later routes keep a temporary pairing problem from trapping you in setup.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine reports linking errors separately from syncing and readiness. Starting a new attempt gets a fresh pairing session; a screenshot of the error does not link an account or change an existing installation.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>04 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 5" data-snapshot="syncing-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">03 / First sync</p><h2>Let history arrive.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/syncing-panel.png" width="1800" height="1350" data-logical-width="600" data-ui-reference-pt="13" alt="Let history arrive: invented sample screen"><figcaption>After linking, setup shows chats and messages arriving. You can continue while history is still syncing; a partial count means the history is still arriving, not that your other conversations have disappeared.</figcaption></figure>
+<div class="journey-context"><h3>Let the first pass settle</h3><p>Recent conversations may be usable before older history is complete. If a first lookup is missing something, check sync status before treating it as a complete account search.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine saves the available history in a local message database and builds a search index. Startup and sync progress are separate, so the app can keep a loading state instead of reporting an empty result too early.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>05 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 6" data-snapshot="ready-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">03 / First sync</p><h2>Enter Home when you are ready.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/ready-panel.png" width="1800" height="1350" data-logical-width="600" data-ui-reference-pt="13" alt="Enter Home when you are ready: invented sample screen"><figcaption>The final setup screen gives you a route into Home. Connecting an AI can happen now or later, and history may continue arriving after you leave setup.</figcaption></figure>
+<div class="journey-context"><h3>Connection is only the beginning</h3><p>A linked phone, completed history and an AI with permission are three different states. Check each one before asking the AI to do useful work.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The Swift app reads the engine’s status rather than keeping a second WhatsApp connection. Message history, device keys and the shared people layer live in separate local stores inside Limmr’s application-support folder.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>06 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 7" data-snapshot="home-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">04 / Home</p><h2>See what needs your attention.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/home-focus.png" width="2745" height="1335" data-logical-width="915" data-ui-reference-pt="13" alt="See what needs your attention: invented sample screen"><figcaption>This Home detail shows circle tiles with the tasks that need you next. The greeting, search, dashboard, waiting triggers and Recent sit around this grid in the full window. Start with the item that needs you, then open its circle or task for the surrounding conversation.</figcaption></figure>
+<div class="journey-context"><h3>Read the page in layers</h3><p>Search helps you find a person, chat or task. The dashboard gives an overview, circle tiles keep work in its life context, and Recent gives you a way back to what changed.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Home combines saved messages with task and circle records from the engine. A task can span several chats; reply counts and waiting states come from that shared work rather than treating every new message as a separate job.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>07 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 8" data-snapshot="map-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">05 / Circles and People</p><h2>A map of the people in your life.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/map-focus.png" width="2370" height="1365" data-logical-width="790" data-ui-reference-pt="11" alt="A map of the people in your life: invented sample screen"><figcaption>The People map groups contacts into circles such as university, family or work. Hovering a circle brings its context into focus; open it to see the people and shared work behind the shape.</figcaption></figure>
+<div class="journey-context"><h3>A few useful circles</h3><p>Choose circles that describe your life now. You do not need a separate circle for every WhatsApp group or Community; overlapping people can stay part of several contexts.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>A person can belong to more than one circle, and group membership helps explain connections. This is shared context that permitted AIs can read, not a second WhatsApp inbox or a claim that every inferred relationship is correct.</p></aside>
+<p class="source">Read more: <a href="../../CIRCLES.md">CIRCLES.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>08 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 9" data-snapshot="circle-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">05 / Circles and People</p><h2>Open a circle’s shared brief.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/circle-focus.png" width="2385" height="2070" data-logical-width="795" data-ui-reference-pt="13" alt="Open a circle’s shared brief: invented sample screen"><figcaption>A circle page puts its brief, people and ongoing work together. The brief is a short account of what matters in this part of your life, so you can check it before an AI relies on it.</figcaption></figure>
+<div class="journey-context"><h3>Keep understanding checkable</h3><p>A brief is an interpretation of conversations, not the conversations themselves. Read the relevant messages when a date, request or decision needs exact wording.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Briefs have saved versions and a named writer. A permitted AI can catch up on visible evidence and update the brief; the optional on-device writer can make a first version on supported Macs.</p></aside>
+<p class="source">Read more: <a href="../../CIRCLES.md">CIRCLES.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>09 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 10" data-snapshot="person-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">05 / Circles and People</p><h2>Open the person behind the name.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/person-focus.png" width="2370" height="2055" data-logical-width="790" data-ui-reference-pt="13" alt="Open the person behind the name: invented sample screen"><figcaption>A person page brings their profile, circles and relationship context into one place. It helps distinguish who someone is and how you know them before you ask an AI about a conversation.</figcaption></figure>
+<div class="journey-context"><h3>Correct context once</h3><p>A correction to the shared people layer can help every AI that is allowed to read it. Check uncertain details instead of letting a plausible guess become a confirmed fact.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine joins WhatsApp identities with shared profile facts and their sources. Supported edits can be attributed and reversed; inferred personal details stay suggestions until you review them.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>10 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 11" data-snapshot="suggestions-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">05 / Circles and People</p><h2>Review suggested circles.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/suggestions-panel.png" width="1920" height="1635" data-logical-width="640" data-ui-reference-pt="13" alt="Review suggested circles: invented sample screen"><figcaption>Suggested circles arrive as a plan you can review. Look at the proposed purpose and members before accepting; a suggestion is not permission for an AI to reorganise your life silently.</figcaption></figure>
+<div class="journey-context"><h3>Start small</h3><p>Keep the few circles that help with current life and work. Skip stale groups, merge overlapping ideas where useful, and correct a proposal before relying on its brief.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>An AI needs separate permission to propose people and circle changes. The engine keeps proposed changes distinct from confirmed structure, so a generated grouping can be inspected before it becomes shared context.</p></aside>
+<p class="source">Read more: <a href="../../CIRCLES.md">CIRCLES.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>11 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 12" data-snapshot="about-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">06 / About you</p><h2>Give your AIs a starting point.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/about-focus.png" width="2145" height="1725" data-logical-width="715" data-ui-reference-pt="13" alt="Give your AIs a starting point: invented sample screen"><figcaption>About you holds the context you choose to share about yourself. Review the saved description here rather than explaining the same background separately to every connected AI.</figcaption></figure>
+<div class="journey-context"><h3>Choose useful context</h3><p>Keep the description short and current. You can edit it as your course, projects or priorities change, and leave out personal details that do not help the work.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>This profile lives in Limmr’s local shared store. An AI receives only the profile information its permissions allow; saving it locally does not prevent a permitted cloud client from receiving it.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>12 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 13" data-snapshot="picker-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">07 / Connecting your AIs</p><h2>Choose the AI you use.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/picker-panel.png" width="1560" height="900" data-logical-width="520" data-ui-reference-pt="13" alt="Choose the AI you use: invented sample screen"><figcaption>The picker offers the supported AI clients and their connection routes. Choose your own assistant for personal work, or select “An AI you were given” for a connection that should see only selected circles.</figcaption></figure>
+<div class="journey-context"><h3>Own AI or given AI</h3><p>Your own AI has full context access, including older chats, and can help set up circles and briefs. “An AI you were given” starts read-only and lets you choose circles and an end date; sending still follows circle rules and its separate permission.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Each connection gets its own identity, access choices and Activity history. A local client on this Mac uses its own credential; a hosted client such as ChatGPT needs the optional secure remote connection.</p></aside>
+<p class="source">Read more: <a href="../../CONNECTING.md">CONNECTING.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>13 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 14" data-snapshot="chatgpt-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">07 / Connecting your AIs</p><h2>Follow the ChatGPT steps.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/chatgpt-panel.png" width="1920" height="2100" data-logical-width="640" data-ui-reference-pt="13" alt="Follow the ChatGPT steps: invented sample screen"><figcaption>The ChatGPT screen walks you through adding Limmr as a connector and copying its address. Enable remote access first, then follow the client’s current app or connector setup and begin its connection flow.</figcaption></figure>
+<div class="journey-context"><h3>Match the code</h3><p>ChatGPT’s connection opens an authorisation page with a six-digit code. Return to Limmr to match and review it; client menu labels and account availability may differ from this sample guide.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>A hosted AI cannot reach the private address on your Mac directly. The optional HTTPS route forwards to a separate AI-only entrance; OAuth, the sign-in protocol, asks you to approve the connection on this Mac without sharing the app’s control credential.</p></aside>
+<p class="source">Read more: <a href="../../CONNECTING.md">CONNECTING.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>14 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 15" data-snapshot="access-card">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">07 / Connecting your AIs</p><h2>Approve a connection you started.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/access-card.png" width="1800" height="1980" data-logical-width="600" data-ui-reference-pt="13" alt="Approve a connection you started: invented sample screen"><figcaption>The review sheet shows the waiting connection and what it will be allowed to see. Match the code, choose the AI profile, and select circles and duration before approving the given-AI connection.</figcaption></figure>
+<div class="journey-context"><h3>Make the boundary explicit</h3><p>Use the given-AI preset for selected circles and read-only access. Only approve a code you initiated; ending or narrowing access later stops future lookups but cannot retrieve data already received by that client.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine identifies the AI from its credential and checks its current access on every request. The given-AI preset begins read-only; your own AI has full context access. Sending and media have separate controls.</p></aside>
+<p class="source">Read more: <a href="../../CONNECTING.md">CONNECTING.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>15 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 16" data-snapshot="circle-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">08 / Asking from an AI</p><h2>What a lookup brings back.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/circle-focus.png" width="2385" height="2070" data-logical-width="795" data-ui-reference-pt="13" alt="What a lookup brings back: invented sample screen"><figcaption>Ask your connected AI a question such as “What is still open in the Atlas renovation circle?” The circle page shown here is the saved context a permitted lookup can draw on; this is not a screenshot of an AI answer or a live lookup.</figcaption></figure>
+<div class="journey-context"><h3>An illustrated lookup</h3><p>A result might include a circle brief, the people involved, an unresolved request and references to the messages behind it. The AI uses those returned facts to answer you; excluded chats and counts must stay invisible, and the read appears in Activity.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>MCP is the common tool connection that lets different AIs ask Limmr for context. After identifying itself with whoami, an AI can find visible people or chats, read relevant messages and briefs, and receive evidence references and open work rather than the whole account.</p></aside>
+<p class="source">Read more: <a href="../../MCP.md">MCP.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>16 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 17" data-snapshot="send-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">09 / Approving a send</p><h2>Check the exact message.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/send-panel.png" width="1920" height="915" data-logical-width="640" data-ui-reference-pt="13" alt="Check the exact message: invented sample screen"><figcaption>A queued send shows the recipient and the final text for review. Read both, edit if needed, then approve or deny; the example is a prepared sample and no WhatsApp message is sent for this document.</figcaption></figure>
+<div class="journey-context"><h3>Know what confirmation means</h3><p>An own-preset AI may use your explicit instruction to authorise a send where allowed, but it cannot override Never. The engine cannot prove that a human clicked an AI client’s Allow button; check send status rather than retrying an uncertain delivery.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Circle rules can allow a send, require confirmation or forbid it; the strictest rule wins when circles overlap. Confirmation normally uses a separate draft step in the AI chat, while requested Mac review and background work can wait here on Home.</p></aside>
+<p class="source">Read more: <a href="../../SECURITY.md">SECURITY.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>17 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 18" data-snapshot="watch-card">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">10 / Triggers and watches</p><h2>When this happens, do that.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:115.50mm"><img src="../assets/details/watch-card.png" width="1014" height="585" data-logical-width="338" data-ui-reference-pt="13" alt="When this happens, do that: invented sample screen"><figcaption>A trigger keeps a task waiting for a time or a message condition. Open it to see what it watches, what it should do next and whether it is waiting, paused or finished. Here, Exam news has caught a new exam date, with Pause and Stop beside it. The matching message stays visible above the controls.</figcaption></figure>
+<div class="journey-context"><h3>Stay in control</h3><p>Inspect the condition and action before leaving work waiting. Pause or stop a watch when plans change, and check its hits and expiry if it appears to have done nothing.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine checks permitted message events or a schedule and runs the saved instructions when the condition matches. Watches remain tied to allowed chats and circles; a background action that needs confirmation parks a suggestion rather than bypassing the send rule.</p></aside>
+<p class="source">Read more: <a href="../../TRIGGERS.md">TRIGGERS.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>18 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 19" data-snapshot="activity-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">11 / Activity</p><h2>See work grouped by purpose.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/activity-focus.png" width="2550" height="1770" data-logical-width="850" data-ui-reference-pt="13" alt="See work grouped by purpose: invented sample screen"><figcaption>Activity groups related work into tasks rather than making you read one row for every technical call. A task can connect the planning, messages and follow-up that happened across several conversations.</figcaption></figure>
+<div class="journey-context"><h3>Open the task</h3><p>Use the task’s state to see whose turn comes next, then open it for evidence. If unrelated work has been grouped together, inspect the messages before accepting the task’s title or status.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine uses message evidence, reply chains, people and timing to group work. Its confidence score describes the strength of that evidence, not a probability that the interpretation is correct.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>19 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 20" data-snapshot="effort-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">11 / Activity</p><h2>Follow a task into its evidence.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/effort-focus.png" width="1725" height="2055" data-logical-width="575" data-ui-reference-pt="13" alt="Follow a task into its evidence: invented sample screen"><figcaption>The task page shows a name, state and a timeline of the messages behind the work. You can follow a plan across people and group chats without assuming that one chat contains the entire task.</figcaption></figure>
+<div class="journey-context"><h3>Read before acting</h3><p>Check the latest request and any change of plan in the evidence. A confident title is useful for navigation, but it is not a substitute for the exact message when you are about to reply.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Task records point back to message evidence and track naming credit. A shared name or summary is an interpretation layered over those messages, so the supporting timeline remains available for inspection.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>20 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 21" data-snapshot="naming-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">11 / Activity</p><h2>Names can come from This Mac.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/naming-focus.png" width="2535" height="1950" data-logical-width="845" data-ui-reference-pt="13" alt="Names can come from This Mac: invented sample screen"><figcaption>Activity can show tasks whose names were written by This Mac. This sample uses a deterministic writer to demonstrate the resulting state; it does not prove a real on-device model ran.</figcaption></figure>
+<div class="journey-context"><h3>Keep the credit visible</h3><p>A permitted external AI can also name work through Limmr’s tools. The credit tells you which writer supplied the name, and the evidence lets you judge whether it fits.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>On supported Macs, the optional local writer uses bounded task evidence to suggest a useful name. Uncertain results stay queued, and a revision check prevents an old naming result from replacing newer task state.</p></aside>
+<p class="source">Read more: <a href="../../A6-REPORT.md">A6-REPORT.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>21 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 22" data-snapshot="log-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">11 / Activity</p><h2>Inspect the detailed log.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/log-focus.png" width="2550" height="2205" data-logical-width="850" data-ui-reference-pt="13" alt="Inspect the detailed log: invented sample screen"><figcaption>The detailed log shows the individual actions underneath the task view. Use it to check which AI read, searched, wrote a brief or requested a send, and what happened next.</figcaption></figure>
+<div class="journey-context"><h3>A record, not a guess</h3><p>An AI saying it completed a job is different from a recorded outcome. Open the relevant event and check send status or the saved result before treating a task as finished.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Every tool call leaves an attributed Activity record. Read events retain message references rather than extra copies of message text; sent events retain final text, while redacted diagnostics are a separate troubleshooting surface.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>22 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 23" data-snapshot="access-card">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">12 / Privacy controls</p><h2>Choose each AI’s circles.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/access-card.png" width="1800" height="1980" data-logical-width="600" data-ui-reference-pt="13" alt="Choose each AI’s circles: invented sample screen"><figcaption>Review access for each integration separately. This connection review limits “An AI you were given” to Work and a chosen end date. Your own AI uses full context access, so select the preset deliberately.</figcaption></figure>
+<div class="journey-context"><h3>Ending access has a limit</h3><p>Expiry and revocation stop future requests. They cannot erase data already copied into an AI conversation or retained by its provider, even though Limmr’s own stores remain on this Mac.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The engine checks identity, capabilities, chat selection, circle access, hidden chats and expiry together on each call. A chat shared by Work and Family can still be visible through Work; read access never enables sending on its own.</p></aside>
+<p class="source">Read more: <a href="../../SECURITY.md">SECURITY.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>23 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 24" data-snapshot="hidden-focus">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">12 / Privacy controls</p><h2>Hide conversations from every AI.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/hidden-focus.png" width="2205" height="2295" data-logical-width="735" data-ui-reference-pt="13" alt="Hide conversations from every AI: invented sample screen"><figcaption>Hidden chats lets you exclude direct conversations or groups across your AI integrations. The People list here concerns direct chats; review the Groups tab separately for group conversations.</figcaption></figure>
+<div class="journey-context"><h3>What stays on this Mac</h3><p>Limmr stores history, device keys, people and permissions locally; it does not claim those databases are encrypted at rest. A cloud AI still receives the permitted information returned to it, so hide or narrow context before sharing it.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The global hidden list takes priority over each AI’s access. Hiding a direct chat does not erase its person or hide that person’s messages in a visible group; the boundary applies to the conversation.</p></aside>
+<p class="source">Read more: <a href="../../SECURITY.md">SECURITY.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>24 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 25" data-snapshot="menu-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">13 / Menu bar</p><h2>Check without opening the full window.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:133.26mm"><img src="../assets/details/menu-panel.png" width="1170" height="1860" data-logical-width="390" data-ui-reference-pt="13" alt="Check without opening the full window: invented sample screen"><figcaption>The menu bar panel gives a small view of waiting work, approvals and watch updates. Open an item for its context or use Open Limmr to return to the main window.</figcaption></figure>
+<div class="journey-context"><h3>Counts with a purpose</h3><p>Waiting watches and approvals are different kinds of work. Check the label beside each count before deciding whether anything needs you now.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>The panel uses the same engine state and review paths as the main app. Closing the window does not stop the background helper; a disconnected or starting state should remain visible here too.</p></aside>
+<p class="source">Read more: <a href="../../SPEC.md">SPEC.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>25 / 26</span></footer></section>
+<section class="page journey" aria-label="Page 26" data-snapshot="updates-panel">
+<header class="running"><span>Limmr / What Limmr is</span><span>19 October 2026 · D3 R2</span></header>
+<p class="eyebrow">14 / Updates</p><h2>Review an update before restarting.</h2>
+<div class="body"><figure class="journey-screen" style="--print-width:174.00mm"><img src="../assets/details/updates-panel.png" width="1920" height="1680" data-logical-width="640" data-ui-reference-pt="13" alt="Review an update before restarting: invented sample screen"><figcaption>Update notes show what changed before you choose to install and restart. This sample shows the review surface; it does not perform an installation or prove recovery on an installed Mac.</figcaption></figure>
+<div class="journey-context"><h3>Keep work safe</h3><p>An update should wait for active sends rather than interrupting them. After restart, check that the expected version and connection are ready; a polished sample screen alone is not evidence of a successful real update.</p></div>
+<aside class="underneath"><h3>Underneath</h3><p>Before replacing the engine, the updater blocks new sends and waits for active work to finish. It checks the expected replacement version, rolls back on failure and attempts to resume; a timed pause also expires so a failed update cannot leave sending stopped forever.</p></aside>
+<p class="source">Read more: <a href="../../U1-REPORT.md">U1-REPORT.md</a> · Sample screen, not a live account.</p></div>
+<footer><span>Local edition · Invented app data</span><span>26 / 26</span></footer></section>
+</main></body></html>
