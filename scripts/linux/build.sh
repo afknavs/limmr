@@ -90,7 +90,9 @@ PREFIX=${PREFIX:-"$HOME/.local"}
 mkdir -p "$PREFIX/bin" "$GOPATH" "$GOCACHE"
 PREFIX=$(CDPATH= cd -- "$PREFIX" && pwd)
 cd "$root/engine"
-nice -n 15 "$go_bin" build -trimpath -buildvcs=false -o "$PREFIX/bin/limmr-engine" ./cmd/limmr-engine < /dev/null
+version=$(tr -d ' \n' < "$root/VERSION" 2>/dev/null || true)
+case $version in [0-9]*.[0-9]*.[0-9]*) ;; *) fail 'VERSION is missing or malformed.' ;; esac
+nice -n 15 "$go_bin" build -trimpath -buildvcs=false -ldflags "-X limmr/internal/health.Version=$version" -o "$PREFIX/bin/limmr-engine" ./cmd/limmr-engine < /dev/null
 if "$test_suite"; then
     test_home=$(mktemp -d)
     trap 'rm -rf "$test_home"' EXIT HUP INT TERM

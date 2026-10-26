@@ -290,17 +290,22 @@ func TestContract10RealProcessesOAuth(t *testing.T) {
 	// The runtime runs immediately after readiness. Await its observable claim.
 	deadline = time.Now().Add(10 * time.Second)
 	count := func(home string) int {
-		repo, e := hub.Open(filepath.Join(home, "hub.db"))
-		if e != nil {
-			t.Fatal(e)
+		// The running engine may hold a write lock; on a slow machine retry briefly instead of failing.
+		var e error
+		for try := time.Now().Add(10 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+			var repo *hub.Repo
+			if repo, e = hub.Open(filepath.Join(home, "hub.db")); e == nil {
+				var n int
+				e = repo.DB.QueryRow(`SELECT count(*) FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')='y7-lease-slot' AND json_extract(data,'$.state')='pending'`).Scan(&n)
+				repo.Close()
+				if e == nil {
+					return n
+				}
+			}
+			if !strings.Contains(e.Error(), "locked") && !strings.Contains(e.Error(), "busy") || time.Now().After(try) {
+				t.Fatal(e)
+			}
 		}
-		defer repo.Close()
-		var n int
-		e = repo.DB.QueryRow(`SELECT count(*) FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')='y7-lease-slot' AND json_extract(data,'$.state')='pending'`).Scan(&n)
-		if e != nil {
-			t.Fatal(e)
-		}
-		return n
 	}
 	for time.Now().Before(deadline) && count(macHome) == 0 {
 		time.Sleep(50 * time.Millisecond)
