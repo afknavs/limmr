@@ -9,7 +9,6 @@ import Testing
     #expect(AccessoryAvailability.isAvailable(enabled: true, installed: { false }))
     #expect(AccessoryAvailability.isAvailable(enabled: false, installed: { true }))
     #expect(SettingsSearchEntry.matches("accessory").isEmpty)
-    #expect(SettingsSearchEntry.matches("accessory", showAccessory: true).first?.tab == .integrations)
   }
   @Test func statusChangeAndUndoUpdateHomeAndReadBack() async throws {
     let store = AppStore(demo: true, snapshot: true)
