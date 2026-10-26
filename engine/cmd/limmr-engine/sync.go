@@ -72,19 +72,20 @@ func runSync(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if pairing {
-		ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		defer cancel()
 		if e = s.PairOutbound(ctx, valid, func(code string) {
-			fmt.Println("On your Mac: Settings → Integrations → Your dot → Pair. Enter code", code)
+			fmt.Println("On your Mac: Settings → Integrations → Sync with another Limmr → Pair…. Enter code", code)
 		}); e != nil {
-			return e
+			return interrupted(ctx, e)
 		}
 		fmt.Println("Paired. Sync complete; this Mac runs reminders and check-ins.")
 		return nil
 	}
 	for {
-		runCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 		e = s.RunOnce(runCtx, valid)
+		if e != nil {
+			e = interrupted(runCtx, e)
+		}
 		cancel()
 		if e != nil {
 			return e
@@ -101,4 +102,12 @@ func runSync(args []string) error {
 		case <-timer.C:
 		}
 	}
+}
+
+// interrupted explains a stopped exchange: cursors are saved per page, so the next run resumes.
+func interrupted(ctx context.Context, e error) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("sync stopped before it finished; progress is saved, run sync --once again to continue")
+	}
+	return e
 }

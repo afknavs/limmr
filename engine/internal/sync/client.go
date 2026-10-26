@@ -141,7 +141,10 @@ func (s *Service) RunOnce(ctx context.Context, peer string) error {
 	}
 	return s.Exchange(ctx, HTTPTransport{PeerURL: c.PeerURL, Token: token.Access})
 }
-func (s *Service) PairOutbound(ctx context.Context, peer string, printCode func(string)) error {
+func (s *Service) PairOutbound(parent context.Context, peer string, printCode func(string)) error {
+	// The owner has ten minutes to approve; the first exchange afterwards may take much longer on a large graph.
+	ctx, cancel := context.WithTimeout(parent, 10*time.Minute)
+	defer cancel()
 	peer, e := ValidatePeer(peer)
 	if e != nil {
 		return e
@@ -215,7 +218,7 @@ func (s *Service) PairOutbound(ctx context.Context, peer string, printCode func(
 			if e = s.SaveCredentials(Credentials{peer, registration.ID, token.Refresh}); e != nil {
 				return e
 			}
-			return s.Exchange(ctx, t)
+			return s.Exchange(parent, t)
 		case "waiting":
 		default:
 			return errors.New("pairing denied or expired")
