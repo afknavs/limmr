@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -162,6 +163,8 @@ func (s *Service) Handler() http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
+			// Reasons only; request bodies and credentials never reach the log.
+			slog.Warn("sync request failed", "path", r.URL.Path, "error", err.Error())
 			code := http.StatusBadRequest
 			body := map[string]string{"error": "invalid_sync_request"}
 			if errors.Is(err, ErrUpdateNeeded) {

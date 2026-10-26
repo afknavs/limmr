@@ -43,7 +43,10 @@ func (t HTTPTransport) call(ctx context.Context, path string, q any) ([]byte, er
 	}
 	defer resp.Body.Close()
 	b, e = io.ReadAll(io.LimitReader(resp.Body, MaxBytes+1))
-	if e != nil || len(b) > MaxBytes {
+	if e != nil {
+		return nil, fmt.Errorf("sync peer connection dropped mid-response")
+	}
+	if len(b) > MaxBytes {
 		return nil, ErrInvalid
 	}
 	if resp.StatusCode != 200 {
