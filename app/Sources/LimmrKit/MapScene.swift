@@ -90,7 +90,7 @@ public struct NetworkMapProjection: Sendable {
     if let label = NetworkCircleLabels.frames(scene: self, camera: camera).sorted(by: { $0.key < $1.key }).first(where: { $0.value.contains(point) }) { return label.key }
     return visible(camera: camera).compactMap { node -> (String, Double)? in
       guard let p = positions[node.id].map(camera.screen) else { return nil }
-      let d = hypot(p.x - point.x, p.y - point.y)
+      let d = Double(hypot(p.x - point.x, p.y - point.y))
       if node.kind == "circle" { return nil }
       return d <= (camera.showsAvatars ? 12 : 9) ? (node.id, d) : nil
     }.min { $0.1 < $1.1 }?.0
