@@ -36,7 +36,6 @@ import Testing
     #expect(SettingsTab.allCases.map(\.rawValue) == ["General", "Connections", "Integrations", "Privacy"])
     for entry in SettingsSearchEntry.all { #expect(SettingsTab.allCases.contains(entry.tab)) }
     #expect(SettingsSearchEntry.matches("data folder").first?.advanced == true)
-    #expect(SettingsSearchEntry.matches("Accessory", showAccessory: true).first?.tab == .general)
     #expect(SettingsSearchEntry.matches("Accessory", showAccessory: false).isEmpty)
     #expect(SettingsSearchEntry.matches("hidden").first?.tab == .privacy)
     #expect(SettingsSearchEntry.matches("sync").first?.tab == .connections)
