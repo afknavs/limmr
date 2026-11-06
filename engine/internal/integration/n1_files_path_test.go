@@ -19,12 +19,10 @@ import (
 func TestN1LocalFileCopyAndRemoteRefusal(t *testing.T) {
 	r := newRig(t)
 	r.fake.Home = r.home
-	root, err := filepath.Abs("../../../.cache")
-	must(t, err)
-	must(t, os.MkdirAll(root, 0700))
-	dir, err := os.MkdirTemp(root, "n1-file-test-")
-	must(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	// Local paths must sit inside $HOME. Use a throwaway home so the test also passes
+	// from a clone or extracted ZIP outside the real home folder (CI, a dot).
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 	path := filepath.Join(dir, "poster.pdf")
 	must(t, os.WriteFile(path, []byte("%PDF-invented original"), 0600))
 	out, err := r.call(t, "upload_attachment", map[string]any{"path": path})
