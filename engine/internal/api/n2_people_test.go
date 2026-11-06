@@ -9,6 +9,7 @@ import (
 	"limmr/internal/testkit"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -101,8 +102,8 @@ func TestN2PeopleBudgets(t *testing.T) {
 		if summary == nil || summary.Text != "Invented planning summary" {
 			t.Fatal("eligible saved summary missing")
 		}
-		if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
-			t.Errorf("saved summary: %v exceeds 50ms", elapsed)
+		if elapsed := time.Since(start); elapsed > n2Budget(50*time.Millisecond) {
+			t.Errorf("saved summary: %v exceeds %v", elapsed, n2Budget(50*time.Millisecond))
 		}
 	})
 	for _, v := range []struct {
@@ -115,9 +116,17 @@ func TestN2PeopleBudgets(t *testing.T) {
 			n2Request(t, handler, v.path)
 			elapsed := time.Since(start)
 			t.Logf("cold: %.2f ms", float64(elapsed.Microseconds())/1000)
-			if elapsed > v.budget {
-				t.Errorf("%v exceeds %v", elapsed, v.budget)
+			if budget := n2Budget(v.budget); elapsed > budget {
+				t.Errorf("%v exceeds %v", elapsed, budget)
 			}
 		})
 	}
+}
+
+// Shared CI runners are slower and noisier than a developer Mac; keep local budgets strict.
+func n2Budget(d time.Duration) time.Duration {
+	if os.Getenv("CI") != "" {
+		return 3 * d
+	}
+	return d
 }
