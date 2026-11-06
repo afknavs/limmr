@@ -10,6 +10,8 @@ import (
 
 // Fake never constructs a Whatsmeow client and cannot access the network.
 type Fake struct {
+	Home     string
+	Uploaded [][]byte
 	Messages *Store
 	mu       sync.Mutex
 	Sent     []model.Approval
@@ -47,6 +49,13 @@ func (f *Fake) Send(ctx context.Context, a model.Approval) (string, error) {
 	defer f.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if a.Kind == "file" && f.Home != "" {
+		b, e := readOutboundAttachment(f.Home, a.Attachment)
+		if e != nil {
+			return "", e
+		}
+		f.Uploaded = append(f.Uploaded, append([]byte(nil), b...))
 	}
 	f.Sent = append(f.Sent, a)
 	id := a.MessageID

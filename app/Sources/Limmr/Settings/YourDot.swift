@@ -3,15 +3,32 @@ import SwiftUI
 
 struct YourDotSection: View {
   @Bindable var store: AppStore
-  @State private var status: DotSyncStatus?
+  private var status: DotSyncStatus? { store.connectionSync }
+  @State private var expanded = false
   @State private var pairing = false
   @State private var code = ""
   @State private var allowSync = true
   @State private var error: String?
   @State private var busy = false
+  @State private var recovering = false
 
   var body: some View {
-    Section("Sync with another Limmr") {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 10) {
+        Circle().fill(status?.paired == true && status?.peer.lastError.isEmpty == true ? Color.green : Color.secondary).frame(width: 6, height: 6)
+        Text("Sync with another Limmr")
+        Spacer()
+        Text(status?.connectionTitle ?? "Not paired").font(.callout).foregroundStyle(AccessibleSecondary())
+        Button(status?.connectionAction ?? "Pair…") {
+          if status?.paired == true { expanded.toggle() } else { pairing = true }
+        }.buttonStyle(NativeGlassButtonStyle())
+      }
+      if let status, status.paired {
+        Label(status.sendingSummary ?? (status.lease.thisMac ? "This Mac holds sending" : "Your dot holds sending"), systemImage: "paperplane")
+          .font(.callout).fixedSize(horizontal: false, vertical: true)
+        if status.paired { Text(lastSync(status)).font(.caption).foregroundStyle(AccessibleSecondary()) }
+      }
+      if expanded {
       if let status {
         if status.paired {
           HStack {
@@ -21,6 +38,8 @@ struct YourDotSection: View {
             Spacer()
             Menu {
               Button(status.paused ? "Resume" : "Pause") { change("/v1/sync/pause", body: ["paused": !status.paused]) }
+              Button(status.lease.thisMac ? "Move sending to the other Limmr" : "Move sending here") { change("/v1/sync/lease", body: ["take": !status.lease.thisMac]) }
+              if !status.lease.thisMac { Button("Recover sending after expiry…") { recovering = true } }
               Button("Unpair") { change("/v1/sync/pair", method: "DELETE") }
             } label: { Image(systemName: "ellipsis") }
               .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Sync options")
@@ -28,7 +47,7 @@ struct YourDotSection: View {
           Text(lastSync(status)).font(.callout).foregroundStyle(AccessibleSecondary())
           Text("\(status.itemsIn) items received · \(status.itemsOut) items sent")
             .font(.callout).foregroundStyle(AccessibleSecondary())
-          Label(status.lease.thisMac ? "This Mac runs reminders and check-ins" : "\(status.peer.name.isEmpty ? "The other Limmr" : status.peer.name) runs reminders and check-ins",
+          Label(status.lease.thisMac ? "This Mac holds sending, reminders and check-ins" : "\(status.peer.name.isEmpty ? "The other Limmr" : status.peer.name) holds sending, reminders and check-ins",
             systemImage: "bell.badge")
           ForEach(status.mergeReviews) { review in
             VStack(alignment: .leading, spacing: 8) {
@@ -56,8 +75,7 @@ struct YourDotSection: View {
         Text("Hidden chats and AI permissions are separate on each copy of Limmr. Review them on both.")
           .font(.caption).foregroundStyle(AccessibleSecondary())
       }
-      Text("AIs you connect appear under Your AIs. Syncing is for another copy of Limmr.")
-        .font(.caption).foregroundStyle(AccessibleSecondary())
+      }
       if let error { Text(error).foregroundStyle(AccessibleSecondary()).accessibilityLabel("Limmr sync: \(error)") }
     }
     .disabled(busy)
@@ -68,6 +86,13 @@ struct YourDotSection: View {
         do { try await Task.sleep(for: .seconds(5)) } catch { return }
         await load()
       }
+    }
+    .confirmationDialog("Recover sending here?", isPresented: $recovering) {
+      Button("I have stopped the previous sending device") {
+        change("/v1/sync/lease", body: ["take": true, "previous_holder_stopped": true])
+      }
+    } message: {
+      Text("Wait until the lease expires plus one minute. Recovery requires the previous sending device to be stopped and no unresolved send attempts. Restore sync before queued sends can be acknowledged. An uncertain send must never be requested again.")
     }
     .sheet(isPresented: $pairing) {
       VStack(alignment: .leading, spacing: 16) {
@@ -100,13 +125,18 @@ struct YourDotSection: View {
   private func lastSync(_ status: DotSyncStatus) -> String {
     if !status.peer.lastError.isEmpty { return status.peer.lastError }
     if store.demo || store.snapshot { return "Last synced just now" }
-    guard let date = ISO8601DateFormatter().date(from: status.peer.lastSyncAt), date.timeIntervalSince1970 > 0 else { return "Waiting for the first sync" }
+    guard let date = Timestamp.date(status.peer.lastSyncAt), date.timeIntervalSince1970 > 0 else { return "Waiting for the first sync" }
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .full
     return "Last synced \(formatter.localizedString(for: date, relativeTo: Date()))"
   }
   private func load() async {
-    do { status = try await store.backend.get("/v1/sync"); error = nil }
+    let generation = store.backendGeneration
+    do {
+      let next: DotSyncStatus = try await store.backend.get("/v1/sync")
+      guard generation == store.backendGeneration, !Task.isCancelled else { return }
+      store.connectionSync = next; error = nil
+    }
     catch { self.error = "Couldn’t refresh sync. Showing the last available status." }
   }
   private func change<T: Encodable & Sendable>(_ path: String, method: String = "POST", body: T) {

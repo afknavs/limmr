@@ -90,6 +90,20 @@ public enum DemoData {
       id: "a3", agentId: "agent-1", chatJid: groupJid(0), kind: "message",
       text: "Thanks, I will bring the notes.", createdAt: date(70), expiresAt: now, state: "sent"),
   ]
+  public static func fileApproval(image: Bool) -> Approval {
+    var approval = approvals[0]
+    approval.kind = "file"
+    approval.text = image ? "The poster for Saturday’s Design Club session." : "Here is the session guide for Design Club."
+    approval.attachment = Attachment(id: "invented-file", name: image ? "Design Club poster.png" : "Design Club guide.pdf", size: image ? 840_000 : 6_000_000, sha256: String(repeating: "a", count: 64))
+    return approval
+  }
+  public static func fileSuggestion(image: Bool) -> CircleSuggestion {
+    let approval = fileApproval(image: image)
+    var item = CircleSuggestion(id: "file-review", circleId: "university", kind: "reply", chatJid: approval.chatJid, draftText: approval.text, why: "Review the file before sending.", createdBy: approval.agentId, expiresAt: approval.expiresAt)
+    item.attachment = approval.attachment
+    item.body = approval.text; item.variations = [approval.text]
+    return item
+  }
   public static let activity: [Activity] = {
     [
       .init(id: 25, at: date(4), agentId: "agent-1", tool: "list_messages", kind: "read", chatJids: [groupJid(1)], messageIds: [], count: 3),
@@ -893,7 +907,8 @@ public actor DemoBackend: Backend {
       let query = URLComponents(string: path)?.queryItems ?? []
       func value(_ key: String) -> String? { query.first { $0.name == key }?.value }
       let rows = activity.sorted(by: Activity.newestFirst).filter { row in
-        (value("agent") == nil || row.agentId == value("agent"))
+        (value("quiet") != "true" || !ActivityPresentation.isEmptyRead(row))
+          && (value("agent") == nil || row.agentId == value("agent"))
           && (value("kind") == nil || row.kind == value("kind"))
           && (value("chat") == nil || row.chatJids.contains(value("chat")!))
           && (value("before") == nil || row.id < (Int64(value("before")!) ?? 0))
@@ -973,6 +988,7 @@ public actor DemoBackend: Backend {
         return Data("{\"ok\":true}".utf8)
       }
       if method == "PATCH", let i = agents.firstIndex(where: { $0.id == parts[2] }) {
+        if let peer = object["runs_on_peer"] as? String { agents[i].runsOnPeer = peer.isEmpty ? nil : peer }
         if let enabled = object["enabled"] as? Bool { agents[i].enabled = enabled }
         if let name = object["name"] as? String {
           do { agents[i].name = try AgentName.normalized(name) } catch {

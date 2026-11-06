@@ -80,3 +80,30 @@ Limmr uses an unofficial WhatsApp client library and is not endorsed by WhatsApp
 ## Linux and dots
 
 [Run Limmr on Linux or a dot](handoffs/DOT-ENGINE.md) for the one-command source build, WhatsApp linking, Mac pairing and scheduled sync.
+
+## Files and another Limmr
+
+A local AI can supply an absolute path or `~/poster.pdf`. Limmr copies and hashes
+the file before approval. Documents are limited to 100 MiB; images, video and
+audio to 16 MiB each. Choose **Review files** in the main window. The card shows an icon, name, size and destination, with caption editing and Approve/Deny.
+Remote AIs use resumable chunks of at most 1 MiB base64 each, then send the
+returned attachment ID. Uploads expire after one hour. See [file sources](MCP.md#local-files).
+
+A dot can run its own engine or pair with the Mac. Both receive WhatsApp
+independently. Selected knowledge, approved send queues and their files sync;
+message history, session keys and AI credentials stay on each device. Upgrade
+both engines to schema 18 / sync protocol 2 before pairing. Follow the
+[dot handoff](handoffs/DOT-ENGINE.md).
+
+Settings → Connections shows which device holds sending and when it last synced.
+Use Manage to request a role move from either side. A paired send waits for the
+holder and the peer's durable acknowledgement. Without sync the 30-minute lease
+expires; neither device takes over just because the other is silent.
+
+If the holder is unreachable, wait until lease expiry plus one minute and use
+**Recover sending after expiry…** only after stopping the previous device. The
+owner must confirm “I have stopped the previous sending device.” Recovery does
+not bypass queue reconciliation. Unpairing a non-holder retains this same local
+fence; imported queued requests never run standalone. A never-paired engine runs
+normally on its own. An uncertain send must be reconciled with its original
+message ID, never requested again. See the [coordination contract](lanes/SYNC-CONTRACT.md).

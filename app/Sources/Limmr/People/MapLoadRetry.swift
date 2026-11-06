@@ -18,10 +18,14 @@ enum MapLoadRetry {
       do { return try await backend.request(path, method: "GET", body: nil) }
       catch {
         try Task.checkCancellation()
+        if (error as? URLError)?.code == .timedOut {
+          try await pause(.seconds(1))
+          continue
+        }
         if case BackendError.starting(let current) = error {
           if current != progress { progress = current; waited = .zero; progressAt = .now }
           guard waited < .seconds(30), progressAt.duration(to: .now) < .seconds(30) else {
-            throw BackendError.unavailable("The background helper stopped making startup progress. Try again.")
+            throw BackendError.unavailable("Limmr’s engine stopped making startup progress. Try again.")
           }
           // Keep the store's load pending, preserving its loading state and last good value.
           try await pause(.milliseconds(500))

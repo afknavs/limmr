@@ -260,6 +260,9 @@ func TestShortCloseAndRetention(t *testing.T) {
 			}
 			testkit.Must(t, err)
 			want := "done"
+			if reason == "done" {
+				want = "agent_done"
+			}
 			if reason == "lifespan" {
 				want = "lifespan"
 			}

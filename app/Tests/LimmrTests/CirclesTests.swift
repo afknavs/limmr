@@ -21,7 +21,7 @@ import Testing
     #expect(store.circlePath == [.circle("atlas")])
     store.circlePath.append(.person("person-04"))
     #expect(store.circlePath.count == 2 && !store.showConnect)
-    #expect(Page.allCases.map(\.rawValue) == ["Home", "People", "Activity"])
+    #expect(Page.allCases.map(\.rawValue) == ["Home", "Tasks", "People", "Activity"])
   }
   @MainActor @Test func integrationDeepLinkOpensSettings() async {
     let store = AppStore(demo: true, snapshot: true)

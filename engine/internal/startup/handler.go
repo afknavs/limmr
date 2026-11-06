@@ -42,7 +42,7 @@ func (s *State) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	handler, stage, progress := s.handler, s.stage, s.progress
 	s.mu.RUnlock()
-	if handler != nil {
+	if handler != nil && r.URL.Path != "/v1/ping" {
 		handler.ServeHTTP(w, r)
 		return
 	}
@@ -65,6 +65,10 @@ func (s *State) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !control && !status && r.URL.Path != "/mcp" {
 		w.Header().Set("WWW-Authenticate", "Bearer")
 		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if r.Method == "GET" && control && r.URL.Path == "/v1/ping" {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if r.Method == "GET" && control && r.URL.Path == "/v1/health" {

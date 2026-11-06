@@ -19,7 +19,14 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
               ForEach(SettingsSearchEntry.matches(store.settingsQuery, showAccessory: store.accessoryAvailable)) { result in
                 Button {
+                  store.privacyHidden = result.label == "Hidden chats"
+                  store.privacyPeople = ["Export people…", "Fill in from your AI…", "Infer how I know frequent contacts"].contains(result.label)
+                  store.privacyBriefs = result.label == "First briefs from This Mac"
+                  store.privacyProfile = ["About you", "New circles"].contains(result.label)
                   store.settingsTab = result.tab
+                  store.connectionAdvanced = result.advanced
+                  store.connectionDetails = result.label == "Health"
+                  store.connectionRemote = result.label == "Allow remote connections"
                   store.settingsSearchTarget = result.label
                 } label: {
                   VStack(alignment: .leading, spacing: 4) {
@@ -84,25 +91,28 @@ struct SettingsView: View {
   private func settingsPage(_ tab: SettingsTab) -> some View {
     Group {
       if tab == .integrations {
-        AgentsView(store: store).settingsMatch("Integrations", store: store)
+        AgentsView(store: store).settingsMatch("AI apps", store: store)
+          .frame(maxWidth: .infinity, alignment: .leading)
       } else {
         ScrollViewReader { proxy in
           Form {
             switch tab {
             case .integrations: EmptyView()
             case .general: GeneralSettings(store: store)
-            case .sources: SourcesSettings(store: store)
-            case .people: PeopleSettings(store: store)
-            case .briefs: BriefsSettings(store: store)
-            case .hiddenChats: HiddenChatsSettings(store: store, kind: hiddenKind)
-            case .remote: RemoteSettings(store: store)
-            case .health: HealthView(store: store).settingsMatch("Health", store: store)
-            case .advanced: AdvancedSettings(store: store)
+            case .connections: ConnectionsSettings(store: store)
+            case .privacy:
+              SourcesPrivacySettings(store: store)
+              Section {
+                DisclosureGroup("Hidden chats", isExpanded: $store.privacyHidden) { HiddenChatsSettings(store: store, kind: hiddenKind) }
+                DisclosureGroup("People", isExpanded: $store.privacyPeople) { PeopleSettings(store: store) }
+                DisclosureGroup("About you and circles", isExpanded: $store.privacyProfile) { ProfilePrivacySettings(store: store) }
+                DisclosureGroup("Briefs", isExpanded: $store.privacyBriefs) { BriefsSettings(store: store) }
+              }
             }
           }
           .formStyle(.grouped)
           .scrollContentBackground(.hidden)
-          .frame(maxWidth: 760, alignment: .leading).frame(maxWidth: .infinity, alignment: .leading)
+          .frame(maxWidth: .infinity, alignment: .leading)
           .task(id: store.settingsSearchTarget) {
             guard !store.settingsSearchTarget.isEmpty else { return }
             await Task.yield()
@@ -135,12 +145,6 @@ struct GeneralSettings: View {
       .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
         store.system.login.refresh()
       }
-      Stepper(
-        "Current chats: last \(store.settings.currentDays) days",
-        value: store.settingsBinding(\.currentDays), in: 1...3650
-      ).settingsMatch("Current chats", store: store)
-      Text("Setup focuses on your life now. Older chats stay available below the current ones.")
-        .font(.footnote).foregroundStyle(AccessibleSecondary())
       Picker("Keep activity for", selection: store.settingsBinding(\.retentionDays)) {
         Text("30 days").tag(30)
         Text("90 days").tag(90)
@@ -159,16 +163,7 @@ struct GeneralSettings: View {
       SettingsPaneTitle(title: "General")
     }
     .toggleStyle(.switch)
-    Section { AboutYouCard(store: store).settingsMatch("About you", store: store) }
-    Section {
-      Picker("New circles from your own AIs", selection: store.settingsBinding(\.autoCircles)) {
-        Text("Add automatically").tag(true)
-        Text("Ask me first").tag(false)
-      }.settingsMatch("New circles", store: store)
-      Stepper(
-        "Ask before more than \(store.settings.maxCircles) circles",
-        value: store.settingsBinding(\.maxCircles), in: 1...100)
-    }
+    if store.accessoryAvailable { AccessoryCueSettings(store: store) }
     SettingsFeedback(store: store)
     ActionFeedback(store: store)
   }
@@ -179,30 +174,23 @@ struct HiddenChatsSettings: View {
   @State private var query = ""
   @State var kind: HiddenChatKind = .people
   var body: some View {
-    Section {
+    VStack(alignment: .leading, spacing: 12) {
       Picker("Chat type", selection: $kind) {
         ForEach(HiddenChatKind.allCases) { kind in Text(kind.rawValue).tag(kind) }
       }.pickerStyle(.segmented)
-      TextField("Search chats", text: $query).settingsMatch("Hidden chats", store: store)
-    } header: {
-      SettingsPaneTitle(title: "Hidden chats")
-    } footer: {
-      Text("Hidden chats are invisible to every integration. Hiding a person hides only your direct chat. Their messages in groups you share stay visible unless you hide that group too.")
-    }
-    Section {
+      TextField("Search chats", text: $query).textFieldStyle(.roundedBorder)
+        .settingsMatch("Hidden chats", store: store)
+      Text("Hidden chats stay private from every AI. Hide groups separately to hide group messages.")
+        .font(.footnote).foregroundStyle(AccessibleSecondary())
       CurrentChatSections(store: store, chats: kind.chats(in: store.chats), query: query) { chat in
-        Toggle(
-          chat.name,
-          isOn: store.hiddenChatsBinding(for: [chat.jid])
-        )
+        Toggle(chat.name, isOn: store.hiddenChatsBinding(for: [chat.jid]))
       }
       if kind.chats(in: store.chats).isEmpty {
         Text(store.chats.isEmpty ? "Link WhatsApp to choose hidden chats." : "No \(kind.rawValue.lowercased()) chats loaded.")
           .foregroundStyle(AccessibleSecondary())
       }
-    }
-    .toggleStyle(.switch)
-    SettingsFeedback(store: store)
+      SettingsFeedback(store: store)
+    }.toggleStyle(.switch).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
   }
 }
 
@@ -230,5 +218,32 @@ enum HiddenChatKind: String, CaseIterable, Identifiable {
   var id: String { rawValue }
   func chats(in chats: [Chat]) -> [Chat] {
     chats.filter { ($0.jid.hasSuffix("@g.us")) == (self == .groups) }
+  }
+}
+
+struct ProfilePrivacySettings: View {
+  @Bindable var store: AppStore
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      AboutYouCard(store: store).settingsMatch("About you", store: store)
+      Divider()
+      Picker("New circles from your own AIs", selection: store.settingsBinding(\.autoCircles)) {
+        Text("Add automatically").tag(true)
+        Text("Ask me first").tag(false)
+      }.settingsMatch("New circles", store: store)
+      Stepper("Ask before more than \(store.settings.maxCircles) circles",
+        value: store.settingsBinding(\.maxCircles), in: 1...100)
+    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+  }
+}
+struct SourcesPrivacySettings: View {
+  @Bindable var store: AppStore
+  var body: some View {
+    Section {
+      Text("WhatsApp chats").settingsMatch("WhatsApp", store: store)
+      Stepper("Current chats: last \(store.settings.currentDays) days",
+        value: store.settingsBinding(\.currentDays), in: 1...3650)
+        .settingsMatch("Current chats", store: store)
+    } header: { SettingsPaneTitle(title: "Privacy") }
   }
 }

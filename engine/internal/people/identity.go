@@ -130,6 +130,13 @@ func (s *Service) NormalizeMapping(lid, pn string) error {
 		}
 	}
 	primary.ID = target
+	if target != "me" {
+		names := s.ownerNames()
+		primary.OtherNames = withoutOwnerNames(primary.OtherNames, names)
+		if names[nameKey(primary.PushName)] {
+			primary.PushName = ""
+		}
+	}
 	for _, j := range []string{pn, lid} {
 		if !model.Contains(primary.JIDs, j) {
 			primary.JIDs = append(primary.JIDs, j)

@@ -32,11 +32,8 @@ struct RemoteSettings: View {
       )
       .settingsMatch("Allow remote connections", store: store)
       .toggleStyle(.switch)
-      LabeledContent("ChatGPT and Claude") {
-        Button("Set up remote access…") { store.showRemote = true }
-      }
       if store.remote?.enabled == true {
-        CopyField(title: "MCP address", value: store.remote?.mcpUrl ?? "")
+        CopyField(title: "AI app address", value: store.remote?.mcpUrl ?? "")
       }
       ForEach(store.remote?.pendingCodes ?? []) { code in
         HStack {

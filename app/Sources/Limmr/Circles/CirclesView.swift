@@ -32,7 +32,8 @@ struct CirclesView: View {
   @Environment(\.snapshotPeopleList) private var snapshotList
   @Environment(\.snapshotOlderPeople) private var snapshotOlder
   var body: some View {
-    NavigationStack(path: $store.circlePath) {
+    let _ = SpeedTrace.body("People")
+    Group {
       ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 24) {
@@ -92,7 +93,7 @@ struct CirclesView: View {
                   store.circlePath.append(.circle(circle.id))
                 } label: {
                   HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Image(systemName: circle.symbol).font(.title3).foregroundStyle(AccessibleSecondary())
+                    CirclePicture(circle: circle, size: 28)
                       .frame(width: 28)
                     VStack(alignment: .leading, spacing: 4) {
                       Text(circle.name).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
@@ -107,11 +108,11 @@ struct CirclesView: View {
                   }.contentShape(Rectangle()).modifier(QuietRow())
                     .background(
                       store.mapSelection.circle == circle.id
-                        ? Color.accentColor.opacity(0.06) : .clear,
+                        ? Color.primary.opacity(0.035) : .clear,
                       in: RoundedRectangle(cornerRadius: 8))
-                }.limmrButton(.row(radius: 8), id: "people-circle")
+                }.quietCard()
                   .focused($rowFocused, equals: "circle:" + circle.id)
-                  .keyboardRow("circle:" + circle.id, selection: selection.id)
+                  .quietKeyboardRow("circle:" + circle.id, selection: selection.id)
                   .accessibilityLabel(circle.name)
                   .accessibilityValue("\(Spoken.count(circle.people.count, "members")). \(Spoken.count(store.circleMap.pulses.first { $0.id == circle.id }?.newMessages ?? 0, "New")). \(circle.sendRule.title)")
                   .accessibilityHint("Open this circle")
@@ -155,7 +156,7 @@ struct CirclesView: View {
               }
             }
           }
-        }.frame(maxWidth: 760).padding(24).frame(maxWidth: .infinity)
+        }.frame(maxWidth: store.mapSelection.person == nil ? 760 : 1060).padding(24).frame(maxWidth: .infinity)
       }
       .defaultScrollAnchor(snapshotOlder ? .bottom : .top, for: .initialOffset)
       .task(id: snapshotList) {
@@ -167,21 +168,7 @@ struct CirclesView: View {
       .onChange(of: selection.id) { _, id in if let id { proxy.scrollTo(id, anchor: .center) } }
       }
       .pageSurface()
-      .navigationDestination(for: CircleDestination.self) { destination in
-        Group {
-          switch destination {
-          case .circle(let id): CirclePage(store: store, id: id)
-          case .person(let id): CirclePersonPage(store: store, id: id)
-          case .group(let jid): GroupPage(store: store, jid: jid)
-          case .chat(let id, let name):
-            if id.hasSuffix("@g.us") { GroupPage(store: store, jid: id) }
-            else { HomeChatPage(store: store, id: id, name: name) }
-          case .brief(let id, let version):
-            BriefVersionPage(store: store, circleID: id, version: version)
-          }
-        }
-        .pageSurface()
-      }
+
     }
     .onChange(of: store.mapSelection) { _, selection in
       query = ""
@@ -229,9 +216,9 @@ struct CirclesView: View {
           }
           Image(systemName: "chevron.right").font(.caption2).foregroundStyle(AccessibleTertiary())
         }.contentShape(Rectangle()).modifier(QuietRow())
-      }.limmrButton(.row(radius: 8), id: "people-person")
+      }.quietCard()
         .focused($rowFocused, equals: "person:" + person.id)
-        .keyboardRow("person:" + person.id, selection: selection.id)
+        .quietKeyboardRow("person:" + person.id, selection: selection.id)
         .accessibilityLabel(person.label?.isEmpty == false ? person.label! : person.name)
         .accessibilityValue(PeoplePresentation.roles(person.id, circles: store.circles, name: person.name))
         .accessibilityHint("Open this person's profile")

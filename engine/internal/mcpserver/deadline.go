@@ -66,7 +66,7 @@ func (s *Service) Call(ctx context.Context, id, name string, args Args) (any, er
 	s.TaskService()
 	h := s.Hub.WithContext(ctx)
 	people := s.People.WithHub(h)
-	scoped := &Service{Hub: h, People: people, Link: s.Link, Fetcher: s.Fetcher, RemoteMedia: s.RemoteMedia, Downloader: s.Downloader, Watches: s.Watches}
+	scoped := &Service{Hub: h, People: people, Link: s.Link, SendingStatus: s.SendingStatus, Fetcher: s.Fetcher, RemoteMedia: s.RemoteMedia, Downloader: s.Downloader, Watches: s.Watches}
 	scoped.taskOnce.Do(func() { scoped.taskService = s.TaskService().WithHub(h) })
 	scoped.effortOnce.Do(func() { scoped.effortService = s.EffortService().WithHub(h) })
 	scoped.circleOnce.Do(func() { scoped.circleService = s.CircleService().WithServices(h, people) })

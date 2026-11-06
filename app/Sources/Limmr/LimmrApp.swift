@@ -78,7 +78,7 @@ import SwiftUI
     }
     .defaultSize(width: WindowMetrics.defaultWidth, height: WindowMetrics.defaultHeight)
     .windowResizability(.contentMinSize)
-    .windowToolbarStyle(.unified(showsTitle: false))
+    .windowToolbarStyle(.unified(showsTitle: true))
     // Snapshots render into their own offscreen window; an empty main window would flash on screen.
     .defaultLaunchBehavior(store.snapshot ? .suppressed : .automatic)
     .commands {

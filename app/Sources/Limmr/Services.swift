@@ -176,9 +176,9 @@ struct RuntimePaths {
     var engineRegistered: Bool { registration != .absent }
     func startEngine() async throws {
         guard !demo else { return }
-        await startup.recover(using: self, allowInstall: true)
+        await startup.recover(using: self, allowInstall: true, restartIfStalled: true)
         guard startup.phase == .ready else {
-            throw HelperUpdateFailure(reason: startup.failureMessage ?? "The background helper couldn’t start. Try again.")
+            throw HelperUpdateFailure(reason: startup.failureMessage ?? "Limmr’s background engine couldn’t start. Try again.")
         }
     }
     var registration: EngineRegistration {
@@ -202,7 +202,10 @@ struct RuntimePaths {
         return data
     }
     func healthReadiness() async -> HelperReadiness {
-        guard let data = try? await localData("/v1/health") else { return .unavailable }
+        let data: Data
+        do { data = try await localData("/v1/health") }
+        catch let error as URLError where error.code == .timedOut { return .busy }
+        catch { return .unavailable }
         if let progress = try? Wire.decode(EngineStartingResponse.self, from: data), progress.status == "starting" {
             return .starting(progress: progress.progressKey)
         }
@@ -226,6 +229,10 @@ struct RuntimePaths {
         guard !demo else { return }
         try await helperRegistration.register()
     }
+    func restart() async throws {
+        guard !demo else { return }
+        try await helperDriver.restart()
+    }
     func stopEngine() async throws { try await unregister() }
     var isLaunchAtLoginEnabled: Bool { login.status == .enabled }
 }
@@ -233,6 +240,22 @@ struct RuntimePaths {
 @MainActor final class NotificationBridge: NSObject, UNUserNotificationCenterDelegate {
     var navigate: ((URL) -> Void)?
     var resolve: ((String, Bool) -> Void)?
+    // MARK: lane-2 — due task check-ins use local notifications, never WhatsApp.
+    var openTask: ((String) -> Void)?
+    private var seenCheckIns = Set<String>()
+    func updateTaskCheckIns(_ items: [CircleSuggestion]) {
+      guard active else { return }
+      let center = UNUserNotificationCenter.current()
+      center.delegate = self
+      for item in items where item.kind == "check_in" && item.taskId != nil && !seenCheckIns.contains(item.id) {
+        seenCheckIns.insert(item.id)
+        let content = UNMutableNotificationContent()
+        content.title = "Your task check-in is ready"
+        content.body = "Open Limmr to review the latest activity and next step."
+        content.userInfo = ["task_id": item.taskId!]
+        center.add(.init(identifier: "task-check-in-" + item.id, content: content, trigger: nil))
+      }
+    }
     private var seen = Set<String>()
     private let active: Bool
     init(active: Bool) { self.active = active; super.init() }
@@ -262,6 +285,9 @@ struct RuntimePaths {
         seen.formUnion(pending)
     }
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if let id = response.notification.request.content.userInfo["task_id"] as? String {
+          await MainActor.run { openTask?(id) }; return
+        }
         guard let id = response.notification.request.content.userInfo["approval_id"] as? String else { return }
         let action = response.actionIdentifier
         await MainActor.run {

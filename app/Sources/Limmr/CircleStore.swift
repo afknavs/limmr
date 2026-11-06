@@ -24,7 +24,9 @@ extension AppStore {
     showSettings = true
   }
   func selectPage(_ page: Page) {
+    pendingSidebarCircle = nil
     pendingSearchPage = nil
+    peopleReturnPage = nil
     clearActivityRoute()
     if page != self.page { activityNavigationReady = false }
     // Sidebar navigation returns to the People lists, and leaving People closes any open circle.
@@ -46,8 +48,7 @@ extension AppStore {
     }
   }
   func openCircle(_ id: String) {
-    selectPage(.circles)
-    circlePath = [.circle(id)]
+    openPeopleRoute(.circle(id))
     Task {
       await perform(action: "circle-seen") { [self] in
         try await backend.post("/v1/circles/\(id)/seen")
@@ -114,7 +115,7 @@ extension AppStore {
           let result = try Wire.decode(CircleDraft.self, from: data)
           receivedOutcome = true
           await refresh()
-          if result.state != "sent" {
+          if result.state != "sent" && result.state != "queued_peer" {
             failWithoutRetry(
               result.state == "failed"
                 ? "This reply was not sent. Check Activity before creating a new draft."

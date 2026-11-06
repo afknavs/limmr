@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -205,13 +204,16 @@ func (s *Service) ImportContacts(matches []ContactMatch) error {
 				if e != nil {
 					return e
 				}
+				if before.ContactsPhoto != nil && before.ContactsPhoto.SHA256 == ref.SHA256 {
+					ref = before.ContactsPhoto
+				}
 				p.ContactsPhoto = ref
 				if p.Photo == nil {
 					p.Photo = ref
 				}
 			}
 		}
-		if reflect.DeepEqual(before, p) {
+		if dbutil.JSON(before) == dbutil.JSON(p) {
 			continue
 		}
 		p.UpdatedAt = s.Hub.Now().UTC()
@@ -300,6 +302,8 @@ type PersonSummary struct {
 }
 
 func (s *Service) SavePersonSummary(a *model.Agent, id, text string, until time.Time) (PersonSummary, error) {
+	s.shared().mu.Lock()
+	defer s.shared().mu.Unlock()
 	v := PersonSummary{}
 	if a != nil && (!a.Permissions.SaveSummaries || !a.Permissions.ReadMessages || !a.Permissions.ReadPeople) {
 		return v, model.ErrForbidden
@@ -325,7 +329,15 @@ func (s *Service) SavePersonSummary(a *model.Agent, id, text string, until time.
 		source = a.ID
 	}
 	v = PersonSummary{id, text, source, s.Hub.Now().UTC(), until, chats}
-	return v, s.Hub.Repo.Put("person_summaries", id, v)
+	var previous PersonSummary
+	var before *PersonSummary
+	if e := s.Hub.Repo.Get("person_summaries", id, &previous); e == nil {
+		before = &previous
+	} else if e != model.ErrNotFound {
+		return v, e
+	}
+	undo := summaryUndo{Before: before, After: v.WrittenAt}
+	return v, s.Hub.Repo.Apply(hub.Mutation{Bucket: "person_summaries", ID: id, Value: v}, hub.Mutation{Bucket: "person_summary_undo", ID: id, Value: undo})
 }
 
 func (s *Service) ProposePronouns(a model.Agent, id, text string, evidence []string) (model.Person, error) {
@@ -365,4 +377,58 @@ func (s *Service) ProposePronouns(a model.Agent, id, text string, evidence []str
 	}
 	profile, e := s.Profile(&a, id)
 	return profile.Person, e
+}
+
+type summaryUndo struct {
+	Before *PersonSummary `json:"before"`
+	After  time.Time      `json:"after"`
+}
+
+// Undo only the latest summary; a stale panel cannot overwrite a newer update.
+func (s *Service) UndoPersonSummary(id string, writtenAt time.Time) error {
+	s.shared().mu.Lock()
+	defer s.shared().mu.Unlock()
+	var current PersonSummary
+	if e := s.Hub.Repo.Get("person_summaries", id, &current); e != nil {
+		return e
+	}
+	var undo summaryUndo
+	if e := s.Hub.Repo.Get("person_summary_undo", id, &undo); e != nil {
+		return e
+	}
+	if !current.WrittenAt.Equal(writtenAt) || !undo.After.Equal(writtenAt) {
+		return model.ErrConflict
+	}
+	mutation := hub.Mutation{Bucket: "person_summaries", ID: id, Delete: undo.Before == nil}
+	if undo.Before != nil {
+		mutation.Value = *undo.Before
+	}
+	return s.Hub.Repo.Apply(mutation, hub.Mutation{Bucket: "person_summary_undo", ID: id, Delete: true})
+}
+
+// PersonSummary reads only this person's indexed recent DM counts. The owner-only
+// route never needs graph construction, group stats, affinity or message text.
+func (s *Service) PersonSummary(id string) (*PersonSummary, error) {
+	var p model.Person
+	if err := s.Hub.Repo.Get("people", id, &p); err != nil {
+		return nil, err
+	}
+	var v PersonSummary
+	if err := s.Hub.Repo.Get("person_summaries", id, &v); err == model.ErrNotFound {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	count := 0
+	for _, jid := range p.JIDs {
+		var n int
+		if err := s.Hub.Messages.DB.QueryRow(`SELECT COUNT(*) FROM messages WHERE chat_jid=? AND julianday(timestamp)>=julianday(?)`, jid, s.Hub.Now().AddDate(0, 0, -30)).Scan(&n); err != nil {
+			return nil, err
+		}
+		count += n
+	}
+	if count < 5 {
+		return nil, nil
+	}
+	return &v, nil
 }

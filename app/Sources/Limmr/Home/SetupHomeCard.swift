@@ -46,7 +46,7 @@ struct SetupHomeCard: View {
             }
           }.buttonStyle(.borderedProminent)
           Button("Not now") { dismissedReason = reason }
-            .limmrButton(id: "not-now").font(.caption).foregroundStyle(AccessibleSecondary())
+            .buttonStyle(.bordered).font(.caption).foregroundStyle(AccessibleSecondary())
         }
       }.padding(16).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 12))
     }
@@ -160,9 +160,9 @@ private struct ReviewProposalRow: View {
         Button(editing ? "Cancel edit" : "Edit") {
           name = proposal.circle.name
           editing.toggle()
-        }.limmrButton()
+        }.buttonStyle(.bordered)
         Button("Dismiss") { Task { await store.reviewProposals([proposal.id], keep: false) } }
-          .limmrButton()
+          .buttonStyle(.bordered)
       }.disabled(store.busy)
       ActionFeedback(store: store, action: "circle-\(proposal.id)")
     }

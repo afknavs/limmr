@@ -57,7 +57,8 @@ func (s *Server) syncRoutes(add func(string, string, route)) {
 	})
 	add("POST /v1/sync/lease", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		var b struct {
-			Take *bool `json:"take"`
+			Take                  *bool `json:"take"`
+			PreviousHolderStopped bool  `json:"previous_holder_stopped"`
 		}
 		if e := decode(r, &b); e != nil || b.Take == nil {
 			return nil, model.ErrInvalid
@@ -65,20 +66,29 @@ func (s *Server) syncRoutes(add func(string, string, route)) {
 		var paired knowledgeSync.Peer
 		_ = s.Hub.Repo.Get("settings", "sync_peer", &paired)
 		if paired.EngineID != "" {
-			// While paired only the holder can act: keeping is a no-op and
-			// giving hands off. A non-holder can never take, because it cannot
-			// prove the holder has stopped.
-			if !s.Knowledge.HoldsLease() {
-				return nil, model.ErrConflict
-			}
-			if !*b.Take {
-				if e := s.Knowledge.GiveLease(); e != nil {
-					return nil, model.ErrConflict
+			if *b.Take {
+				if b.PreviousHolderStopped {
+					if e := s.Knowledge.RecoverLease(true); e != nil {
+						return nil, e
+					}
+				} else if e := s.Knowledge.RequestLease(); e != nil {
+					return nil, e
 				}
+			} else if e := s.Knowledge.GiveLease(); e != nil {
+				return nil, e
 			}
 			return s.Knowledge.Status()
 		}
 		if !*b.Take {
+			return nil, model.ErrConflict
+		}
+		if b.PreviousHolderStopped {
+			if e := s.Knowledge.RecoverLease(true); e != nil {
+				return nil, e
+			}
+			return s.Knowledge.Status()
+		}
+		if !s.Knowledge.HoldsLease() {
 			return nil, model.ErrConflict
 		}
 		if e := s.Hub.Repo.Put("settings", "automation_lease", knowledgeSync.Lease{EngineID: s.Knowledge.EngineID, RenewedAt: s.Hub.Now()}); e != nil {

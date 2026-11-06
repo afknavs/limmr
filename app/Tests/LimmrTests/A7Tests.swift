@@ -42,7 +42,7 @@ import Testing
     #expect(HomePresentation.usesRecentColumn(contentWidth: 1100))
   }
   @Test @MainActor func sourcesAndSnapshotRoutesExist() {
-    #expect(SettingsTab.allCases.prefix(3) == [.general, .sources, .integrations])
+    #expect(SettingsTab.allCases == [.general, .connections, .integrations, .privacy])
     for page in ["person", "home", "settings-sources", "settings-integrations-access", "settings-general", "people-fill"] {
       #expect(SnapshotRunner.pages.contains(page))
     }

@@ -1,46 +1,80 @@
-# Limmr visual system
+# Limmr visual system (N1, revised 1 Nov 2026: native first)
 
-Limmr is a quiet workspace for the people and circles in your life. The sidebar has Home, People and
-Activity. Settings lives in the app menu and Command-comma. The A5 owner feedback supersedes the old map-led
-Circles design.
+The first N1 mockups (`docs/design/n1-identity/`) were rejected as "generic, made by AI": custom colours, a custom
+sidebar and search box, a multicolour AI glow, a logo in the sidebar and flat icons. Keep their **layout ideas the
+owner liked** (task cover tiles, the typographic cover when a task has no image, circle tiles, the sidebar's
+sections, the activity squares) and build them **from Apple's own components** so Limmr looks like a Mac app.
 
-- Use native SF typography: large bold page titles, body for messages, secondary callout section headers and
-  caption metadata. Titles have at most one functional subtitle. Keep one alignment grammar throughout.
-- Content is one readable column, maximum 760 points, centred on the system window background with 28-point
-  margins. Blocks have 28-point separation; rows use hairlines or 8-point gaps and a subtle hover highlight.
-  Compact circle tiles flow into two or three columns. No heavy cards, shadows, gradients or glows.
-- Surfaces adapt to light and dark. Native sidebar translucency belongs to NavigationSplitView. Glass belongs to
-  floating controls, toolbars and watch popovers. In print snapshots native material has a neutral system fallback; native source-list selections use equivalent plain rows because AppKit print capture cannot composite their selection backdrop.
-  SF Symbols are secondary. Accent means live updates or an action needing you; no red or alarm glyphs.
-- Home follows this order, omitting empty blocks: greeting and connection; watches (four plus overflow); queued
-  drafts; pinned circles followed by at most three live circles; needs a reply; six recent activities; circle
-  proposals; quiet integration footer. Quiet unpinned circles stay in People.
-- Queued drafts are distinct from unanswered asks. Each draft has a compact variation switcher,
-  one-click body editing with the caret at the end, and Send. The exact body text is posted and delivered unchanged. Edits are retained per variation. Swipe left reveals Dismiss; a full
-  swipe dismisses. Context menu and accessibility action provide equivalent access.
-- People opens with a 240-point translucent map of understanding. Seeded packing retains positions across
-  refreshes; circles are labelled hubs, people are weighted dots, chats are small squares. Hairlines mean chat
-  structure, accent lines mean AI discoveries, primary lines mean owner confirmation, dashes mean suggestions.
-  Hover explains roles and provenance; clicking filters the list, clicking a person again opens their page.
-  Event IDs drive new connection draw-in and short attributed capsules. Replay follows the last fourteen days
-  in eight seconds. Reduce Motion uses static nodes and discrete replay steps. The map is one accessibility
-  summary; the lists remain the accessible navigation path. Remembered Circles / People tabs share search.
-- AI presence uses the same state on Home, the map and the sidebar. Idle agents do not add a Home line.
-  Person avatars load through the authenticated backend; a missed image uses a deterministic muted initial tile
-  with the same dark ink and light tint in either appearance. Sample mode uses no profile photos.
-- Circle and person pages push in the same navigation stack at every size. They use blocks, preserving brief
-  history, topics, per-circle roles and notes, chats, integration visibility and header send-rule controls. Pin
-  is available in circle headers and tile context menus. Person pages include recent direct-message counts.
-- Settings is a sidebar-list window with General, Integrations, Hidden chats, Remote access, Health and Advanced.
-  Panes use grouped forms. Integration rows show an icon, name, visible-chat count and chevron to permissions.
-  Configuration, credentials and ports remain behind Details. Changes save immediately with readback feedback.
-- The main window starts at 1100×740 and remains usable at 800×600 (minimum 760×520). Scroll content rather than
-  compressing text. Failures stay beside the action with plain words. Unknown delivery outcomes never retry sends.
-- Demo data is invented and in-memory. Snapshot runs use a throwaway LIMMR_HOME and never start a helper.
-  `scripts/snapshots-r1.sh` renders Home, People, a person page, Integrations and setup at 1100×740 in
-  light and dark to `build/snapshots/r1/`. The app icon is a thin ring with two ink dots and one blue dot
-  at 10, 2 and 6 o'clock on a softly shaded neutral tile.
-  `scripts/snapshots-a6.sh` exports the five A6 views at both sizes and appearances to
-  `build/snapshots/a6/` and refreshes `docs/images/people.png`. `scripts/snapshots.sh` exports all eight A5 views at 1100×740 and 800×600, light and dark, to
-  `build/snapshots/a5/`, then refreshes hero, people and circle in `docs/images/` at 1280×800. The real watch opens
-  an anchored native popover; print capture stages the same card on a floating, scrim-separated surface.
+Rules distilled from Apple's HIG and four MIT-licensed skills; read them before building (read with
+`gh api repos/<repo>/contents/<path> -H "Accept: application/vnd.github.raw"`; do not install or save them):
+`ehmo/platform-design-skills` `skills/macos/SKILL.md` (sections 3, 4, 6, 9, 11);
+`rshankras/claude-code-apple-skills` `skills/design/liquid-glass/SKILL.md`, `skills/design/sf-symbols/SKILL.md`,
+`skills/design/typography/SKILL.md`; `Dimillian/Skills` `swiftui-liquid-glass/SKILL.md`;
+`AvdLee/SwiftUI-Agent-Skill` `skills/swiftui-expert-skill/SKILL.md` (macOS and performance parts).
+
+## Principles
+
+1. **Native before custom.** `NavigationSplitView` with a `.listStyle(.sidebar)` source list (system vibrancy),
+   a unified toolbar, `.searchable` in the toolbar, `Picker(.segmented)` for view switching, `.badge()` for counts,
+   system context menus, popovers, Quick Look. If a system control exists, use it.
+2. **System colour.** Semantic colours only (`.primary`, `.secondary`, `.tertiary`, `Color(nsColor: .windowBackgroundColor)`,
+   `.quaternary` fills, `.separator`). The **system accent colour** for selection and actions (never a fixed brand
+   blue). Amber (`.orange`) only for "needs you". Circle hues are the only custom colours, and only on circle
+   symbols and covers.
+3. **System type.** Text styles, never fixed point sizes: `.largeTitle` page titles only where macOS uses them,
+   `.title2`/`.title3` sections, `.headline` card titles, `.body`, `.callout`, `.subheadline`, `.caption` meta.
+   Weight and colour make hierarchy, not size jumps.
+4. **SF Symbols everywhere**, hierarchical rendering, `.imageScale` matched to the text beside it. Symbol effects
+   (`.bounce`, `.pulse`) only for real state changes.
+5. **Liquid Glass only where Apple puts it**: the toolbar and sidebar (automatic), floating controls, the hover
+   label on a cover tile, popovers. Never on content cards, never as decoration. Use `.glassEffect()` /
+   `GlassEffectContainer`, respect Reduce Transparency with a solid fallback.
+6. **No AI glow, no sparkle badges.** AI-written text is marked by a plain "by Claude Code · 5 min" caption.
+7. **No logo inside the window.** The app icon lives in the Dock and the About window.
+8. **Use the window, no empty boxes.** 20 pt margins, 8 pt between related items, 20 pt between groups. Content
+   fills the window (up to about 1320 pt); hidden sections leave no placeholder.
+9. **Mac behaviour**: hover states on everything clickable, right-click menus on every item, keyboard navigation
+   (arrows, Return opens, Space = Quick Look on media), ⌘F search, Escape closes, VoiceOver labels.
+
+## Structure
+
+- **Sidebar** (source list): Home, Tasks (`.badge` = needs-you count), People, Activity; a "Circles" section, each
+  row a `Label` with the circle's symbol tinted its hue; a "Your AIs" section at the bottom, one row per AI with a
+  small presence dot and last-seen time, clicking opens it in Settings › Integrations. A dot and the AI running on it
+  are one row ("Dot · Pip"). This replaces the three unlabeled bottom-left icons.
+- **Toolbar** per screen: title, `.searchable` (trailing), and screen controls. Tasks: a segmented
+  Gallery | List picker and a circle filter menu.
+- **Home**: a plain "Needs you" list first (native rows: approvals, drafts waiting, tasks marked needs you; each opens
+  its target; hidden when empty), then "Recently" as at most three plain rows of what moved, then the Tasks cover
+  row, then Circles tiles, and a right column (≥1200 pt) with "What your AIs did" and the activity squares
+  (last 12 weeks, GitHub/Claude-usage style, accent colour at four opacities). The full 42-week squares live on
+  Activity.
+- **Tasks**: no overview card. Gallery: adaptive grid of 4:5 cover tiles (min 200 pt). The cover fills the tile;
+  title, one-line status and circle appear on hover/focus on a small glass label at the bottom. Needs-you: a small
+  orange dot. No image: typographic cover (the circle symbol in its hue, the title in `.title2` bold, circle · due)
+  on a quiet fill. List: a native `Table` (thumbnail, title + status, circle, progress, AI working on it, last
+  moved) with sortable columns, grouped Needs you / Active, then Quiet and History as disclosure groups.
+- **Task page / circle page**: native sections; media tiles show image only, name on hover; Space opens Quick Look.
+
+## Circle hues
+
+Stable per circle (hash of id) unless the owner picks: system `.blue`, `.orange`, `.purple`, `.green`, `.yellow`,
+`.teal`, `.pink`, `.indigo`. Use them for the circle symbol and typographic cover tint only.
+
+## Kept from earlier rounds
+
+The main window starts at 1100×740 and stays usable at 800×600 (minimum 760×520); scroll rather than compress.
+Failures stay beside the action in plain words. Unknown delivery outcomes never retry sends. Demo data is invented
+and in-memory; snapshot runs use a throwaway LIMMR_HOME and never start a helper. Person avatars load through the
+authenticated backend; a missed image uses a deterministic initial tile. The people map is one accessibility
+summary and the lists remain the accessible navigation path.
+
+## N2 shell adjustments (owner review, 1 November)
+
+N2 supersedes the N1 hover-label, Home-rail calendar and circle-colour treatments above. Task titles,
+circles and one-line status stay below the cover. Content cards use neutral hover/press feedback and a
+thin secondary keyboard outline with native focus effects disabled. Circle symbols in the sidebar and
+Home are monochrome; Home uses available circle/group picture pixels without a tinted tile background.
+Home starts with Recently and Needs you, then the activity calendar and its last-30-day counts, Tasks,
+and Circles. AI highlights sit beside the main content when space permits, or below it. Retained history
+remains visible while WhatsApp is unlinked. Circle hue is reserved for small distinguishing accents.

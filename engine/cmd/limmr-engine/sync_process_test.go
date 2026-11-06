@@ -88,13 +88,27 @@ func y7Start(t *testing.T, bin, home string, port, remote int) (*y7Process, stri
 	cmd := exec.Command(bin, "--demo", "--home", home, "--port", strconv.Itoa(port), "--remote-port", strconv.Itoa(remote))
 	cmd.Stdin = nil
 	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+	stderr, err := os.Create(filepath.Join(home, "process-stderr.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { stderr.Close() })
+	cmd.Stderr = stderr
 	if e := cmd.Start(); e != nil {
 		t.Fatal(e)
 	}
 	p := &y7Process{cmd: cmd, done: make(chan error, 1)}
 	go func() { p.done <- cmd.Wait() }()
-	t.Cleanup(p.stop)
+	t.Cleanup(func() {
+		p.stop()
+		if t.Failed() {
+			for _, name := range []string{"process-stderr.log", "logs/engine.log"} {
+				if data, err := os.ReadFile(filepath.Join(home, name)); err == nil {
+					t.Logf("temporary engine %s: %s", name, data)
+				}
+			}
+		}
+	})
 	deadline := time.Now().Add(40 * time.Second)
 	for time.Now().Before(deadline) {
 		b, e := os.ReadFile(filepath.Join(home, "control-token"))
@@ -139,7 +153,8 @@ func TestContract10RealProcessesOAuth(t *testing.T) {
 	y7Call(t, "POST", macURL+"/v1/remote", macToken, map[string]any{"enabled": true, "public_url": peer})
 	pair := exec.Command(bin, "sync", "pair", "--home", dotHome, "--peer", peer)
 	pair.Stdout = io.Discard
-	pair.Stderr = io.Discard
+	var pairStderr bytes.Buffer
+	pair.Stderr = &pairStderr
 	if e := pair.Start(); e != nil {
 		t.Fatal(e)
 	}
@@ -173,7 +188,7 @@ func TestContract10RealProcessesOAuth(t *testing.T) {
 	}
 	y7Call(t, "POST", macURL+"/v1/sync/pair", macToken, map[string]string{"code": code})
 	if e := pair.Wait(); e != nil {
-		t.Fatal("dot pairing failed", e)
+		t.Fatalf("dot pairing failed: %v; stderr: %s", e, pairStderr.String())
 	}
 	fi, e := os.Stat(filepath.Join(dotHome, "sync-oauth.json"))
 	if e != nil || fi.Mode().Perm() != 0600 {

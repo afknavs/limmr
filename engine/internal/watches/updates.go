@@ -13,6 +13,12 @@ import (
 )
 
 type UpdateItem struct {
+	OwnerNotes []struct {
+		ID        string    `json:"id"`
+		Text      string    `json:"text"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+	} `json:"owner_notes,omitempty"`
 	TaskID   string `json:"task_id,omitempty"`
 	Note     string `json:"note,omitempty"`
 	Progress *struct {
@@ -32,6 +38,7 @@ type UpdateItem struct {
 	Status     string    `json:"status,omitempty"`
 }
 type Updates struct {
+	Recently         []string     `json:"recently"`
 	EffortsReady     bool         `json:"efforts_ready"`
 	EffortNamingHint string       `json:"effort_naming_hint,omitempty"`
 	Cursor           string       `json:"cursor"`
@@ -285,14 +292,15 @@ func (s *Service) taskUpdate(a model.Agent, row updateRow, item UpdateItem) (*Up
 		Chats []struct {
 			ID string `json:"id"`
 		} `json:"chats"`
-		CreatedBy struct {
+		OwnerNotes json.RawMessage `json:"owner_notes"`
+		CreatedBy  struct {
 			AgentID string `json:"agent_id"`
 		} `json:"created_by"`
 	}
 	if err = json.Unmarshal([]byte(raw), &t); err != nil {
 		return nil, err
 	}
-	if row.kind == "task_suggested" && a.Preset != "own" || row.kind != "task_suggested" && t.CreatedBy.AgentID != a.ID {
+	if row.kind == "task_suggested" && a.Preset != "own" || row.kind != "task_suggested" && t.CreatedBy.AgentID != a.ID && a.Preset != "own" {
 		return nil, nil
 	}
 	for _, ch := range t.Chats {
@@ -304,6 +312,16 @@ func (s *Service) taskUpdate(a model.Agent, row updateRow, item UpdateItem) (*Up
 	item.TaskID = id
 	if err = json.Unmarshal([]byte(payload), &item); err != nil {
 		return nil, err
+	}
+	if len(t.OwnerNotes) > 0 {
+		if err = json.Unmarshal(t.OwnerNotes, &item.OwnerNotes); err != nil {
+			return nil, err
+		}
+	}
+	if len(item.OwnerNotes) > 0 {
+		item.Text = "Owner notes"
+	} else if row.kind == "task_owner_note" {
+		item.Text = "Owner notes cleared"
 	}
 	return &item, nil
 }

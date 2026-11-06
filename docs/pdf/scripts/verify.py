@@ -10,7 +10,7 @@ import subprocess
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {'what-limmr-is': 26, 'how-to-pitch-it': 4, 'setup-guide': 11}
+EXPECTED = {'what-limmr-is': 26, 'how-to-pitch-it': 4, 'setup-guide': 13}
 MIN_PPI = 220
 MIN_UI_PT = 6.75  # approximately 7 pt for the declared source UI reference text
 

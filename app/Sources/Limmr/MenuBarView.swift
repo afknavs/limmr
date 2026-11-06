@@ -17,16 +17,11 @@ struct MenuBarView: View {
         }
         HStack(spacing: 32) {
           menuCount(store.menuWatchCount, label: "Watches")
-          menuCount(store.pending.count, label: "Approvals")
+          menuCount(store.pending.count + store.fileReviewSuggestions.count, label: "Approvals")
         }
-        EngineStatusBanner(state: state) {
-          if state.inProgress || state == .connected { open() }
-          else {
-            Task { await store.connectionAction(state) }
-            if state == .loggedOut { open() }
-          }
-        }
-        if store.pending.isEmpty && store.home.waiting.isEmpty {
+        ConnectionStatusCard(store: store, stateOverride: stateOverride)
+        FileSendReviewBanner(store: store)
+ if store.pending.isEmpty && store.home.waiting.isEmpty && store.fileReviewSuggestions.isEmpty {
           EmptyState(
             symbol: "checkmark.bubble", title: "All caught up",
             detail: "Watch updates and requests for your approval will appear here when they arrive."
@@ -42,7 +37,7 @@ struct MenuBarView: View {
             Text(item.text).font(.system(size: 12)).lineSpacing(4).fixedSize(
               horizontal: false, vertical: true)
             if let attachment = item.attachment {
-              Label(attachment.name, systemImage: "paperclip").font(.caption)
+              FileApprovalPreview(file: attachment, target: store.chatName(item.chatJid))
             }
             HStack {
               Spacer()
@@ -96,8 +91,9 @@ struct MenuBarView: View {
 }
 
 extension AppStore {
-  var menuWaitingCount: Int { pending.count + home.waiting.count }
+  var fileReviewSuggestions: [CircleSuggestion] { home.suggestions.filter { $0.attachment != nil && $0.state == "pending" } }
+  var menuWaitingCount: Int { pending.count + home.waiting.count + fileReviewSuggestions.count }
   var menuWatchCount: Int {
-    HomeTriggerPresentation.armedWatches(home.watches, now: demo ? Timestamp.date(DemoData.now)! : Date()).count
+    HomeTriggerPresentation.armedWatches(home.watches, now: presentationNow).count
   }
 }

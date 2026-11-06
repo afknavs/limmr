@@ -69,20 +69,20 @@ def verify():
         with Image.open(path) as im: assert list(im.size) == row['pixels']
         assert row['scale'] == 3 and not row['resampled']
     doc = Document(ROOT / 'docs/pdf/src/setup-guide.html'); doc.feed(doc.path.read_text())
-    assert doc.pages == 11 and doc.images == doc.captions == 6
-    assert doc.page_images == [0,0,0,1,1,1,1,1,1,0,0]
-    print('PASS: 11 setup pages, 6 captioned native images, local resources and print resolution')
+    assert doc.pages == 13 and doc.images == doc.captions == 6
+    assert doc.page_images == [0,0,0,1,1,1,1,1,1,0,0,0,0]
+    print('PASS: 13 setup pages, 6 captioned native images, local resources and print resolution')
 
 def verify_pdf():
     verify()
-    info = subprocess.check_output(['pdfinfo', '-f', '1', '-l', '11', '-box', str(PDF)], text=True)
+    info = subprocess.check_output(['pdfinfo', '-f', '1', '-l', '13', '-box', str(PDF)], text=True)
     import re
-    assert re.search(r'Pages:\s+11\b', info), 'Expected eleven PDF pages'
+    assert re.search(r'Pages:\s+13\b', info), 'Expected thirteen PDF pages'
     sizes = re.findall(r'Page\s+\d+ size:\s+([\d.]+) x ([\d.]+)', info)
-    assert len(sizes) == 11 and all(abs(float(w)-595)<2 and abs(float(h)-842)<2 for w,h in sizes)
+    assert len(sizes) == 13 and all(abs(float(w)-595)<2 and abs(float(h)-842)<2 for w,h in sizes)
     text = subprocess.check_output(['pdftotext', str(PDF), '-'], text=True)
     pages = [p for p in text.split('\f') if p.strip()]
-    assert len(pages) == 11 and all('Limmr' in p for p in pages)
+    assert len(pages) == 13 and all('Limmr' in p for p in pages)
     listing = subprocess.check_output(['pdfimages', '-list', str(PDF)], text=True)
     images = [line.split() for line in listing.splitlines()[2:] if line.strip()]
     images = [row for row in images if row[2] == 'image']
@@ -91,7 +91,7 @@ def verify_pdf():
     dest = ROOT / 'app/Resources/Limmr-Setup-Guide.pdf'
     shutil.copyfile(PDF, dest)
     assert sha(PDF) == sha(dest)
-    print('PASS: 11 A4 PDF pages; embedded rasters >=220 ppi; app resource matches')
+    print('PASS: 13 A4 PDF pages; embedded rasters >=220 ppi; app resource matches')
 
 if __name__ == '__main__':
     p=argparse.ArgumentParser(description=__doc__)

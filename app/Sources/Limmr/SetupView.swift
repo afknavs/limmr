@@ -190,8 +190,8 @@ struct SetupView: View {
         .buttonStyle(NativeGlassButtonStyle(tile: true))
         ActionFeedback(store: store)
       } else if preparing {
-        ProgressView("Setting up the background helper…").frame(height: 180)
-          .accessibilityLabel("Registering Limmr’s background helper")
+        ProgressView("Starting Limmr’s engine…").frame(height: 180)
+          .accessibilityLabel("Starting Limmr’s engine")
         Text("macOS may ask you to allow Limmr in Login Items.").foregroundStyle(AccessibleSecondary())
       } else if store.link.state == "error" {
         Text(store.link.reason ?? "Your device couldn’t be linked.").foregroundStyle(AccessibleSecondary())

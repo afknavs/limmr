@@ -52,10 +52,15 @@ func (s *Service) PeopleToUnderstand(a *model.Agent) ([]UnderstandingContact, er
 			known[r.A] = true
 		}
 	}
+	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	if e != nil {
+		return nil, e
+	}
+	knownCircles := confirmedCirclePeople(cs, ms)
 	out := []UnderstandingContact{}
 	for _, p := range ps {
 		st := stats[p.ID]
-		if p.ID == "me" || hasRelationship(p) || known[p.ID] || st.DM365 == 0 {
+		if p.ID == "me" || hasRelationship(p) || known[p.ID] || knownCircles[p.ID] || st.DM365 == 0 {
 			continue
 		}
 		v := UnderstandingContact{ID: p.ID, Name: p.Name, DM30: st.DM30, DM365: st.DM365, LastContact: st.LastDM}
@@ -89,7 +94,7 @@ func (s *Service) SaveInference(id string, v model.RelationshipInference) error 
 	if e := s.Hub.Repo.Get("people", id, &p); e != nil {
 		return e
 	}
-	if hasRelationship(p) {
+	if hasRelationship(p) || s.hasConfirmedCircle(id) {
 		return model.ErrConflict
 	}
 	v.Label = strings.TrimSpace(v.Label)
@@ -112,7 +117,7 @@ func (s *Service) ReviewInference(id string, confirm bool) error {
 		if e := s.Hub.Repo.Get("people", id, &p); e != nil {
 			return e
 		}
-		if hasRelationship(p) {
+		if hasRelationship(p) || s.hasConfirmedCircle(id) {
 			return model.ErrConflict
 		}
 		p.Role = v.Label
@@ -167,4 +172,41 @@ func (s *Service) RankForMap(ps []model.Person, limit int) ([]model.Person, erro
 
 func hasRelationship(p model.Person) bool {
 	return strings.TrimSpace(p.HowKnown) != "" || (strings.TrimSpace(p.Role) != "" && !strings.EqualFold(strings.TrimSpace(p.Role), "member"))
+}
+
+// Confirmed placement is explicit relationship knowledge. A DM-only model must
+// not replace it, including when membership changed while inference was running.
+func (s *Service) hasConfirmedCircle(id string) bool {
+	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	if e != nil {
+		return true
+	} // fail closed for optional suggestions
+	ms, e := s.memberships()
+	if e != nil {
+		return true
+	}
+	return confirmedCirclePeople(cs, ms)[id]
+}
+
+// Build once per projection: membership lookup stays linear in circles + groups,
+// rather than scanning every group for every person on a large map.
+func confirmedCirclePeople(cs []model.Circle, ms []model.Membership) map[string]bool {
+	known, groups := map[string]bool{}, map[string]bool{}
+	for _, c := range cs {
+		if !c.Confirmed || c.Archived {
+			continue
+		}
+		for _, p := range c.People {
+			known[p.PersonID] = true
+		}
+		for _, chat := range c.Chats {
+			groups[chat.ChatJID] = true
+		}
+	}
+	for _, m := range ms {
+		if groups[m.Group] {
+			known[m.Person] = true
+		}
+	}
+	return known
 }

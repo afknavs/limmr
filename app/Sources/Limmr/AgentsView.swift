@@ -9,33 +9,39 @@ struct AgentsView: View {
         AgentDetail(store: store, agent: agent, narrow: true).id(agent.id).padding(24)
       } else {
         Form {
-          YourDotSection(store: store)
           Section {
             if store.agents.isEmpty {
-              QuietBlockState(title: "Your AIs connect here", detail: "Connect an integration to choose which conversations it can read.")
+              QuietBlockState(title: "Your AIs connect here", detail: "Connect an AI app to choose which conversations it can read.")
             }
-            ForEach(store.agents) { agent in
+            ForEach(AIIdentity.rows(store.agents, sync: store.connectionSync)) { agent in
               Button {
                 store.selectedAgent = agent.id
               } label: {
                 HStack(spacing: 16) {
                   EntityIconButton(
                     store: store, bucket: "agents", id: agent.id, icon: agent.icon,
-                    fallback: agent.symbol)
+                    fallback: AIIdentity.symbol(agent, sync: store.connectionSync))
                   VStack(alignment: .leading, spacing: 4) {
-                    Text(agent.name).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
-                    Text(store.scopeSummary(agent)).font(.callout).foregroundStyle(AccessibleSecondary())
+                    Text(AIIdentity.name(agent, sync: store.connectionSync)).font(.headline).lineLimit(1).truncationMode(.tail)
+                    Text(AIIdentity.syncState(agent, sync: store.connectionSync) ?? store.scopeSummary(agent)).font(.callout).foregroundStyle(.secondary)
                   }
                   Spacer()
-                  Image(systemName: "chevron.right").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+                  Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                 }.padding(.vertical, 6).contentShape(Rectangle())
               }.limmrButton()
             }
           } header: {
-            SettingsPaneTitle(title: "Your AIs")
+            SettingsPaneTitle(title: "Integrations")
           }
           Section {
-            Button("Connect an integration", systemImage: "plus") { store.showConnect = true }
+            LabeledContent {
+              Text(store.briefSettings.thisMacEnabled ? "On" : "Off").foregroundStyle(.secondary)
+            } label: {
+              Label("On-device naming", systemImage: "laptopcomputer")
+            }
+          }
+          Section {
+            Button("Connect an AI app", systemImage: "plus") { store.showConnect = true }
             SetupGuideLink()
           }
         }.formStyle(.grouped).scrollContentBackground(.hidden)
@@ -81,11 +87,11 @@ struct AgentDetail: View {
         }
         HStack(spacing: 16) {
           EntityIconButton(
-            store: store, bucket: "agents", id: agent.id, icon: agent.icon, fallback: agent.symbol)
+            store: store, bucket: "agents", id: agent.id, icon: agent.icon, fallback: AIIdentity.symbol(agent, sync: store.connectionSync))
           VStack(alignment: .leading, spacing: 6) {
             if nameEditor.editing {
               TextField("Integration name", text: $nameEditor.draft)
-                .font(AppType.pageTitle).textFieldStyle(.plain)
+                .font(.largeTitle.bold()).textFieldStyle(.plain)
                 .focused($nameFocused)
                 .disabled(nameEditor.saving)
                 .onSubmit {
@@ -93,15 +99,15 @@ struct AgentDetail: View {
                 }
                 .onExitCommand { nameEditor.cancel() }
               Text(nameEditor.saving ? "Saving…" : "Return to save · Esc to cancel")
-                .font(AppType.caption).foregroundStyle(AccessibleSecondary())
+                .font(.caption).foregroundStyle(.secondary)
             } else {
               Button {
                 nameEditor.begin(agent.name)
                 nameFocused = true
               } label: {
                 HStack(spacing: 8) {
-                  Text(agent.name).font(AppType.pageTitle).lineLimit(1).truncationMode(.tail)
-                  Image(systemName: "pencil").font(.callout).foregroundStyle(AccessibleSecondary())
+                  Text(AIIdentity.name(agent, sync: store.connectionSync)).font(.largeTitle.bold()).lineLimit(1).truncationMode(.tail)
+                  Image(systemName: "pencil").font(.callout).foregroundStyle(.secondary)
                 }
               }
               .limmrButton()
@@ -109,13 +115,14 @@ struct AgentDetail: View {
               .help("Rename integration")
             }
             if let error = nameEditor.error {
-              Text(error).font(.callout).foregroundStyle(AccessibleSecondary()).fixedSize(
+              Text(error).font(.callout).foregroundStyle(.secondary).fixedSize(
                 horizontal: false, vertical: true)
             }
           }
           Spacer()
-          Text(store.lastSeen(agent)).font(.callout).foregroundStyle(AccessibleSecondary())
+          Text(store.lastSeen(agent)).font(.callout).foregroundStyle(.secondary)
         }
+        AgentDotLink(store: store, agent: agent)
         AIPresetChoice(
           preset: Binding(
             get: { agent.preset ?? "given" },
@@ -153,7 +160,7 @@ struct AgentDetail: View {
                 }
                 .pickerStyle(.segmented).labelsHidden()
                 HStack {
-                  Text(scopeSummary).font(.callout).foregroundStyle(AccessibleSecondary())
+                  Text(scopeSummary).font(.callout).foregroundStyle(.secondary)
                   Spacer()
                   if store.permissions.chats.mode != "all" {
                     Button("Choose chats…") { chooseChats = true }
@@ -193,7 +200,7 @@ struct AgentDetail: View {
           .font(.callout).disabled(store.busy)
           ActionFeedback(store: store, action: "permissions")
           if store.permissionsSaved {
-            Text("Saved").font(.callout).foregroundStyle(AccessibleSecondary())
+            Text("Saved").font(.callout).foregroundStyle(.secondary)
           }
         } else {
           if store.error == nil { ProgressView("Loading access settings…") }
@@ -224,7 +231,7 @@ struct AgentDetail: View {
     draft.permissions = store.permissions
     return store.scopeSummary(draft)
   }
-  private func question(_ title: String) -> some View { Text(title).font(AppType.rowTitle) }
+  private func question(_ title: String) -> some View { Text(title).font(.headline) }
   private func capability(_ title: String, _ value: Binding<Bool>) -> some View {
     Toggle(title, isOn: value).toggleStyle(.switch).controlSize(.small)
   }
@@ -234,6 +241,38 @@ struct AgentDetail: View {
         "/v1/agents/\(agent.id)/rotate", method: "POST", body: nil)
       struct Credential: Decodable { var token: String }
       rotatedToken = try Wire.decode(Credential.self, from: data).token
+    }
+  }
+}
+
+/// Pairing identifies the sync credential, not necessarily the AI's own profile.
+/// Only the owner can confirm a separate profile; it never changes AI permissions.
+struct AgentDotLink: View {
+  @Bindable var store: AppStore
+  let agent: Agent
+  var body: some View {
+    if let sync = store.connectionSync, sync.paired {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Label(AIIdentity.isLinked(agent, sync: sync) ? "This AI runs on your dot" : "Does this AI run on your dot?", systemImage: "desktopcomputer")
+          Spacer()
+          if agent.id != sync.peer.agentId {
+            Button(AIIdentity.isLinked(agent, sync: sync) ? "Unlink AI" : "This AI runs on your dot") {
+              Task { await store.linkAIToDot(agent, peer: AIIdentity.isLinked(agent, sync: sync) ? "" : sync.peer.engineId) }
+            }.buttonStyle(.bordered)
+          }
+        }.font(LimmrTheme.TypeScale.body)
+        if AIIdentity.isLinked(agent, sync: sync) { YourDotSection(store: store) }
+        ActionFeedback(store: store, action: "agent-dot")
+      }.padding(16).n1Card()
+    }
+  }
+}
+extension AppStore {
+  func linkAIToDot(_ agent: Agent, peer: String) async {
+    await perform(action: "agent-dot") { [self] in
+      _ = try await backend.request("/v1/agents/\(agent.id)", method: "PATCH", body: Wire.data(["runs_on_peer": peer]))
+      await refresh()
     }
   }
 }

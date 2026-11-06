@@ -3,7 +3,7 @@
     {
       "body": "Hi Maya, your revision notes are ready to review.",
       "chat_jid": "15550100004@s.whatsapp.net",
-      "circle_id": "",
+      "circle_id": "friends",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": "agent-2",
       "draft_source": "ai",
@@ -21,7 +21,7 @@
     {
       "body": "Hi Maya, just checking in on the project syllabus. No rush!",
       "chat_jid": "15550100004@s.whatsapp.net",
-      "circle_id": "",
+      "circle_id": "friends",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": "agent-2",
       "draft_source": "template",

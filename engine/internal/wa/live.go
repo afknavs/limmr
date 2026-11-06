@@ -209,7 +209,10 @@ func (l *Live) Reconnect(ctx context.Context) error {
 	}
 	l.publish(LinkEvent{State: "connecting"})
 	l.Client.Disconnect()
-	return l.Client.ConnectContext(ctx)
+	// whatsmeow runs the new socket's handler and keep-alive loops on the connect context, so the
+	// caller's request context would stop them as soon as the Reconnect request returns and leave
+	// the client stuck before login. Connect uses the client's background context instead.
+	return l.Client.Connect()
 }
 func (l *Live) resolve(ctx context.Context, j, alt types.JID) types.JID {
 	j = j.ToNonAD()
@@ -406,7 +409,7 @@ func (l *Live) event(evt any) {
 				}
 				msg.Info.Sender = l.resolve(ctx, msg.Info.Sender, senderAlt)
 				if msg.Info.Chat.Server != types.GroupServer {
-					name := l.person(ctx, msg.Info.Chat, msg.Info.PushName)
+					name := l.person(ctx, msg.Info.Chat, recipientPushName(msg.Info.IsFromMe, msg.Info.PushName))
 					_ = l.Messages.PutChat(model.Chat{JID: msg.Info.Chat.String(), Name: name})
 				}
 				if msg.Info.Sender.Server != types.GroupServer && !msg.Info.IsFromMe {
@@ -477,7 +480,7 @@ func (l *Live) ingestInto(ctx context.Context, v *events.Message, incoming bool,
 		sender = l.resolve(ctx, v.Info.Sender, senderAlt)
 		name = ""
 		if chat.Server != types.GroupServer {
-			name = l.person(ctx, chat, v.Info.PushName)
+			name = l.person(ctx, chat, recipientPushName(v.Info.IsFromMe, v.Info.PushName))
 		}
 		if sender.Server != types.GroupServer && !v.Info.IsFromMe {
 			l.person(ctx, sender, v.Info.PushName)
@@ -534,6 +537,29 @@ func (l *Live) ingestInto(ctx context.Context, v *events.Message, incoming bool,
 		_, e := store.exec("UPDATE messages SET url=?,media_key=?,file_sha256=?,file_enc_sha256=?,file_length=?,direct_path=? WHERE id=? AND chat_jid=?", url, key, sha, enc, size, direct, m.ID, m.ChatJID)
 		if e != nil {
 			return e
+		}
+	}
+	// Embedded WhatsApp thumbnails are already in the received payload: no
+	// media download, receipt or additional network request is involved.
+	var thumbnail []byte
+	var width, height uint32
+	switch {
+	case msg.GetImageMessage() != nil:
+		m := msg.GetImageMessage()
+		thumbnail = m.GetJPEGThumbnail()
+		width = m.GetWidth()
+		height = m.GetHeight()
+	case msg.GetVideoMessage() != nil:
+		m := msg.GetVideoMessage()
+		thumbnail = m.GetJPEGThumbnail()
+		width = m.GetWidth()
+		height = m.GetHeight()
+	case msg.GetDocumentMessage() != nil:
+		thumbnail = msg.GetDocumentMessage().GetJPEGThumbnail()
+	}
+	if len(thumbnail) <= 256<<10 && (len(thumbnail) > 0 || width > 0 || height > 0) {
+		if _, err := store.exec("UPDATE messages SET preview_thumbnail=?,preview_width=?,preview_height=? WHERE id=? AND chat_jid=?", thumbnail, width, height, m.ID, m.ChatJID); err != nil {
+			return err
 		}
 	}
 	if incoming && existed == 0 && !v.Info.IsFromMe {
@@ -703,8 +729,8 @@ func (l *Live) Send(ctx context.Context, a model.Approval) (string, error) {
 		if a.Attachment == nil {
 			return "", model.ErrInvalid
 		}
-		data, e := os.ReadFile(filepath.Join(l.Home, "outbox", filepath.Base(a.Attachment.ID)))
-		if e != nil || dbutil.Digest(string(data)) != a.Attachment.SHA256 {
+		data, e := readOutboundAttachment(l.Home, a.Attachment)
+		if e != nil {
 			return "", model.ErrInvalid
 		}
 		msg, e = uploadMediaMessage(ctx, l.Client, data, a, contextInfo(msg))
@@ -840,3 +866,12 @@ func (l *Live) LastEventAt() *time.Time {
 
 // NewMessageID reserves provenance before a network send can be observed.
 func NewMessageID() string { return whatsmeow.GenerateMessageID() }
+
+// A message push name belongs to its sender, never the recipient of an outgoing DM.
+// Used by both history ingestion and live events.
+func recipientPushName(fromMe bool, push string) string {
+	if fromMe {
+		return ""
+	}
+	return push
+}

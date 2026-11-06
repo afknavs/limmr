@@ -173,6 +173,6 @@ import SwiftUI
       process.standardError = FileHandle.nullDevice
       try process.run()
       NSApp.terminate(nil)
-    } catch { message = "The background helper can’t pause sends safely for this update. Install manually after stopping Limmr." }
+    } catch { message = "Limmr’s engine can’t pause sends safely for this update. Install manually after stopping Limmr." }
   }
 }

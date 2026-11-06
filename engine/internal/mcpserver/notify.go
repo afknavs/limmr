@@ -16,7 +16,7 @@ func fileSchema(t *Tool) {
 	t.Meta = map[string]any{"openai/fileParams": []string{"file"}}
 }
 func hasSource(a Args) bool {
-	for _, k := range []string{"attachment_id", "content_text", "content_base64", "url", "file"} {
+	for _, k := range []string{"attachment_id", "content_text", "content_base64", "url", "file", "path"} {
 		if _, ok := a[k]; ok {
 			return true
 		}
@@ -36,7 +36,24 @@ func (s *Service) attachment(ctx context.Context, a model.Agent, args Args) (mod
 	if f == nil {
 		f = &attachments.Fetcher{}
 	}
-	b, name, e := f.Read(ctx, src)
+	var b []byte
+	var name string
+	var e error
+	if path, ok := args["path"].(string); ok {
+		if a.Transport != "local" {
+			return model.Attachment{}, fmt.Errorf("Local paths are available only to local agents. Upload the file instead.")
+		}
+		if src.AttachmentID != "" || src.Text != nil || src.Base64 != nil || src.URL != "" || src.File != nil {
+			return model.Attachment{}, fmt.Errorf("Choose exactly one file source.")
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return model.Attachment{}, fmt.Errorf("Home folder unavailable. Upload the file instead.")
+		}
+		b, name, e = attachments.ReadLocal(path, home, s.Hub.Home)
+	} else {
+		b, name, e = f.Read(ctx, src)
+	}
 	if e != nil {
 		return model.Attachment{}, e
 	}

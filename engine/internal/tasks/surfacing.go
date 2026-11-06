@@ -447,6 +447,19 @@ func (s *Service) covered(t Task) (bool, error) {
 	}
 	for _, r := range xs {
 		if !open(r.Task) && r.Status != "suggested" {
+			// Do not re-suggest work just dismissed or completed from the same
+			// old conversation. A genuinely newer chat can surface work again.
+			same := t.EffortID != "" && r.EffortID == t.EffortID
+			if topic(t.Title) == topic(r.Title) {
+				for _, a := range t.Chats {
+					for _, b := range r.Chats {
+						same = same || a.ID == b.ID
+					}
+				}
+			}
+			if same && r.ClosedAt != nil && !s.latestActivity(r.Task).After(*r.ClosedAt) {
+				return true, nil
+			}
 			continue
 		}
 		if t.EffortID != "" && r.EffortID == t.EffortID {

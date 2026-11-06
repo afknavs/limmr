@@ -64,4 +64,39 @@ Your macOS and app versions, steps using invented data, what you expected and a 
 
 ## What changes when I pair a dot?
 
-Allowlisted owner knowledge syncs; messages/media, sessions, AI credentials, general settings and derived efforts do not. Profile photos and imported profile details may travel. Each engine enforces its own local hidden-chat and AI permission choices. While paired, only one engine (the Mac) runs reminders and check-ins; the dot never takes over on its own. See [Run Limmr on Linux or a dot](handoffs/DOT-ENGINE.md) for setup, scheduling and lease handover.
+Selected owner knowledge, profile photos, approved send queues and their copied
+files sync. WhatsApp history, linked-device sessions, AI credentials, general
+settings and derived efforts stay on each device. Both receive WhatsApp
+independently and enforce their own hidden chats and AI permissions. Pair only
+with a trusted persistent device: approved queue contents and file chunks remain
+in its private sync history. Upgrade both engines to schema 18 / protocol 2.
+
+One device holds sending and automations. The app and `whoami` show which device
+and the last sync. A non-holder queues; the holder waits for a durable peer
+acknowledgement before dispatch. Role transfer increments a fenced epoch and
+refuses unresolved sends. After 30 minutes without sync both stop dispatching.
+Silence alone never transfers authority. See the [dot guide](handoffs/DOT-ENGINE.md).
+
+### What if the sending device is off?
+
+Restore sync to renew the current holder, or request a handover from either side.
+If the holder cannot be reached, recovery requires lease expiry plus one minute
+and the owner's explicit confirmation that the previous sending device has been
+stopped. An uncertain/in-flight send blocks takeover; a lost acknowledgement does
+not prove it was never sent. A paired queue still needs reconciliation and peer
+acknowledgement after recovery. A never-paired engine works alone. Unpairing a
+non-holder preserves the expiry/owner-stop fence; standalone engines dispatch
+only their own queued requests, preventing both copies sending imported work.
+
+### Can an AI send a local file?
+
+Yes, with sending permission. Give a local AI an absolute path or `~/poster.pdf`.
+Limmr copies the bytes before approval and refuses symlinks and credential paths.
+Documents retain their filename/MIME; images and videos carry captions. Limits:
+100 MiB documents, 16 MiB images, video or audio. The document cap is deliberately
+conservative. Inline base64 has a separate 8 MiB decoded limit.
+
+A remote AI uses one-hour resumable uploads with chunks at most 1 MiB base64
+(768 KiB decoded), then sends the attachment ID. `send_status {upload_id}` gives
+progress/missing chunks; `send_status {key}` or `{approval_id}` gives the final
+receipt. Send a link when the file is larger. [File sources](MCP.md#local-files).

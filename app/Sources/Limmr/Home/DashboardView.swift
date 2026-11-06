@@ -27,12 +27,12 @@ struct DashboardView: View {
         QuietPlaceholder(height: 155).accessibilityLabel("Loading message history")
       } else {
         Text("Message history isn't available yet.").font(.callout).foregroundStyle(AccessibleSecondary())
-        Button("Try again") { Task { await store.refreshHistory() } }.limmrButton()
+        Button("Try again") { Task { await store.refreshHistory() } }.buttonStyle(.bordered)
       }
     }.frame(maxWidth: .infinity, alignment: .leading)
       .padding(16).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))
       .help(HomePresentation.dashboardFooter(lastSyncAt: store.dashboard?.lastSyncAt,
-        now: store.demo ? Timestamp.date(DemoData.now)! : Date()))
+        now: store.presentationNow))
   }
   private func calendar(_ history: StatsHistory) -> some View {
     HeatmapView(history: history, agents: false, weeks: weeks, ai: store.agents,
@@ -96,7 +96,7 @@ struct HeatmapView: View {
                   let label = HomePresentation.dayLabel(day, agents: ai)
                   Button { openDay(day.date) } label: {
                     square(count == 0 ? 0 : StatsHistory.intensity(count, maximum: maximum))
-                  }.buttonStyle(.plain).frame(width: side, height: side)
+                  }.quietCard().frame(width: side, height: side)
                     .help(label).accessibilityLabel(label).accessibilityHint("Show Activity for this day")
                 } else {
                   Color.clear.frame(width: side, height: side).accessibilityHidden(true)

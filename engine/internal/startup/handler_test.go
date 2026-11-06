@@ -106,3 +106,29 @@ func TestLoopbackReadiness(t *testing.T) {
 		t.Fatal("starting health not reachable")
 	}
 }
+
+func TestPingStaysLightweightAndPrivateAfterReady(t *testing.T) {
+	s := New(18800, "synthetic-control", "synthetic-status", nil)
+	blocked := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("ping entered application or database handler") })
+	for _, ready := range []bool{false, true} {
+		if ready {
+			s.Ready(blocked)
+		}
+		if request(t, s, "/v1/ping", "synthetic-control").Code != 204 {
+			t.Fatal("ping failed")
+		}
+		for _, token := range []string{"wrong", "synthetic-status", ""} {
+			if request(t, s, "/v1/ping", token).Code != 401 && request(t, s, "/v1/ping", token).Code != 503 {
+				t.Fatal("ping accepted wrong credential")
+			}
+		}
+		req := httptest.NewRequest("GET", "http://127.0.0.1:18800/v1/ping", nil)
+		req.Header.Set("Authorization", "Bearer synthetic-control")
+		req.Header["Origin"] = []string{""}
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+		if w.Code != 403 {
+			t.Fatal("ping accepted origin")
+		}
+	}
+}

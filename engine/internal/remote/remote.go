@@ -5,6 +5,7 @@ package remote
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -75,7 +76,20 @@ type tokenRecord struct {
 	AgentID   string    `json:"agent_id"`
 	Resource  string    `json:"resource"`
 	ExpiresAt time.Time `json:"expires_at"`
+	// A rotated refresh token is kept, marked consumed, until one of its
+	// replacements is used (see refreshReplayWindow). Predecessor is the digest
+	// of the refresh token this one replaced.
+	ConsumedAt  *time.Time `json:"consumed_at,omitempty"`
+	Predecessor string     `json:"predecessor,omitempty"`
 }
+
+// refreshReplayWindow is how long a rotated refresh token may be presented again,
+// and only while none of the refresh tokens that replaced it has been used. ChatGPT
+// sometimes loses the rotation response (slow Funnel relay, retried request) and
+// comes back with the previous token; rejecting it drops the connector until the
+// owner reconnects by hand. Once the replacement is used, the old token is dead.
+const refreshReplayWindow = 24 * time.Hour
+
 type Status struct {
 	Enabled           bool      `json:"enabled"`
 	PublicURL         string    `json:"public_url"`
@@ -263,7 +277,7 @@ func (s *Service) Status() Status {
 	tokens, _ := hub.List[tokenRecord](s.Hub.Repo, "oauth_tokens")
 	withTokens, otherURL := map[string]bool{}, map[string]bool{}
 	for _, token := range tokens {
-		if s.Now().Before(token.ExpiresAt) {
+		if s.Now().Before(token.ExpiresAt) && token.ConsumedAt == nil {
 			withTokens[token.ClientID] = true
 			if token.Resource != s.config.PublicURL+"/mcp" {
 				otherURL[token.ClientID] = true
@@ -482,18 +496,20 @@ func (s *Service) issueLocked(c Client, consume string) (map[string]any, error) 
 		raw, kind string
 		ttl       time.Duration
 	}{{access, "access", time.Hour}, {refresh, "refresh", 30 * 24 * time.Hour}} {
-		rec := tokenRecord{v.kind, c.ID, c.AgentID, s.config.PublicURL + "/mcp", now.Add(v.ttl)}
+		rec := tokenRecord{Kind: v.kind, ClientID: c.ID, AgentID: c.AgentID, Resource: s.config.PublicURL + "/mcp", ExpiresAt: now.Add(v.ttl)}
+		if v.kind == "refresh" {
+			rec.Predecessor = consume
+		}
 		if _, e = tx.Exec("INSERT INTO objects VALUES('oauth_tokens',?,?)", dbutil.Digest(v.raw), dbutil.JSON(rec)); e != nil {
 			return nil, e
 		}
 	}
 	if consume != "" {
-		result, err := tx.Exec("DELETE FROM objects WHERE bucket='oauth_tokens' AND id=?", consume)
-		if err != nil {
-			return nil, err
+		if e = consumeRefreshLocked(tx, consume, now); e != nil {
+			return nil, e
 		}
-		if n, err := result.RowsAffected(); err != nil || n != 1 {
-			return nil, model.ErrInvalid
+		if e = pruneTokensLocked(tx, c.ID, now); e != nil {
+			return nil, e
 		}
 	}
 	if e = tx.Commit(); e != nil {
@@ -501,6 +517,68 @@ func (s *Service) issueLocked(c Client, consume string) (map[string]any, error) 
 	}
 	return map[string]any{"access_token": access, "refresh_token": refresh, "token_type": "Bearer", "expires_in": 3600, "scope": "mcp"}, nil
 }
+
+// consumeRefreshLocked marks a refresh token as rotated. The first time a token is
+// used, its client has proved it holds the newest credentials, so the token it
+// replaced and that token's other, unused replacements are deleted. A replayed
+// token keeps its first consumption time, so replays never extend the window.
+func consumeRefreshLocked(tx *sql.Tx, key string, now time.Time) error {
+	var data string
+	if e := tx.QueryRow("SELECT data FROM objects WHERE bucket='oauth_tokens' AND id=?", key).Scan(&data); e != nil {
+		return model.ErrInvalid
+	}
+	var rec tokenRecord
+	if e := json.Unmarshal([]byte(data), &rec); e != nil || rec.Kind != "refresh" {
+		return model.ErrInvalid
+	}
+	if rec.ConsumedAt != nil {
+		return nil
+	}
+	rec.ConsumedAt = &now
+	result, e := tx.Exec("UPDATE objects SET data=? WHERE bucket='oauth_tokens' AND id=?", dbutil.JSON(rec), key)
+	if e != nil {
+		return e
+	}
+	if n, e := result.RowsAffected(); e != nil || n != 1 {
+		return model.ErrInvalid
+	}
+	if rec.Predecessor != "" {
+		if _, e = tx.Exec("DELETE FROM objects WHERE bucket='oauth_tokens' AND (id=? OR (json_extract(data,'$.predecessor')=? AND id<>?))", rec.Predecessor, rec.Predecessor, key); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+// pruneTokensLocked deletes this client's expired credentials and rotated refresh
+// tokens whose replay window has passed.
+func pruneTokensLocked(tx *sql.Tx, clientID string, now time.Time) error {
+	rows, e := tx.Query("SELECT id, data FROM objects WHERE bucket='oauth_tokens' AND json_extract(data,'$.client_id')=?", clientID)
+	if e != nil {
+		return e
+	}
+	var stale []string
+	for rows.Next() {
+		var id, data string
+		var rec tokenRecord
+		if rows.Scan(&id, &data) != nil || json.Unmarshal([]byte(data), &rec) != nil {
+			continue
+		}
+		if !now.Before(rec.ExpiresAt) || (rec.ConsumedAt != nil && !now.Before(rec.ConsumedAt.Add(refreshReplayWindow))) {
+			stale = append(stale, id)
+		}
+	}
+	if e = rows.Close(); e != nil {
+		return e
+	}
+	for _, id := range stale {
+		if _, e = tx.Exec("DELETE FROM objects WHERE bucket='oauth_tokens' AND id=?", id); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
 func (s *Service) Verify(ctx context.Context, token string, r *http.Request) (*auth.TokenInfo, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -944,11 +1022,14 @@ func (s *Service) token(w http.ResponseWriter, r *http.Request) {
 			reason = "refresh_expired"
 		case r.Form.Get("scope") != "" && r.Form.Get("scope") != "mcp":
 			reason = "scope_invalid"
+		case old.ConsumedAt != nil && !s.Now().Before(old.ConsumedAt.Add(refreshReplayWindow)):
+			reason = "refresh_replaced"
 		}
 		if reason != "" {
 			deny("invalid_grant", 400, reason)
 			return
 		}
+		replay := old.ConsumedAt != nil
 		out, e := s.issueLocked(c, key)
 		if e != nil {
 			reason := "storage"
@@ -958,7 +1039,11 @@ func (s *Service) token(w http.ResponseWriter, r *http.Request) {
 			deny("server_error", 500, reason)
 			return
 		}
-		s.authIssued("refresh_token")
+		if replay {
+			s.authReplayed()
+		} else {
+			s.authIssued("refresh_token")
+		}
 		reply(w, out)
 	default:
 		deny("unsupported_grant_type", 400, "grant_unsupported")

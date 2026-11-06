@@ -40,6 +40,12 @@ func (s *Server) circleRoutes(add func(string, string, route)) {
 			return nil, err
 		}
 		out["tasks"] = append(taskSummaries, suggested...)
+		recently, recentLines, err := s.MCP.TaskService().RecentlyWithTargets(nil, "")
+		if err != nil {
+			return nil, err
+		}
+		out["recently"] = recently
+		out["recent_lines"] = recentLines
 		waiting := []watches.Waiting{}
 		if s.MCP.Watches != nil {
 			waiting, err = s.MCP.Watches.Waiting(r.Context())

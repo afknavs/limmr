@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-const Version = 1
-const Schema = 10
+const Version = 2
+const Schema = 18
 const MaxChanges = 500
 const MaxBytes = 4 << 20
 
@@ -54,6 +54,8 @@ type PullResponse struct {
 	EngineID string   `json:"engine_id"`
 }
 type PushRequest struct {
+	Complete     bool       `json:"complete,omitempty"`
+	Lease        *Lease     `json:"lease,omitempty"`
 	Blob         *BlobChunk `json:"blob,omitempty"`
 	Changes      []Change   `json:"changes"`
 	FromEngineID string     `json:"from_engine_id"`
@@ -79,10 +81,12 @@ type Peer struct {
 	AgentID       string    `json:"agent_id,omitempty"`
 }
 type Service struct {
-	Repo     *hub.Repo
-	Home     string
-	EngineID string
-	Now      func() time.Time
+	Repo      *hub.Repo
+	Home      string
+	EngineID  string
+	Now       func() time.Time
+	Hub       *hub.Service
+	Messenger hub.Messenger
 }
 
 func New(r *hub.Repo, home string, now func() time.Time) (*Service, error) {
@@ -96,20 +100,20 @@ func New(r *hub.Repo, home string, now func() time.Time) (*Service, error) {
 func (s *Service) acceptPeer(id string) bool {
 	var p Peer
 	err := s.Repo.Get("settings", "sync_peer", &p)
-	return (err == nil && (p.EngineID == "" || p.EngineID == id)) || errors.Is(err, model.ErrNotFound)
+	return (err == nil && !p.Paused && (p.EngineID == "" || p.EngineID == id)) || errors.Is(err, model.ErrNotFound)
 }
 func versions(v, schema int) error {
 	if v != Version || schema > Schema {
 		return ErrUpdateNeeded
 	}
-	if schema < 9 {
-		return ErrInvalid
+	if schema < Schema {
+		return ErrUpdateNeeded
 	}
 	return nil
 }
 func validBucket(c Change) bool {
 	switch c.Bucket {
-	case "people", "person_aliases", "circles", "briefs", "facts", "relations", "entity_icons", "task_dismissals", "tasks", "task_events":
+	case "send_queue", "send_files", "send_acks", "send_control", "people", "person_aliases", "circles", "briefs", "facts", "relations", "entity_icons", "task_dismissals", "tasks", "task_events":
 		return true
 	case "memberships":
 		var v map[string]any
@@ -209,6 +213,19 @@ func (s *Service) Push(ctx context.Context, q PushRequest) (PushResponse, error)
 	if err != nil || len(b) > MaxBytes || len(q.Changes) > MaxChanges || q.FromEngineID == "" || !s.acceptPeer(q.FromEngineID) {
 		return out, ErrInvalid
 	}
+	if q.Complete {
+		if len(q.Changes) != 0 || q.Blob != nil || q.Lease == nil {
+			return out, ErrInvalid
+		}
+		var current Lease
+		_ = s.Repo.Get("settings", "automation_lease", &current)
+		if current.EngineID == s.EngineID && q.Lease.EngineID == current.EngineID && q.Lease.Epoch == current.Epoch {
+			if e := s.renewLease(); e != nil {
+				return out, e
+			}
+		}
+		return out, s.Coordinate(ctx)
+	}
 	if q.Blob != nil {
 		if len(q.Changes) != 0 {
 			return out, ErrInvalid
@@ -228,7 +245,7 @@ func (s *Service) Push(ctx context.Context, q PushRequest) (PushResponse, error)
 			return out, ErrInvalid
 		}
 		for _, i := range c.Items {
-			if c.Bucket != "tasks" || !contains([]string{"checklist", "items", "updates_sent"}, i.List) || i.ID == "" || i.HLC <= 0 || i.HLC > 1<<62 || i.Origin == "" || !json.Valid(i.Data) {
+			if c.Bucket != "tasks" || !contains([]string{"checklist", "items", "updates_sent", "owner_notes"}, i.List) || i.ID == "" || i.HLC <= 0 || i.HLC > 1<<62 || i.Origin == "" || !json.Valid(i.Data) {
 				return out, ErrInvalid
 			}
 		}
@@ -293,7 +310,10 @@ func (s *Service) Push(ctx context.Context, q PushRequest) (PushResponse, error)
 	if _, err = tx.Exec(`UPDATE sync_state SET remote_hlc=NULL,remote_origin=NULL,suppress=0 WHERE id=1`); err != nil {
 		return out, err
 	}
-	return out, tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return out, err
+	}
+	return out, s.Coordinate(ctx)
 }
 func contains(xs []string, x string) bool {
 	for _, v := range xs {
@@ -327,6 +347,9 @@ func canonical(tx *sql.Tx, id string) (string, error) {
 	return "", ErrInvalid
 }
 func (s *Service) apply(tx *sql.Tx, c Change, out *PushResponse) (bool, error) {
+	if ok, e := s.coordinationChange(tx, c); e != nil || !ok {
+		return false, e
+	}
 	if c.Bucket == "people" {
 		id, err := canonical(tx, c.ID)
 		if err != nil {
@@ -353,6 +376,25 @@ func (s *Service) apply(tx *sql.Tx, c Change, out *PushResponse) (bool, error) {
 		return false, err
 	}
 	win := newer(c.HLC, c.Origin, oldH, oldO)
+	if c.Bucket == "settings" && c.ID == "automation_lease" {
+		var raw string
+		var old, next Lease
+		_ = json.Unmarshal(c.Data, &next)
+		if tx.QueryRow(`SELECT data FROM objects WHERE bucket='settings' AND id='automation_lease'`).Scan(&raw) == nil && json.Unmarshal([]byte(raw), &old) == nil {
+			win = next.Epoch > old.Epoch || next.Epoch == old.Epoch && next.EngineID == old.EngineID && next.RenewedAt.After(old.RenewedAt)
+		}
+	}
+	if c.Bucket == "send_queue" {
+		var raw string
+		var old, next QueuedSend
+		_ = json.Unmarshal(c.Data, &next)
+		if tx.QueryRow(`SELECT data FROM objects WHERE bucket='send_queue' AND id=?`, c.ID).Scan(&raw) == nil && json.Unmarshal([]byte(raw), &old) == nil {
+			if phaseRank(next.Phase) > phaseRank(old.Phase) || next.Phase == "sent" && old.Phase == "uncertain" || next.Phase == "queued" && old.Phase == "claimed" && next.Epoch > old.Epoch {
+				win = true
+			}
+		}
+	}
+
 	if c.Bucket == "task_events" && c.Op == "upsert" && oldOp == "upsert" {
 		// Independently observed slots can share an id. Their immutable content
 		// belongs to the earliest observation, not the last replication write.
@@ -456,6 +498,17 @@ func (s *Service) apply(tx *sql.Tx, c Change, out *PushResponse) (bool, error) {
 	default:
 		_, err = tx.Exec(`INSERT INTO objects VALUES(?,?,?) ON CONFLICT(bucket,id) DO UPDATE SET data=excluded.data`, c.Bucket, c.ID, string(c.Data))
 	}
+	if err != nil {
+		return false, err
+	}
+	// Capture guards skip equal payloads. A winning remote clock must still
+	// advance the version fence (and travel to an offline peer), even when its
+	// bytes match, otherwise an intermediate stale edit could overwrite it.
+	_, err = tx.Exec(`INSERT INTO sync_log(bucket,id,hlc,origin,op,data)
+        SELECT ?,?,?,?,'upsert',? WHERE NOT EXISTS(SELECT 1 FROM sync_log WHERE bucket=? AND id=? AND hlc=? AND origin=? AND op='upsert')`, c.Bucket, c.ID, c.HLC, c.Origin, string(c.Data), c.Bucket, c.ID, c.HLC, c.Origin)
+	if err == nil {
+		_, err = tx.Exec(`INSERT INTO sync_meta VALUES(?,?,?,?,'upsert') ON CONFLICT(bucket,id) DO UPDATE SET hlc=excluded.hlc,origin=excluded.origin,op='upsert'`, c.Bucket, c.ID, c.HLC, c.Origin)
+	}
 	return true, err
 }
 func materializeItems(tx *sql.Tx, id string, raw json.RawMessage) (json.RawMessage, error) {
@@ -467,7 +520,7 @@ func materializeItems(tx *sql.Tx, id string, raw json.RawMessage) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	for _, list := range []string{"checklist", "items", "updates_sent"} {
+	for _, list := range []string{"checklist", "items", "updates_sent", "owner_notes"} {
 		xs := []json.RawMessage{}
 		for _, i := range items {
 			if i.List == list && !i.Removed {

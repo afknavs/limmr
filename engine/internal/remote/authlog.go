@@ -20,7 +20,7 @@ var authReasons = set(
 	// token endpoint
 	"form_invalid", "client_unknown", "client_auth_mismatch", "client_unapproved", "agent_inactive", "resource_mismatch",
 	"code_unknown", "code_client_mismatch", "code_agent_mismatch", "redirect_mismatch", "code_resource_mismatch", "verifier_invalid", "verifier_mismatch",
-	"refresh_unknown", "refresh_kind", "refresh_client_mismatch", "refresh_agent_mismatch", "refresh_resource_mismatch", "refresh_expired", "scope_invalid", "refresh_consumed",
+	"refresh_unknown", "refresh_kind", "refresh_client_mismatch", "refresh_agent_mismatch", "refresh_resource_mismatch", "refresh_expired", "scope_invalid", "refresh_consumed", "refresh_replaced", "refresh_replayed",
 	"grant_unsupported", "storage",
 	// bearer
 	"bearer_missing", "bearer_malformed", "token_unknown", "token_kind", "token_expired", "token_resource_mismatch", "client_agent_mismatch", "agent_not_remote", "agent_missing",
@@ -92,6 +92,12 @@ func (s *Service) authFailure(endpoint, grant, code, reason string) {
 // shows whether requests reached Limmr at all. It carries no request values.
 func (s *Service) authIssued(grant string) {
 	s.authLine("INFO remote auth issued", "token", grant, "", "")
+}
+
+// authReplayed records that a rotated refresh token was accepted again because
+// its replacement was never used (the client most likely lost the response).
+func (s *Service) authReplayed() {
+	s.authLine("INFO remote auth issued", "token", "refresh_token", "", "refresh_replayed")
 }
 
 func (s *Service) authLine(prefix, endpoint, grant, code, reason string) {

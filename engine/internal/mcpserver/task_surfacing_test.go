@@ -113,3 +113,43 @@ func TestTaskSurfacingMCPHomeAndUpdates(t *testing.T) {
 		t.Fatal("proposal signal missing")
 	}
 }
+
+func TestChecklistAliases(t *testing.T) {
+	h, p, _ := testkit.Open(t)
+	testkit.Seed(t, h, p)
+	a, _, err := h.CreateAgent("Example AI", "custom", "local")
+	testkit.Must(t, err)
+	mc := &mcpserver.Service{Hub: h, People: p}
+	created, err := mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "title": "Exam preparation", "kind": "long"})
+	testkit.Must(t, err)
+	id := created.(tasks.Task).ID
+	listed, err := mc.TaskService().List(nil, "open", 100)
+	testkit.Must(t, err)
+	if len(listed) != 1 || listed[0].ID != id {
+		t.Fatal("agent-created task without chats is missing from the open list")
+	}
+	for _, tc := range []struct {
+		args map[string]any
+		want string
+	}{
+		{map[string]any{"action": "create", "title": "Exam preparation", "kind": "long", "lifespan_days": float64(7)}, "lifespan_days"},
+		{map[string]any{"action": "update", "id": id, "checklist": []any{}}, "checklist"},
+	} {
+		_, err = mc.Call(context.Background(), a.ID, "task", tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "example:") {
+			t.Fatalf("missing actionable error for %s: %v", tc.want, err)
+		}
+	}
+	for _, args := range []map[string]any{
+		{"action": "checklist", "id": id, "op": "add", "items": []any{map[string]any{"text": "Read"}}},
+		{"action": "checklist", "id": id, "op": "add", "text": "Practice"},
+	} {
+		_, err = mc.Call(context.Background(), a.ID, "task", args)
+		testkit.Must(t, err)
+	}
+	task, err := mc.TaskService().Get(&a, id)
+	testkit.Must(t, err)
+	if len(task.Checklist) != 2 || task.Checklist[0].Text != "Read" || task.Checklist[1].Text != "Practice" {
+		t.Fatalf("checklist aliases: %+v", task.Checklist)
+	}
+}

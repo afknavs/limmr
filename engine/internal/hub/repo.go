@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"limmr/internal/dbutil"
@@ -70,6 +71,11 @@ func (r *Repo) Migrate(observer startup.Observer) error {
 		{"migration.tasks", r.migrateTasks},
 		{"migration.task_surfacing", r.migrateTaskSurfacing},
 		{"migration.sync", r.migrateSync},
+		{"migration.sync_storage", r.migrateSyncStorage},
+		{"migration.send_coordination", r.migrateSendCoordination},
+		{"migration.task_cards", r.migrateTaskCards},
+		{"migration.task_previews", r.migrateTaskPreviews},
+		{"migration.task_cover_protocol", r.migrateTaskCoverProtocol},
 	} {
 		if err := startup.Measure(observer, migration.name, migration.run); err != nil {
 			return err
@@ -90,7 +96,7 @@ func (r *Repo) Put(bucket, id string, v any) error {
 	if e != nil {
 		return e
 	}
-	_, e = r.DB.Exec("INSERT INTO objects VALUES(?,?,?) ON CONFLICT(bucket,id) DO UPDATE SET data=excluded.data", bucket, id, string(b))
+	_, e = r.DB.Exec("INSERT INTO objects VALUES(?,?,?) ON CONFLICT(bucket,id) DO UPDATE SET data=excluded.data WHERE objects.data IS NOT excluded.data", bucket, id, string(b))
 	return e
 }
 func (r *Repo) Get(bucket, id string, v any) error {
@@ -165,8 +171,18 @@ func (r *Repo) Apply(xs ...Mutation) error {
 			if e == nil {
 				x.ID, b, e = aliasValue(tx, x.Bucket, x.ID, b)
 			}
+			if e == nil && x.Bucket == "people" {
+				var old string
+				readErr := tx.QueryRow(`SELECT data FROM objects WHERE bucket='people' AND id=?`, x.ID).Scan(&old)
+				if readErr != nil && readErr != sql.ErrNoRows {
+					return readErr
+				}
+				if readErr == nil && samePersonContent([]byte(old), b) {
+					continue
+				}
+			}
 			if e == nil {
-				_, e = tx.Exec("INSERT INTO objects VALUES(?,?,?) ON CONFLICT(bucket,id) DO UPDATE SET data=excluded.data", x.Bucket, x.ID, string(b))
+				_, e = tx.Exec("INSERT INTO objects VALUES(?,?,?) ON CONFLICT(bucket,id) DO UPDATE SET data=excluded.data WHERE objects.data IS NOT excluded.data", x.Bucket, x.ID, string(b))
 			}
 		}
 		if e != nil {
@@ -174,4 +190,18 @@ func (r *Repo) Apply(xs ...Mutation) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// Local profile import/owner paths must not move updated_at for an equal
+// profile. Compare serialized content, where omitted empty slices/maps agree.
+func samePersonContent(a, b []byte) bool {
+	var old, next map[string]json.RawMessage
+	if json.Unmarshal(a, &old) != nil || json.Unmarshal(b, &next) != nil {
+		return false
+	}
+	delete(old, "updated_at")
+	delete(next, "updated_at")
+	a, _ = json.Marshal(old)
+	b, _ = json.Marshal(next)
+	return bytes.Equal(a, b)
 }

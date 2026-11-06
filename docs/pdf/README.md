@@ -63,7 +63,7 @@ Check the full-page composition and zoom in on QR, approval, menu and update pan
 
 ## Beta setup guide (Z3)
 
-The eleven-page [Limmr Setup Guide](Limmr-Setup-Guide.pdf) is a separate light-theme first-run guide.
+The thirteen-page [Limmr Setup Guide](Limmr-Setup-Guide.pdf) is a separate light-theme first-run guide.
 Its [HTML source](src/setup-guide.html) shares `src/style.css` and `scripts/layout-check.js` with the existing documents.
 
 ```sh
@@ -75,8 +75,8 @@ nice -n 15 bash docs/pdf/build.sh --setup-guide --reuse-captures < /dev/null
 The setup route captures only its own eight scenes from invented DemoBackend data: six guide illustrations,
 a dark copy-prompt view, and a hosted copy-prompt view. Native 3x lossless crops and their hashes live in
 `docs/setup/`; intermediate full windows stay in `.cache/setup/`. Each invocation uses a throwaway home.
-The setup verifier checks local resources, image dimensions, captions, eleven source pages, print resolution,
-then the common layout gate and eleven A4 PDF pages with embedded images at 220 ppi or better.
+The setup verifier checks local resources, image dimensions, captions, thirteen source pages, print resolution,
+then the common layout gate and thirteen A4 PDF pages with embedded images at 220 ppi or better.
 The PDF is copied byte-for-byte to `app/Resources/Limmr-Setup-Guide.pdf`; `app/build.sh` bundles that resource.
 The public exporter explicitly retains the guide and `docs/setup/` PNG/JPEG images. Other documentation
 rasters remain excluded. Re-render and visually inspect every page after changing the guide.

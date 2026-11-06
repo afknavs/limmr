@@ -1,6 +1,9 @@
 {
   "tasks": [
     {
+      "circle_ids": [
+        "university"
+      ],
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
@@ -16,6 +19,7 @@
       ],
       "id": "tsk_demo_linked",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "owner",
       "progress": {
@@ -27,6 +31,15 @@
       "updated_at": "2026-10-17T12:00:00Z"
     },
     {
+      "circle_ids": [
+        "university"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "university",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
@@ -41,6 +54,7 @@
       ],
       "id": "tsk_demo_short",
       "kind": "short",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "agent",
       "progress": {
@@ -52,12 +66,26 @@
       "updated_at": "2026-10-17T12:00:00Z"
     },
     {
+      "circle_ids": [
+        "friends"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "friends",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
         "name": "Codex"
       },
       "events": [
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "check_in_scheduled",
+          "text": "Check-in scheduled"
+        },
         {
           "at": "2026-10-17T12:00:00Z",
           "kind": "created",
@@ -67,10 +95,16 @@
           "at": "2026-10-17T12:00:00Z",
           "kind": "item_added",
           "text": "Workspace item added"
+        },
+        {
+          "at": "2026-10-17T12:00:00Z",
+          "kind": "summary_changed",
+          "text": "Summary updated"
         }
       ],
       "id": "tsk_demo_study",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": true,
       "needs_you_reason": "An update is ready for your review",
       "next_check_in_at": "2026-10-24T12:00:00Z",
@@ -84,6 +118,15 @@
       "updated_at": "2026-10-17T12:00:00Z"
     },
     {
+      "circle_ids": [
+        "friends"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "friends",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
@@ -113,6 +156,7 @@
       ],
       "id": "tsk_demo_waiting",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": true,
       "needs_you_reason": "An update is ready for your review",
       "origin": "agent",

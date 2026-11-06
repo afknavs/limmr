@@ -19,6 +19,26 @@ public struct ReadSession: Identifiable, Sendable, Equatable {
 }
 
 public enum ActivityPresentation {
+  public static func isEmptyRead(_ row: Activity) -> Bool {
+    ["read", "search"].contains(row.kind) && row.count == 0 && row.messageIds.isEmpty
+  }
+  /// Parse each timestamp once, rather than at every comparison in SwiftUI layout.
+  public static func detailed(_ rows: [Activity], day: String? = nil, agent: String = "all", filter: String = "all") -> [Activity] {
+    let unique = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
+    let filtered: [Activity] = unique.values.filter { row in
+      guard !isEmptyRead(row), ActivityDayFilter.matches(row.at, day: day) else { return false }
+      guard agent == "all" || row.agentId == agent else { return false }
+      if filter == "all" { return true }
+      return filter == "reads" ? isMessageRead(row) : isSend(row)
+    }
+    let dated: [(row: Activity, date: Date)] = filtered.map { (row: $0, date: Timestamp.date($0.at) ?? .distantPast) }
+    let sorted = dated.sorted { left, right in
+      if left.date == right.date { return left.row.id > right.row.id }
+      return left.date > right.date
+    }
+    return sorted.map(\.row)
+  }
+
   public static func isRead(_ row: Activity) -> Bool {
     ["read", "search", "people_read"].contains(row.kind)
   }

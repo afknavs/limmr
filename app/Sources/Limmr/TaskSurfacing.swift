@@ -10,7 +10,7 @@ extension AppStore {
     do {
       let updated = try await TaskClient(backend: backend).surface(id, action: action)
       guard generation == backendGeneration else { return nil }
-      let summary = updated.compact(now: demo ? Timestamp.date(DemoData.now)! : Date())
+      let summary = updated.compact(now: presentationNow)
       if let index = home.tasks.firstIndex(where: { $0.id == id }) {
         if ["dropped", "done"].contains(summary.status) { home.tasks.remove(at: index) }
         else { home.tasks[index] = summary }

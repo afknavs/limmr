@@ -160,17 +160,17 @@ func (s *Server) Handler() http.Handler {
 		if state.Account != nil {
 			name = state.Account.Name
 		}
-		xs, e := s.Hub.Agents()
-		if e != nil {
-			return nil, e
-		}
+		readCtx, cancel := context.WithTimeout(r.Context(), 100*time.Millisecond)
+		defer cancel()
+		statusHub := s.Hub.WithContext(readCtx)
+		xs, _ := statusHub.Agents()
 		agents := []map[string]any{}
 		for _, a := range xs {
 			if a.Enabled {
 				agents = append(agents, map[string]any{"name": a.Name, "last_seen_at": a.LastSeenAt})
 			}
 		}
-		return map[string]any{"engine_version": health.Version, "linked": linked, "connected": connected, "account_name": name, "pending_approvals": s.Hub.PendingCount(), "agents": agents, "health": health.Overall(s.Health.Checks(r.Context()))}, nil
+		return map[string]any{"engine_version": health.Version, "linked": linked, "connected": connected, "account_name": name, "pending_approvals": statusHub.PendingCount(), "agents": agents, "health": health.Overall(s.Health.Checks(r.Context())), "details_pending": readCtx.Err() != nil}, nil
 	})
 	add("GET /v1/link", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) { return s.Link.State(), nil })
 	add("POST /v1/link/start", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
@@ -246,12 +246,22 @@ func (s *Server) Handler() http.Handler {
 			return nil, e
 		}
 		var b struct {
+			RunsOnPeer  *string            `json:"runs_on_peer"`
 			Name        json.RawMessage    `json:"name"`
 			Enabled     *bool              `json:"enabled"`
 			Permissions *model.Permissions `json:"permissions"`
 		}
 		if e = decode(r, &b); e != nil {
 			return nil, e
+		}
+		if b.RunsOnPeer != nil {
+			if *b.RunsOnPeer != "" {
+				var peer knowledgeSync.Peer
+				if e := s.Hub.Repo.Get("settings", "sync_peer", &peer); e != nil || peer.EngineID != *b.RunsOnPeer {
+					return nil, model.ErrInvalid
+				}
+			}
+			a.RunsOnPeer = *b.RunsOnPeer
 		}
 		if b.Name != nil {
 			var raw string
@@ -358,7 +368,7 @@ func (s *Server) Handler() http.Handler {
 		if before < 0 || limit < 1 {
 			return nil, model.ErrInvalid
 		}
-		xs, e := s.Hub.Activity(p.agent, hub.ActivityFilter{Agent: r.URL.Query().Get("agent"), Kind: r.URL.Query().Get("kind"), Chat: r.URL.Query().Get("chat"), Before: int64(before), Limit: limit})
+		xs, e := s.Hub.Activity(p.agent, hub.ActivityFilter{HideEmpty: r.URL.Query().Get("quiet") == "true", Agent: r.URL.Query().Get("agent"), Kind: r.URL.Query().Get("kind"), Chat: r.URL.Query().Get("chat"), Before: int64(before), Limit: limit})
 		if e != nil {
 			return nil, e
 		}
@@ -416,6 +426,9 @@ func (s *Server) Handler() http.Handler {
 		return map[string]any{"messages": ms}, e
 	})
 	add("GET /v1/people", "agent", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		if e := s.People.CleanOwnerNames(); e != nil {
+			return nil, e
+		}
 		if e := s.People.MigrateAgentNotes(); e != nil {
 			return nil, e
 		}

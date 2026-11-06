@@ -3,13 +3,15 @@ import SwiftUI
 
 /// Presentation uses observed connection facts; missing phone evidence is not a failure.
 enum EngineSurfaceState: String, CaseIterable {
-  case starting, restarting, notRunning, updating, offline, loggedOut, phoneUnreachable, connected
+  case starting, busy, stalled, restarting, notRunning, updating, offline, loggedOut, phoneUnreachable, connected
 
   var title: String {
     switch self {
-    case .starting: "Starting Limmr"
-    case .restarting: "Reconnecting to Limmr"
-    case .notRunning: "Limmr isn’t running"
+    case .busy: "Limmr’s engine is busy"
+    case .stalled: "Limmr’s engine needs a restart"
+    case .starting: "Starting Limmr’s engine"
+    case .restarting: "Restarting Limmr’s engine"
+    case .notRunning: "Limmr’s engine stopped"
     case .updating: "Updating Limmr"
     case .offline: "WhatsApp is offline"
     case .loggedOut: "Link WhatsApp"
@@ -19,8 +21,10 @@ enum EngineSurfaceState: String, CaseIterable {
   }
   var detail: String {
     switch self {
+    case .busy: "Waiting for Limmr’s background engine to respond…"
+    case .stalled: "Limmr’s background engine has stopped responding."
     case .starting, .restarting: "Your chats will appear when the connection is ready."
-    case .notRunning: "Start the background helper to reconnect your chats."
+    case .notRunning: "Start Limmr’s background engine to reconnect your chats."
     case .updating: "Your chats will reconnect when the update finishes."
     case .offline: "Limmr will reconnect automatically. Your saved chats are still here."
     case .loggedOut: "Link a device to bring your chats to this Mac."
@@ -32,18 +36,22 @@ enum EngineSurfaceState: String, CaseIterable {
     switch self {
     case .loggedOut: "Link WhatsApp"
     case .notRunning: "Start Limmr"
+    case .stalled: "Restart engine"
     case .phoneUnreachable: "Check again"
-    case .starting, .restarting, .updating, .connected: "Open Limmr"
+    case .busy, .starting, .restarting, .updating, .connected: "Open Limmr"
     case .offline: "Reconnect"
     }
   }
-  var inProgress: Bool { [.starting, .restarting, .updating].contains(self) }
+  var inProgress: Bool { [.busy, .starting, .restarting, .updating].contains(self) }
 }
 
 extension AppStore {
   var engineSurfaceState: EngineSurfaceState {
+    if snapshot, let snapshotConnectionState { return snapshotConnectionState }
     if !demo && !snapshot {
       switch system.startup.phase {
+      case .busy: return .busy
+      case .stalled: return .stalled
       case .starting: return .starting
       case .restarting: return .restarting
       case .updating: return .updating
@@ -52,7 +60,9 @@ extension AppStore {
       }
     }
     // A failed latest status read wins over the last cached connected status.
-    if loadFailures.keys.contains(where: { $0.hasPrefix("/v1/status") }) { return .notRunning }
+    if let failure = loadFailures.first(where: { $0.key.hasPrefix("/v1/status") }) {
+      return failure.value.localizedCaseInsensitiveContains("busy") || failure.value.localizedCaseInsensitiveContains("timed out") ? .busy : .notRunning
+    }
     guard let status else { return .starting }
     guard status.linked else { return .loggedOut }
     if checks.contains(where: {
@@ -70,7 +80,7 @@ extension AppStore {
     } else if state == .offline {
       await perform { [self] in try await backend.post("/v1/fix/reconnect") }
       await refresh()
-    } else if state == .notRunning {
+    } else if state == .notRunning || state == .stalled {
       // A cached status can outlive the helper; explicitly recover on this user action.
       if !demo && !snapshot {
         await perform { [self] in try await system.startEngine() }

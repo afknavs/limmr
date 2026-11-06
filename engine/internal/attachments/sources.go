@@ -19,7 +19,7 @@ import (
 	"unicode/utf8"
 )
 
-const MaxFetch = 20 << 20
+const MaxFetch = MaxDocument
 const MaxBinary = 8 << 20
 
 type Source struct {
@@ -139,12 +139,25 @@ func (f *Fetcher) Fetch(ctx context.Context, raw string) ([]byte, string, error)
 		return nil, "", fmt.Errorf("File download refused or unavailable.")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 || resp.ContentLength > MaxFetch {
-		return nil, "", fmt.Errorf("File unavailable or exceeds 20 MB.")
+	if resp.StatusCode != 200 {
+		return nil, "", fmt.Errorf("File download is unavailable. Check the HTTPS link and try again.")
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, MaxFetch+1))
-	if err != nil || len(b) == 0 || len(b) > MaxFetch {
-		return nil, "", fmt.Errorf("File unavailable or exceeds 20 MB.")
+	header, e := io.ReadAll(io.LimitReader(resp.Body, 512))
+	if e != nil {
+		return nil, "", fmt.Errorf("File download failed. Check the link or upload chunks instead.")
+	}
+	mime := MIME(header, resp.Request.URL.Path)
+	_, limit := Limit(mime)
+	if resp.ContentLength > limit {
+		return nil, "", CheckSize(resp.ContentLength, mime)
+	}
+	rest, e := io.ReadAll(io.LimitReader(resp.Body, limit+1-int64(len(header))))
+	if e != nil {
+		return nil, "", fmt.Errorf("File download failed. Check the link or upload chunks instead.")
+	}
+	b := append(header, rest...)
+	if e = CheckSize(int64(len(b)), mime); e != nil {
+		return nil, "", e
 	}
 	return b, Name(resp.Request.URL.Path), nil
 }
@@ -164,17 +177,17 @@ func (f *Fetcher) Read(ctx context.Context, s Source) ([]byte, string, error) {
 	name := s.Filename
 	if s.Text != nil {
 		if name == "" || !utf8.ValidString(*s.Text) || len(*s.Text) == 0 || len(*s.Text) > MaxFetch {
-			return nil, "", fmt.Errorf("Text files need a filename and at most 20 MB of UTF-8 text.")
+			return nil, "", fmt.Errorf("Text files need a filename and at most 100 MiB of UTF-8 text. Send a link for larger files.")
 		}
 		return []byte(*s.Text), Name(name), nil
 	}
 	if s.Base64 != nil {
 		if name == "" || len(*s.Base64) > base64.StdEncoding.EncodedLen(MaxBinary) {
-			return nil, "", fmt.Errorf("Binary files need a filename and at most 8 MB decoded.")
+			return nil, "", fmt.Errorf("Binary files need a filename and at most 8 MiB decoded. Use chunked upload for larger files.")
 		}
 		b, e := base64.StdEncoding.Strict().DecodeString(*s.Base64)
 		if e != nil || len(b) == 0 || len(b) > MaxBinary {
-			return nil, "", fmt.Errorf("Invalid base64 file (maximum 8 MB decoded).")
+			return nil, "", fmt.Errorf("Invalid base64 file (maximum 8 MiB decoded). Encode it again or use chunked upload.")
 		}
 		return b, Name(name), nil
 	}

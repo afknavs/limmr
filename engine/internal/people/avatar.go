@@ -22,13 +22,23 @@ type AvatarLookup interface {
 	FetchAvatar(context.Context, string) ([]byte, error)
 }
 type AvatarCache struct {
-	Hub    *hub.Service
-	Lookup AvatarLookup
-	mu     sync.Mutex
+	Hub      *hub.Service
+	Lookup   AvatarLookup
+	mu       sync.Mutex
+	warmOnce sync.Once
+	warmDone chan struct{}
 }
 type avatarEntry struct {
-	AttemptedAt time.Time `json:"attempted_at"`
-	Available   bool      `json:"available"`
+	AttemptedAt   time.Time `json:"attempted_at"`
+	Available     bool      `json:"available"`
+	Full          bool      `json:"full"`
+	FullAttempted bool      `json:"full_attempted"`
+}
+
+func (e avatarEntry) due(now time.Time) bool {
+	// Old entries have neither flag: upgrade once immediately, even if the tiny
+	// preview was fetched recently. Failed upgrades retain bytes and the miss cap.
+	return e.Available && !e.Full && !e.FullAttempted || e.AttemptedAt.IsZero() || now.Sub(e.AttemptedAt) >= 7*24*time.Hour
 }
 
 const MaxAvatarBytes = 4 << 20
@@ -42,6 +52,10 @@ func ValidAvatar(data []byte) bool {
 }
 
 func (s *AvatarCache) Get(ctx context.Context, id string) ([]byte, error) {
+	return s.get(ctx, id, nil)
+}
+
+func (s *AvatarCache) get(ctx context.Context, id string, attempted *bool) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var p model.Person
@@ -94,7 +108,7 @@ func (s *AvatarCache) Get(ctx context.Context, id string) ([]byte, error) {
 		return nil, model.ErrNotFound
 	}
 	now := s.Hub.Now().UTC()
-	if !entry.AttemptedAt.IsZero() && now.Sub(entry.AttemptedAt) < 7*24*time.Hour {
+	if !entry.due(now) {
 		return cached()
 	}
 	var last time.Time
@@ -105,12 +119,25 @@ func (s *AvatarCache) Get(ctx context.Context, id string) ([]byte, error) {
 	if !last.IsZero() && now.Sub(last) < 2*time.Second {
 		return cached()
 	}
+	// A disconnected client must not turn a temporary offline state into a week-long miss.
+	if client, ok := s.Lookup.(interface{ Connected() bool }); ok && !client.Connected() {
+		return cached()
+	}
+	previous := entry
 	// Persist attempted lookups, including misses/failures, before network access.
 	entry.AttemptedAt = now
+	entry.FullAttempted = true
 	if err = s.Hub.Repo.Apply(hub.Mutation{Bucket: "avatar_cache", ID: id, Value: entry}, hub.Mutation{Bucket: "avatar_meta", ID: "last_lookup", Value: now}); err != nil {
 		return nil, err
 	}
+	if attempted != nil {
+		*attempted = true
+	}
 	data, err := s.Lookup.FetchAvatar(ctx, jid)
+	if ctx.Err() != nil {
+		_ = s.Hub.Repo.Put("avatar_cache", id, previous)
+		return nil, ctx.Err()
+	}
 	if err != nil || !ValidAvatar(data) {
 		return cached()
 	}
@@ -137,10 +164,32 @@ func (s *AvatarCache) Get(ctx context.Context, id string) ([]byte, error) {
 		return nil, err
 	}
 	entry.Available = true
+	entry.Full = true
 	if err = s.Hub.Repo.Put("avatar_cache", id, entry); err != nil {
 		return nil, err
 	}
 	return data, nil
+}
+
+// Warm-up only needs presence, not photo bytes. Use the same bounded paths and
+// symlink rejection as Get; hash and JPEG validation remain on the read path.
+func profilePhotoExists(home, hash string) bool {
+	decoded, err := hex.DecodeString(hash)
+	if err != nil || len(decoded) != sha256.Size || strings.ToLower(hash) != hash {
+		return false
+	}
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	for _, ext := range []string{".jpg", ""} {
+		info, err := root.Lstat("avatars/custom/" + hash + ext)
+		if err == nil && info.Mode().IsRegular() && info.Size() > 0 && info.Size() <= MaxAvatarBytes {
+			return true
+		}
+	}
+	return false
 }
 
 // Local imports use .jpg; the sync transport stores the same normalized bytes at

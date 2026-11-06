@@ -90,21 +90,22 @@ func (a *OpenAsk) UnmarshalJSON(b []byte) error {
 }
 
 type Suggestion struct {
-	DraftSource string    `json:"draft_source,omitempty"`
-	TaskID      string    `json:"task_id,omitempty"`
-	Variations  []string  `json:"variations"`
-	Body        string    `json:"body"`
-	ID          string    `json:"id"`
-	CircleID    string    `json:"circle_id"`
-	Kind        string    `json:"kind"`
-	ChatJID     string    `json:"chat_jid,omitempty"`
-	DraftText   string    `json:"draft_text,omitempty"`
-	Why         string    `json:"why"`
-	CreatedBy   string    `json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	State       string    `json:"state"`
-	DraftID     string    `json:"draft_id,omitempty"`
+	Attachment  *Attachment `json:"attachment,omitempty"`
+	DraftSource string      `json:"draft_source,omitempty"`
+	TaskID      string      `json:"task_id,omitempty"`
+	Variations  []string    `json:"variations"`
+	Body        string      `json:"body"`
+	ID          string      `json:"id"`
+	CircleID    string      `json:"circle_id"`
+	Kind        string      `json:"kind"`
+	ChatJID     string      `json:"chat_jid,omitempty"`
+	DraftText   string      `json:"draft_text,omitempty"`
+	Why         string      `json:"why"`
+	CreatedBy   string      `json:"created_by"`
+	CreatedAt   time.Time   `json:"created_at"`
+	ExpiresAt   time.Time   `json:"expires_at"`
+	State       string      `json:"state"`
+	DraftID     string      `json:"draft_id,omitempty"`
 }
 type Proposal struct {
 	BatchID   string    `json:"batch_id"`
@@ -123,18 +124,20 @@ type BriefSettings struct {
 	Time    string `json:"time"`
 }
 type Draft struct {
-	TaskID           string     `json:"task_id,omitempty"`
-	AsDocument       bool       `json:"as_document,omitempty"`
-	OwnerInstruction string     `json:"owner_instruction,omitempty"`
-	QueueForApproval bool       `json:"queue_for_approval,omitempty"`
-	Key              string     `json:"key,omitempty"`
-	Status           string     `json:"status"`
-	ApprovalID       string     `json:"approval_id,omitempty"`
-	SentAt           *time.Time `json:"sent_at,omitempty"`
-	DeliveredAt      *time.Time `json:"delivered_at,omitempty"`
-	ReadAt           *time.Time `json:"read_at,omitempty"`
-	DeliveredCount   int        `json:"delivered_count"`
-	ReadCount        int        `json:"read_count"`
+	NextStep         string          `json:"next_step,omitempty"`
+	Upload           *UploadProgress `json:"upload,omitempty"`
+	TaskID           string          `json:"task_id,omitempty"`
+	AsDocument       bool            `json:"as_document,omitempty"`
+	OwnerInstruction string          `json:"owner_instruction,omitempty"`
+	QueueForApproval bool            `json:"queue_for_approval,omitempty"`
+	Key              string          `json:"key,omitempty"`
+	Status           string          `json:"status"`
+	ApprovalID       string          `json:"approval_id,omitempty"`
+	SentAt           *time.Time      `json:"sent_at,omitempty"`
+	DeliveredAt      *time.Time      `json:"delivered_at,omitempty"`
+	ReadAt           *time.Time      `json:"read_at,omitempty"`
+	DeliveredCount   int             `json:"delivered_count"`
+	ReadCount        int             `json:"read_count"`
 
 	Variations        []string    `json:"variations,omitempty"`
 	Edited            bool        `json:"edited"`

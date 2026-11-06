@@ -75,7 +75,7 @@ private actor TaskSummaryTestBackend: Backend {
     }
     let model = FakeTaskSummaryModel(); let backend = TaskSummaryTestBackend(task)
     let workspace = TaskWorkspace(id: task.id, backend: backend, summaryModel: model)
-    await workspace.load(); await workspace.load()
+    await workspace.loadDetails(); await workspace.loadDetails()
     #expect(model.calls == 1)
     #expect(workspace.task?.summary.updatedBy == "This Mac")
     #expect(workspace.task?.summary.text == model.result)
@@ -84,18 +84,18 @@ private actor TaskSummaryTestBackend: Backend {
   @Test func failedResultDoesNotRetryUntilANewerMessageEvenAcrossWorkspaces() async throws {
     let task = try await fixture(); let backend = TaskSummaryTestBackend(task); let model = FakeTaskSummaryModel()
     model.result = nil
-    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).load()
-    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).load()
+    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).loadDetails()
+    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).loadDetails()
     #expect(model.calls == 1)
     await backend.newerMessage()
-    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).load()
+    await TaskWorkspace(id: task.id, backend: backend, summaryModel: model).loadDetails()
     #expect(model.calls == 2)
   }
   @Test func writerCannotOverwriteAnOwnerSummaryThatArrivesDuringGeneration() async throws {
     let task = try await fixture(); let backend = TaskSummaryTestBackend(task); let model = FakeTaskSummaryModel()
     model.duringGeneration = { await backend.setSummary("Owner wrote this while the model ran.") }
     let workspace = TaskWorkspace(id: task.id, backend: backend, summaryModel: model)
-    await workspace.load()
+    await workspace.loadDetails()
     let saved: TrackedTask = try await backend.get(TaskClient.path(task.id))
     #expect(saved.summary.updatedBy == "you")
     #expect(model.calls == 1 && workspace.error == nil)
@@ -107,7 +107,7 @@ private actor TaskSummaryTestBackend: Backend {
     await TaskWorkspace(id: task.id, backend: backend).load()
     #expect(await backend.patches == 0)
     let fake = FakeTaskSummaryModel()
-    await TaskWorkspace(id: task.id, backend: backend, summaryModel: fake).load()
+    await TaskWorkspace(id: task.id, backend: backend, summaryModel: fake).loadDetails()
     #expect(fake.calls == 1)
   }
   @Test func summaryPatchLetsTheEngineStampItsDate() throws {

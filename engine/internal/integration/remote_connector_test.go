@@ -133,6 +133,13 @@ func TestHostedConnectorFlow(t *testing.T) {
 			if rotated["refresh_token"] == f.refresh || rotated["access_token"] == f.token {
 				t.Fatal("refresh credentials did not rotate")
 			}
+			// A lost rotation response is survivable: the old token works again
+			// until one of its replacements is used, then it is gone.
+			status(t, tokenRequest(refresh), 200)
+			next := url.Values{"grant_type": {"refresh_token"}, "client_id": {f.client}, "refresh_token": {rotated["refresh_token"].(string)}, "resource": {base + "/mcp"}}
+			w = tokenRequest(next)
+			status(t, w, 200)
+			rotated = readMap(t, w)
 			status(t, tokenRequest(refresh), 400)
 			f.token = rotated["access_token"].(string)
 			status(t, call("tools/list", map[string]any{}), 200)
@@ -170,7 +177,7 @@ func TestRemoteRefreshStorageFailureRollsBackReplacement(t *testing.T) {
 	status(t, exchange(t, s, &f), 200)
 	var before int
 	must(t, r.h.Repo.DB.QueryRow("SELECT count(*) FROM objects WHERE bucket='oauth_tokens'").Scan(&before))
-	_, err := r.h.Repo.DB.Exec(`CREATE TRIGGER block_refresh_delete BEFORE DELETE ON objects WHEN OLD.bucket='oauth_tokens' BEGIN SELECT RAISE(ABORT,'synthetic storage failure'); END`)
+	_, err := r.h.Repo.DB.Exec(`CREATE TRIGGER block_refresh_consume BEFORE UPDATE ON objects WHEN OLD.bucket='oauth_tokens' BEGIN SELECT RAISE(ABORT,'synthetic storage failure'); END`)
 	must(t, err)
 	refresh := url.Values{"grant_type": {"refresh_token"}, "client_id": {f.client}, "refresh_token": {f.refresh}, "resource": {"https://limmr.example/mcp"}}
 	status(t, remoteRequest(t, s, "POST", "/token", "", refresh), 500)
@@ -179,9 +186,12 @@ func TestRemoteRefreshStorageFailureRollsBackReplacement(t *testing.T) {
 	if before != after {
 		t.Fatal("failed rotation persisted replacement credentials")
 	}
-	_, err = r.h.Repo.DB.Exec("DROP TRIGGER block_refresh_delete")
+	_, err = r.h.Repo.DB.Exec("DROP TRIGGER block_refresh_consume")
 	must(t, err)
-	status(t, remoteRequest(t, s, "POST", "/token", "", refresh), 200)
+	w := remoteRequest(t, s, "POST", "/token", "", refresh)
+	status(t, w, 200)
+	next := url.Values{"grant_type": {"refresh_token"}, "client_id": {f.client}, "refresh_token": {readMap(t, w)["refresh_token"].(string)}, "resource": {"https://limmr.example/mcp"}}
+	status(t, remoteRequest(t, s, "POST", "/token", "", next), 200)
 	status(t, remoteRequest(t, s, "POST", "/token", "", refresh), 400)
 }
 

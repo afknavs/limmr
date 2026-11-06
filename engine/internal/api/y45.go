@@ -13,6 +13,12 @@ import (
 )
 
 func (s *Server) y45Routes(add func(string, string, route)) {
+	// Only the long-lived engine supplies Context. httptest/demo handlers never
+	// start network work. The cache and foreground route share one limiter.
+	if s.Context != nil && s.Avatars != nil && s.Link != nil {
+		s.Avatars.StartWarmup(s.Context, func() bool { _, connected, _ := s.Link.Connection(); return connected }, s.Gate)
+	}
+
 	add("GET /v1/settings/people/contacts", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		v := map[string]any{"enabled": false}
 		e := s.Hub.Repo.Get("people_settings", "contacts", &v)
@@ -51,16 +57,17 @@ func (s *Server) y45Routes(add func(string, string, route)) {
 		return map[string]bool{"ok": true}, s.People.ImportContacts(b.Matches)
 	})
 	add("GET /v1/people/{id}/summary", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
-		profile, e := s.People.Profile(nil, r.PathValue("id"))
-		if e != nil {
+		v, err := s.People.PersonSummary(r.PathValue("id"))
+		return map[string]any{"summary": v}, err
+	})
+	add("POST /v1/people/{id}/summary/undo", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b struct {
+			WrittenAt time.Time `json:"written_at"`
+		}
+		if e := decode(r, &b); e != nil {
 			return nil, e
 		}
-		var v people.PersonSummary
-		err := s.Hub.Repo.Get("person_summaries", profile.Person.ID, &v)
-		if err == model.ErrNotFound || profile.Stats.DM30 < 5 {
-			return map[string]any{"summary": nil}, nil
-		}
-		return map[string]any{"summary": v}, err
+		return map[string]bool{"ok": true}, s.People.UndoPersonSummary(r.PathValue("id"), b.WrittenAt)
 	})
 	add("PUT /v1/people/{id}/summary", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		var b struct {

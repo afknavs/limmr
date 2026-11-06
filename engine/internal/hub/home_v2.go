@@ -23,6 +23,12 @@ func ValidateVariations(xs []string) error {
 
 // PresentSuggestion computes display-only values against current circle/agent settings.
 func (s *Service) PresentSuggestion(x model.Suggestion) (model.Suggestion, error) {
+	if x.Attachment == nil && x.DraftID != "" {
+		var d model.Draft
+		if e := s.Repo.Get("drafts", x.DraftID, &d); e == nil {
+			x.Attachment = d.Attachment
+		}
+	}
 	x.Body = x.DraftText
 	xs := []string{x.Body}
 	for i, v := range x.Variations {

@@ -109,10 +109,17 @@ func (s *Service) PutPerson(p model.Person) error {
 		p.Details = old.Details
 		p.DetailSuggestions = old.DetailSuggestions
 	}
+	if p.ID != "me" {
+		names := s.ownerNames()
+		p.OtherNames = withoutOwnerNames(p.OtherNames, names)
+		if names[nameKey(p.PushName)] {
+			p.PushName = ""
+		}
+	}
 	if err == nil {
 		compare := p
 		compare.UpdatedAt = old.UpdatedAt
-		if reflect.DeepEqual(compare, old) {
+		if dbutil.JSON(compare) == dbutil.JSON(old) {
 			return nil
 		}
 	}
@@ -147,7 +154,11 @@ func (s *Service) People(a *model.Agent, query string) ([]model.Person, error) {
 	return s.PeopleAll(a, query, query != "")
 }
 func (s *Service) PeopleAll(a *model.Agent, query string, all bool) ([]model.Person, error) {
-	key := s.cacheKey(a, "people", query, all)
+	return s.peopleSelected(a, query, all, "")
+}
+
+func (s *Service) peopleSelected(a *model.Agent, query string, all bool, selected string) ([]model.Person, error) {
+	key := s.cacheKey(a, "people", query, all, selected)
 	s.shared().cacheMu.Lock()
 	cached, ok := s.shared().cache[key]
 	s.shared().cacheMu.Unlock()
@@ -158,6 +169,16 @@ func (s *Service) PeopleAll(a *model.Agent, query string, all bool) ([]model.Per
 	if e != nil {
 		return nil, e
 	}
+	if selected != "" {
+		chosen := []model.Person{}
+		for _, p := range ps {
+			if p.ID == selected {
+				chosen = append(chosen, p)
+				break
+			}
+		}
+		ps = chosen
+	}
 	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
 	if e != nil {
 		return nil, e
@@ -167,9 +188,12 @@ func (s *Service) PeopleAll(a *model.Agent, query string, all bool) ([]model.Per
 		return nil, e
 	}
 	excluded := s.excludedSenders(a, ps, cs)
-	relevant, e := s.relevant(a, ps, cs, ms)
-	if e != nil {
-		return nil, e
+	relevant := map[string]bool{}
+	if selected == "" || !all {
+		relevant, e = s.relevant(a, ps, cs, ms)
+		if e != nil {
+			return nil, e
+		}
 	}
 	allowed := s.Hub.ChatAccess(a)
 	hidden := s.Hub.HiddenChatAccess()
@@ -347,9 +371,34 @@ func (s *Service) PeopleAll(a *model.Agent, query string, all bool) ([]model.Per
 	return out, nil
 }
 func (s *Service) Groups(a *model.Agent, query string) ([]model.Group, error) {
+	return s.groupsSelected(a, query, "", true)
+}
+
+// Profiles enrich only their shared groups. Graph/relation projection needs
+// identity and visibility, without per-group task/agent/photo metadata.
+func (s *Service) groupsSelected(a *model.Agent, query, person string, enrich bool) ([]model.Group, error) {
 	gs, e := hub.List[model.Group](s.Hub.Repo, "groups")
 	if e != nil {
 		return nil, e
+	}
+	if person != "" {
+		ms, err := s.memberships()
+		if err != nil {
+			return nil, err
+		}
+		wanted := map[string]bool{}
+		for _, m := range ms {
+			if m.Person == person {
+				wanted[m.Group] = true
+			}
+		}
+		chosen := []model.Group{}
+		for _, g := range gs {
+			if wanted[g.JID] {
+				chosen = append(chosen, g)
+			}
+		}
+		gs = chosen
 	}
 	allowed := s.Hub.ChatAccess(a)
 	out := []model.Group{}
@@ -384,13 +433,15 @@ func (s *Service) Groups(a *model.Agent, query string) ([]model.Group, error) {
 			out = append(out, g)
 		}
 	}
-	if e := s.enrichGroups(a, out); e != nil {
-		return nil, e
+	if enrich {
+		if e := s.enrichGroups(a, out); e != nil {
+			return nil, e
+		}
 	}
 	return out, nil
 }
 func (s *Service) Profile(a *model.Agent, id string) (Profile, error) {
-	ps, e := s.PeopleAll(a, "", true)
+	ps, e := s.peopleSelected(a, "", true, id)
 	if e != nil {
 		return Profile{}, e
 	}
@@ -405,7 +456,7 @@ func (s *Service) Profile(a *model.Agent, id string) (Profile, error) {
 	if p == nil {
 		return Profile{}, model.ErrNotFound
 	}
-	gs, e := s.Groups(a, "")
+	gs, e := s.groupsSelected(a, "", id, true)
 	if e != nil {
 		return Profile{}, e
 	}
@@ -677,11 +728,14 @@ func (s *Service) Relations(a *model.Agent) ([]model.Relation, error) {
 	if e != nil {
 		return nil, e
 	}
+	if len(rs) == 0 {
+		return []model.Relation{}, nil
+	}
 	ps, e := s.People(a, "")
 	if e != nil {
 		return nil, e
 	}
-	gs, e := s.Groups(a, "")
+	gs, e := s.groupsSelected(a, "", "", false)
 	if e != nil {
 		return nil, e
 	}
@@ -859,7 +913,7 @@ func (s *Service) Graph(a *model.Agent, focus string, depth, limit int) (Graph, 
 	if e != nil {
 		return Graph{}, e
 	}
-	gs, e := s.Groups(a, "")
+	gs, e := s.groupsSelected(a, "", "", false)
 	if e != nil {
 		return Graph{}, e
 	}

@@ -125,6 +125,9 @@ func (s *Service) suggestion(tx *sql.Tx, r *record, key, kind, chat, text, why s
 	return id, err
 }
 func (s *Service) Tick(ctx context.Context) error {
+	if err := s.ReceiveCheckIns(); err != nil {
+		return err
+	}
 	if s.Hub.MayRunAutomations != nil && !s.Hub.MayRunAutomations(ctx) {
 		return ctx.Err()
 	}
@@ -152,7 +155,7 @@ func (s *Service) Tick(ctx context.Context) error {
 			}
 			continue
 		}
-		if !open(old.Task) {
+		if !open(old.Task) && old.Status != "quiet" {
 			if old.ClosedAt != nil && !s.now().Before(old.ClosedAt.AddDate(0, 0, 90)) {
 				if err = s.purge(old); err != nil {
 					return err
@@ -170,6 +173,8 @@ func (s *Service) Tick(ctx context.Context) error {
 				effortNeeds = e.Status == "on_you"
 			}
 		}
+		latestActivity := s.latestActivity(old.Task)
+		replyDue := old.CheckIn != nil && old.CheckIn.Rule == "reply" && s.hasReply(old, old.CheckIn.NextAt)
 		nudgeChat := s.waitChat(old)
 		fallback := ""
 		if old.Waiting != nil && old.Waiting.NudgeState == "none" && old.DraftNudge == "" && !s.now().Before(old.Waiting.Since.AddDate(0, 0, old.Waiting.NudgeAfterDays)) && s.NudgeDraft != nil {
@@ -184,17 +189,37 @@ func (s *Service) Tick(ctx context.Context) error {
 		}
 		_, err = s.mutate(nil, old.ID, func(r *record, tx *sql.Tx) error {
 			now := s.now()
-			if !open(r.Task) {
+			r.eventActor = "This Mac"
+			if !open(r.Task) && r.Status != "quiet" {
 				return nil
 			}
 			beforeItems := len(r.Items)
 			for _, it := range scanned.Items {
 				r.Items = appendItem(r.Items, it)
 			}
+			s.chooseCover(&r.Task)
 			if len(r.Items) > beforeItems {
 				r.UpdatedAt = now
 			}
-			if r.Kind == "short" && !now.Before(r.UpdatedAt.AddDate(0, 0, r.LifespanDays)) {
+			active := r.LastActiveAt
+			if active.IsZero() {
+				active = r.CreatedAt
+			}
+			// Quiet-day expiry follows conversation activity, never timer/summary bookkeeping.
+			if latestActivity.After(active) {
+				active = latestActivity
+				r.UpdatedAt = now
+			}
+			r.LastActiveAt = active
+			if r.Status == "quiet" {
+				due := r.CheckIn != nil && (r.CheckIn.Rule == "reply" && replyDue || r.CheckIn.Rule != "reply" && !r.CheckIn.NextAt.After(now))
+				if !active.After(old.LastActiveAt) && len(r.Items) == beforeItems && !due {
+					return nil
+				}
+				wakeTask(r)
+			}
+			expired := r.EndAt != nil && !now.Before(*r.EndAt)
+			if expired || r.Kind == "short" && !now.Before(active.AddDate(0, 0, r.LifespanDays)) {
 				closeTask(r, now, "lifespan")
 				r.UpdatedAt = now
 				return nil
@@ -203,7 +228,7 @@ func (s *Service) Tick(ctx context.Context) error {
 				r.EffortAcknowledged = false
 			}
 			r.EffortNeeds = effortNeeds && !r.EffortAcknowledged
-			if c := r.CheckIn; c != nil && !c.NextAt.After(now) {
+			if c := r.CheckIn; c != nil && (c.Rule == "reply" && replyDue || c.Rule != "reply" && !c.NextAt.After(now)) {
 				slot := c.NextAt.UTC().Format(time.RFC3339Nano)
 				draft := ""
 				if r.DraftSlot == slot {
@@ -213,11 +238,12 @@ func (s *Service) Tick(ctx context.Context) error {
 				if _, err := s.suggestion(tx, r, key, "check_in", c.To, draft, fmt.Sprintf("Update for %s is due", r.Title)); err != nil {
 					return err
 				}
-				if err := s.event(tx, *r, key, "task_due", "Check-in due", map[string]any{"note": c.Note, "progress": r.Progress}); err != nil {
+				if err := s.event(tx, *r, key, "task_due", "Check-in fired — ready for review", map[string]any{"note": c.Note, "progress": r.Progress}); err != nil {
 					return err
 				}
 				c.LastAt = &now
-				if c.Rule == "once" {
+				r.LastActiveAt = now
+				if c.Rule == "once" || c.Rule == "reply" {
 					r.CheckIn = nil
 				} else {
 					at := c.NextAt
@@ -268,6 +294,10 @@ func (s *Service) Tick(ctx context.Context) error {
 					}
 					r.UpdatedAt = now
 				}
+			}
+			if !now.Before(r.LastActiveAt.AddDate(0, 0, 7)) {
+				r.Status = "quiet"
+				r.UpdatedAt = now
 			}
 			before := r.NeedsYou
 			if err := s.refreshNeeds(tx, r); err != nil {
@@ -327,7 +357,7 @@ func (s *Service) Incoming(ctx context.Context, m model.Message) error {
 			return err
 		}
 	}
-	if m.IsFromMe || m.DeletedAt != nil {
+	if m.DeletedAt != nil {
 		return nil
 	}
 	xs, err := s.records()
@@ -345,6 +375,32 @@ func (s *Service) Incoming(ctx context.Context, m model.Message) error {
 	}
 	_ = s.Hub.Repo.DB.QueryRow("SELECT person_id FROM people_jids WHERE jid=? LIMIT 1", jid).Scan(&person)
 	for _, r := range xs {
+		if open(r.Task) || r.Status == "quiet" {
+			linked := false
+			for _, ch := range r.Chats {
+				linked = linked || ch.ID == m.ChatJID
+			}
+			if linked && !s.Hub.HiddenChat(m.ChatJID) && m.Timestamp.After(r.LastActiveAt) {
+				updated, wakeErr := s.mutate(nil, r.ID, func(current *record, tx *sql.Tx) error {
+					current.eventActor = "This Mac"
+					if m.Timestamp.After(current.LastActiveAt) {
+						current.LastActiveAt = m.Timestamp
+						current.UpdatedAt = s.now()
+						if current.Status == "quiet" {
+							wakeTask(current)
+						}
+					}
+					return nil
+				})
+				if wakeErr != nil {
+					return wakeErr
+				}
+				r.Task = updated
+			}
+		}
+		if m.IsFromMe {
+			continue
+		}
 		w := r.Waiting
 		if !open(r.Task) || w == nil || w.On == nil || w.On.ID != person && w.On.ID != jid || !m.Timestamp.After(w.Since) {
 			continue
@@ -470,6 +526,11 @@ func (s *Service) SuggestionDone(x model.Suggestion) error {
 	_, err := s.mutate(nil, x.TaskID, func(r *record, tx *sql.Tx) error {
 		if x.Kind == "nudge" && r.Waiting != nil && r.Waiting.NudgeSuggestionID == x.ID {
 			r.Waiting.NudgeState = "skipped"
+		}
+		if x.Kind == "check_in" {
+			if err := s.event(tx, *r, "skipped:"+x.ID, "check_in_skipped", "Check-in dismissed", nil); err != nil {
+				return err
+			}
 		}
 		r.FlagReason = ""
 		r.EffortNeeds = false

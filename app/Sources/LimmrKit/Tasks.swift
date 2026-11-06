@@ -50,6 +50,16 @@ public struct TaskSummaryText: Codable, Sendable, Equatable {
 }
 
 public struct WorkspaceItem: Codable, Sendable, Equatable, Identifiable {
+  public var aiName: String? = nil
+  public var description: String? = nil
+  public var ocrText: String? = nil
+  public var mediaType: String? = nil
+  public var sender: String? = nil
+  public var chat: String? = nil
+  public var caption: String? = nil
+  public var width: Int? = nil
+  public var height: Int? = nil
+  public var namedOnDevice: Bool? = nil
   public var id: String = ""
   public var kind: String = "note"
   public var title: String = ""
@@ -72,9 +82,19 @@ public struct WorkspaceItem: Codable, Sendable, Equatable, Identifiable {
     self.addedBy = addedBy
     self.addedAt = addedAt
   }
-  enum CodingKeys: String, CodingKey { case id, kind, title, url, attachmentId, text, source, messageRef, addedBy, addedAt }
+  enum CodingKeys: String, CodingKey { case aiName, description, ocrText, mediaType, sender, chat, caption, width, height, namedOnDevice, id, kind, title, url, attachmentId, text, source, messageRef, addedBy, addedAt }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    aiName = try c.decodeIfPresent(String.self, forKey: .aiName)
+    description = try c.decodeIfPresent(String.self, forKey: .description)
+    ocrText = try c.decodeIfPresent(String.self, forKey: .ocrText)
+    mediaType = try c.decodeIfPresent(String.self, forKey: .mediaType)
+    sender = try c.decodeIfPresent(String.self, forKey: .sender)
+    chat = try c.decodeIfPresent(String.self, forKey: .chat)
+    caption = try c.decodeIfPresent(String.self, forKey: .caption)
+    width = try c.decodeIfPresent(Int.self, forKey: .width)
+    height = try c.decodeIfPresent(Int.self, forKey: .height)
+    namedOnDevice = try c.decodeIfPresent(Bool.self, forKey: .namedOnDevice)
     id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
     kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "note"
     title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
@@ -230,7 +250,27 @@ public struct TaskSuggestion: Codable, Sendable, Equatable {
   }
 }
 
+public struct TaskCoverCandidate: Codable, Sendable, Equatable {
+  public var itemId: String? = nil
+  public var mediaId: String? = nil
+  public var chatJid: String? = nil
+  public var title: String = ""
+  public var thumbnailUrl: String
+  public var linkUrl: String? = nil
+  public init(itemId: String? = nil, mediaId: String? = nil, chatJid: String? = nil, title: String = "", thumbnailUrl: String, linkUrl: String? = nil) {
+    self.itemId = itemId; self.mediaId = mediaId; self.chatJid = chatJid; self.title = title; self.thumbnailUrl = thumbnailUrl; self.linkUrl = linkUrl
+  }
+}
+
 public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
+  public var coverCandidate: TaskCoverCandidate? = nil
+  public var createdAt: String? = nil
+  public var lastActiveAt: String? = nil
+  public var circleIds: [String] = []
+  public var closedAt: String? = nil
+  public var closeReason: String? = nil
+  public var circleSuggestions: [TaskCircleSuggestion] = []
+  public var cover: WorkspaceItem? = nil
   public var id: String = ""
   public var title: String = ""
   public var kind: String = "long"
@@ -262,9 +302,17 @@ public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
     self.lastUpdateAt = lastUpdateAt
     self.effortId = effortId
   }
-  enum CodingKeys: String, CodingKey { case origin, suggestion, autoKeptAt, undoChangeId, createdBy, id, title, kind, status, progress, nextCheckInAt, waiting, needsYou, needsYouReason, lastUpdateAt, effortId }
+  enum CodingKeys: String, CodingKey { case coverCandidate, closedAt, closeReason, circleSuggestions, cover, createdAt, lastActiveAt, circleIds, origin, suggestion, autoKeptAt, undoChangeId, createdBy, id, title, kind, status, progress, nextCheckInAt, waiting, needsYou, needsYouReason, lastUpdateAt, effortId }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    coverCandidate = try c.decodeIfPresent(TaskCoverCandidate.self, forKey: .coverCandidate)
+    closedAt = try c.decodeIfPresent(String.self, forKey: .closedAt)
+    closeReason = try c.decodeIfPresent(String.self, forKey: .closeReason)
+    circleSuggestions = try c.decodeIfPresent([TaskCircleSuggestion].self, forKey: .circleSuggestions) ?? []
+    createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
+    lastActiveAt = try c.decodeIfPresent(String.self, forKey: .lastActiveAt)
+    circleIds = try c.decodeIfPresent([String].self, forKey: .circleIds) ?? []
+    cover = try c.decodeIfPresent(WorkspaceItem.self, forKey: .cover)
     id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
     title = try c.decodeIfPresent(String.self, forKey: .title) ?? ""
     kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "long"
@@ -285,6 +333,7 @@ public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
 }
 
 public struct TaskHistoryEvent: Codable, Sendable, Equatable {
+  public init(at: String, kind: String, text: String) { self.at = at; self.kind = kind; self.text = text }
   public var at: String
   public var kind: String
   public var text: String
@@ -309,7 +358,26 @@ public struct TaskSummaryAttempt: Codable, Sendable, Equatable {
   public var timestamp: String
 }
 
+public struct OwnerTaskNote: Codable, Sendable, Equatable, Identifiable {
+  public var id: String
+  public var text: String
+  public var createdAt: String
+  public var updatedAt: String
+  public init(id: String, text: String, createdAt: String, updatedAt: String) { self.id = id; self.text = text; self.createdAt = createdAt; self.updatedAt = updatedAt }
+}
+
+public struct TaskCircleSuggestion: Codable, Sendable, Equatable {
+ public var circleId: String
+ public var reason: String
+}
+
 public struct TrackedTask: Codable, Sendable, Equatable, Identifiable {
+  public var circleSuggestions: [TaskCircleSuggestion] = []
+  public var ownerNotes: [OwnerTaskNote] = []
+  public var cover: WorkspaceItem? = nil
+  public var coverItemId: String? = nil
+  public var coverRemoved = false
+  public var lastActiveAt: String? = nil
   public var latest: [TaskLatestMessage] = []
   public var summaryAttempt: TaskSummaryAttempt? = nil
   public var id: String = ""
@@ -368,9 +436,15 @@ public struct TrackedTask: Codable, Sendable, Equatable, Identifiable {
     self.needsYou = needsYou
     self.needsYouReason = needsYouReason
   }
-  enum CodingKeys: String, CodingKey { case latest, summaryAttempt, history, origin, suggestion, autoKeptAt, undoChangeId, id, title, goal, kind, status, effortId, chats, people, circleIds, createdBy, createdAt, updatedAt, closedAt, closeReason, summary, items, checklist, progress, checkIn, waiting, lifespanDays, updatesSent, needsYou, needsYouReason }
+  enum CodingKeys: String, CodingKey { case circleSuggestions, ownerNotes, cover, coverItemId, coverRemoved, lastActiveAt, latest, summaryAttempt, history, origin, suggestion, autoKeptAt, undoChangeId, id, title, goal, kind, status, effortId, chats, people, circleIds, createdBy, createdAt, updatedAt, closedAt, closeReason, summary, items, checklist, progress, checkIn, waiting, lifespanDays, updatesSent, needsYou, needsYouReason }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    circleSuggestions = try c.decodeIfPresent([TaskCircleSuggestion].self, forKey: .circleSuggestions) ?? []
+    ownerNotes = try c.decodeIfPresent([OwnerTaskNote].self, forKey: .ownerNotes) ?? []
+    cover = try c.decodeIfPresent(WorkspaceItem.self, forKey: .cover)
+    coverItemId = try c.decodeIfPresent(String.self, forKey: .coverItemId)
+    coverRemoved = try c.decodeIfPresent(Bool.self, forKey: .coverRemoved) ?? false
+    lastActiveAt = try c.decodeIfPresent(String.self, forKey: .lastActiveAt)
     latest = try c.decodeIfPresent([TaskLatestMessage].self, forKey: .latest) ?? []
     summaryAttempt = try c.decodeIfPresent(TaskSummaryAttempt.self, forKey: .summaryAttempt)
     history = try c.decodeIfPresent([TaskHistoryEvent].self, forKey: .history) ?? []
@@ -477,11 +551,15 @@ public extension TaskProgress {
 }
 public extension TrackedTask {
   func compact(now: Date) -> TaskSummary {
-    .init(id: id, title: title, kind: kind, status: status, progress: progress,
+    var value = TaskSummary(id: id, title: title, kind: kind, status: status, progress: progress,
       nextCheckInAt: checkIn?.nextAt,
       waiting: waiting.map { .init(onName: $0.on?.name, what: $0.what, since: $0.since,
         days: TaskPresentation.days(since: $0.since, now: now)) }, needsYou: needsYou,
       needsYouReason: needsYouReason, lastUpdateAt: updatesSent.last?.at, effortId: effortId, origin: origin, suggestion: suggestion, autoKeptAt: autoKeptAt, undoChangeId: undoChangeId, createdBy: createdBy)
+    value.closedAt = closedAt; value.closeReason = closeReason; value.circleSuggestions = circleSuggestions
+    value.cover = cover
+    value.createdAt = createdAt; value.lastActiveAt = lastActiveAt ?? updatedAt; value.circleIds = circleIds
+    return value
   }
 }
 public enum TaskPresentation {
@@ -510,6 +588,9 @@ public enum TaskPresentation {
   public static func open(_ tasks: [TaskSummary]) -> [TaskSummary] {
     tasks.filter { ["active", "waiting"].contains($0.status) }.sorted {
       if $0.needsYou != $1.needsYou { return $0.needsYou }
+      let first = $0.lastActiveAt.flatMap(Timestamp.date) ?? .distantPast
+      let second = $1.lastActiveAt.flatMap(Timestamp.date) ?? .distantPast
+      if first != second { return first > second }
       return $0.title.localizedStandardCompare($1.title) == .orderedAscending
     }
   }
@@ -543,6 +624,9 @@ public struct CreateTaskRequest: Encodable, Sendable {
   }
 }
 public struct TaskPatch: Encodable, Sendable {
+  public var circleIds: [String]? = nil
+  public var coverItemId: String? = nil
+  public var coverRemoved: Bool? = nil
   public var summary: TaskSummaryText?
   public var summaryAttempt: TaskSummaryAttempt?
   public var title: String?
@@ -560,9 +644,12 @@ public struct TaskPatch: Encodable, Sendable {
     self.status = status; self.lifespanDays = lifespanDays; self.checkIn = checkIn
     self.waiting = waiting; self.clearWaiting = clearWaiting; self.clearCheckIn = clearCheckIn
   }
-  enum CodingKeys: String, CodingKey { case summary, summaryAttempt, title, goal, status, kind, lifespanDays, checkIn, waiting }
+  enum CodingKeys: String, CodingKey { case circleIds, coverItemId, coverRemoved, summary, summaryAttempt, title, goal, status, kind, lifespanDays, checkIn, waiting }
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encodeIfPresent(circleIds, forKey: .circleIds)
+    try c.encodeIfPresent(coverItemId, forKey: .coverItemId)
+    try c.encodeIfPresent(coverRemoved, forKey: .coverRemoved)
     // The engine stamps the date. An empty display timestamp is not a valid Go time.Time.
     struct SummaryWrite: Encodable { var text: String; var updatedBy: String }
     try c.encodeIfPresent(summary.map { SummaryWrite(text: $0.text, updatedBy: $0.updatedBy) }, forKey: .summary)

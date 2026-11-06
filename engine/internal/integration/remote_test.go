@@ -186,6 +186,8 @@ func TestOAuthPKCEReplayResourceAndRefresh(t *testing.T) {
 	if m["refresh_token"] == oldRefresh {
 		t.Fatal("refresh did not rotate")
 	}
+	// Once the replacement is used, the rotated token is gone.
+	status(t, remoteRequest(t, s, "POST", "/token", "", url.Values{"grant_type": {"refresh_token"}, "client_id": {f.client}, "refresh_token": {m["refresh_token"].(string)}}), 200)
 	status(t, remoteRequest(t, s, "POST", "/token", "", url.Values{"grant_type": {"refresh_token"}, "client_id": {f.client}, "refresh_token": {oldRefresh}}), 400)
 	must(t, s.Configure(remote.Config{Enabled: true, PublicURL: "https://changed.example"}))
 	if _, e := s.Verify(context.Background(), f.token, nil); e == nil {

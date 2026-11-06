@@ -115,7 +115,7 @@ func (s *Service) parkDraft(d model.Draft, why string) (model.Draft, error) {
 	d.NeedsConfirmation = true
 	d.State = "suggested"
 	d.SuggestionID = dbutil.ID()
-	x := model.Suggestion{TaskID: d.TaskID, ID: d.SuggestionID, Kind: "reply", CircleID: s.circleForChat(d.ChatJID), ChatJID: d.ChatJID, DraftText: d.FinalText, Variations: d.Variations, Why: why, CreatedBy: d.AgentID, CreatedAt: s.Now().UTC(), ExpiresAt: d.ExpiresAt, State: "pending", DraftID: d.ID}
+	x := model.Suggestion{Attachment: d.Attachment, TaskID: d.TaskID, ID: d.SuggestionID, Kind: "reply", CircleID: s.circleForChat(d.ChatJID), ChatJID: d.ChatJID, DraftText: d.FinalText, Variations: d.Variations, Why: why, CreatedBy: d.AgentID, CreatedAt: s.Now().UTC(), ExpiresAt: d.ExpiresAt, State: "pending", DraftID: d.ID}
 	return d, s.Repo.Apply(Mutation{Bucket: "drafts", ID: d.ID, Value: d}, Mutation{Bucket: "suggestions", ID: x.ID, Value: x})
 }
 func (s *Service) recordOutbound(ctx context.Context, d model.Draft) error {

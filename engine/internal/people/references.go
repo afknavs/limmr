@@ -9,6 +9,7 @@ import (
 // Circle roles and brief notes must follow the canonical person too.
 func (s *Service) personReferences(ids map[string]bool, target string) ([]hub.Mutation, error) {
 	xs := []hub.Mutation{}
+	summaryID := target
 	var summary PersonSummary
 	haveSummary := s.Hub.Repo.Get("person_summaries", target, &summary) == nil
 	for id := range ids {
@@ -19,6 +20,7 @@ func (s *Service) personReferences(ids map[string]bool, target string) ([]hub.Mu
 		if s.Hub.Repo.Get("person_summaries", id, &v) == nil {
 			if !haveSummary || v.WrittenAt.After(summary.WrittenAt) {
 				summary = v
+				summaryID = id
 				summary.PersonID = target
 				haveSummary = true
 			}
@@ -27,6 +29,20 @@ func (s *Service) personReferences(ids map[string]bool, target string) ([]hub.Mu
 	}
 	if haveSummary {
 		xs = append(xs, hub.Mutation{Bucket: "person_summaries", ID: target, Value: summary})
+		var undo summaryUndo
+		if s.Hub.Repo.Get("person_summary_undo", summaryID, &undo) == nil && undo.After.Equal(summary.WrittenAt) {
+			if undo.Before != nil {
+				undo.Before.PersonID = target
+			}
+			xs = append(xs, hub.Mutation{Bucket: "person_summary_undo", ID: target, Value: undo})
+		} else if summaryID != target {
+			xs = append(xs, hub.Mutation{Bucket: "person_summary_undo", ID: target, Delete: true})
+		}
+	}
+	for id := range ids {
+		if id != target {
+			xs = append(xs, hub.Mutation{Bucket: "person_summary_undo", ID: id, Delete: true})
+		}
 	}
 	var canonical model.RelationshipInference
 	have := s.Hub.Repo.Get("relationship_inferences", target, &canonical) == nil

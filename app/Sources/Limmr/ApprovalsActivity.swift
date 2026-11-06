@@ -18,7 +18,7 @@ struct ApprovalCard: View {
       VStack(alignment: .leading, spacing: 12) {
         identity
         if let attachment = approval.attachment {
-          Label(attachment.name, systemImage: "paperclip").font(.callout)
+          FileApprovalPreview(file: attachment, target: store.chatName(approval.chatJid))
         }
         if editing {
           TextEditor(text: $text).font(.body).frame(minHeight: 80)

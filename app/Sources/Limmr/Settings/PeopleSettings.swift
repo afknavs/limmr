@@ -7,11 +7,11 @@ struct PeopleSettings: View {
   @State private var loaded = false
   @State private var running = false
   var body: some View {
-    Section {
+    VStack(alignment: .leading, spacing: 18) {
       PeopleActions(store: store)
       ContactsImportSettings(store: store)
-    } header: { SettingsPaneTitle(title: "Your people") }
-    Section {
+      Divider()
+      VStack(alignment: .leading, spacing: 10) {
       Toggle("Infer how I know frequent contacts on this Mac", isOn: Binding(get: { enabled }, set: { on in
         enabled = on
         if !on { store.peopleInferenceTask?.cancel() }
@@ -35,7 +35,7 @@ struct PeopleSettings: View {
         }
       }.disabled(running || !enabled || AppleBriefModel.unavailableReason != nil || store.demo)
       ActionFeedback(store: store, action: "people-inference")
-    } header: { SettingsPaneTitle(title: "On this Mac") }
+    }
     .task {
       do {
         let value: PeopleInferenceSettings = try await store.backend.get("/v1/settings/people")
@@ -43,6 +43,7 @@ struct PeopleSettings: View {
         loaded = true
       } catch { loaded = false }
     }
+    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
   }
 }
 extension AppStore {
@@ -61,7 +62,7 @@ extension AppStore {
         await self?.refresh()
       } catch is CancellationError { } catch {
         guard !Task.isCancelled else { return }
-        self?.error = "Couldn't infer relationships on this Mac. Re-run in Settings → People."
+        self?.error = "Couldn't infer relationships on this Mac. Re-run in Settings → Privacy."
       }
     }
   }

@@ -25,7 +25,7 @@ func (l *Live) FetchAvatar(ctx context.Context, jid string) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	info, err := l.Client.GetProfilePictureInfo(ctx, j, &whatsmeow.GetProfilePictureParams{Preview: true})
+	info, err := l.Client.GetProfilePictureInfo(ctx, j, &whatsmeow.GetProfilePictureParams{Preview: false})
 	if err != nil || info == nil || info.URL == "" {
 		return nil, model.ErrNotFound
 	}

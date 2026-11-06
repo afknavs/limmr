@@ -33,21 +33,22 @@ struct HelperUpdateFailure: Error, LocalizedError {
   var errorDescription: String? { reason }
   static func describing(_ error: Error) -> String {
     if let failure = error as? HelperUpdateFailure { return failure.reason }
-    if error is CancellationError { return "The helper update was cancelled." }
+    if let stalled = error as? EngineReadinessStalled { return stalled.localizedDescription }
+    if error is CancellationError { return "The background engine update was cancelled." }
     if let backend = error as? BackendError {
       switch backend {
-      case .invalidResponse: return "The helper returned an incomplete response."
-      case .http(let code): return "The helper returned an HTTP error (\(code))."
-      default: return "The background helper command could not finish."
+      case .invalidResponse: return "Limmr’s background engine returned an incomplete response."
+      case .http(let code): return "Limmr’s background engine returned an HTTP error (\(code))."
+      default: return "Limmr’s background engine command could not finish."
       }
     }
     if let update = error as? UpdateError {
       return update == .unsafeBundle ? "The installed app did not pass signature validation." : "The app update validation or installation failed (\(update))."
     }
     let os = error as NSError
-    if os.domain == NSCocoaErrorDomain { return "A helper file could not be accessed (file error \(os.code))." }
-    if os.domain == NSPOSIXErrorDomain { return "A helper operation failed (system error \(os.code))." }
-    return "The helper operation did not complete (error \(os.code))."
+    if os.domain == NSCocoaErrorDomain { return "A background engine file could not be accessed (file error \(os.code))." }
+    if os.domain == NSPOSIXErrorDomain { return "A background engine operation failed (system error \(os.code))." }
+    return "The background engine operation did not complete (error \(os.code))."
   }
   @MainActor static func step<T>(_ operation: String, _ body: () async throws -> T) async throws -> T {
     do { return try await body() }
@@ -85,52 +86,52 @@ extension HelperRegistrationDriver {
   }
 
   func needsUpdate() async throws -> Bool {
-    let desired = try await HelperUpdateFailure.step("Checking the bundled helper failed.") { try await driver.identity() }
+    let desired = try await HelperUpdateFailure.step("Checking the bundled background engine failed.") { try await driver.identity() }
     guard let job = try await driver.job(), let hash = job.codeHash else {
       // A healthy listener of unknown origin is never safe to stop or label as current.
-      throw HelperUpdateFailure(reason: "The running helper could not be identified. Restart Limmr after checking the background helper.")
+      throw HelperUpdateFailure(reason: "The running background engine could not be identified. Try restarting Limmr.")
     }
     if desired.matches(hash) { try? await driver.retain(desired) }
     return !desired.matches(hash)
   }
 
   func register() async throws {
-    guard !busy else { throw HelperUpdateFailure(reason: "Another helper update is already in progress. Try again shortly.") }
+    guard !busy else { throw HelperUpdateFailure(reason: "Another background engine update is already in progress. Try again shortly.") }
     busy = true
     defer { busy = false }
-    let desired = try await HelperUpdateFailure.step("Checking the bundled helper failed.") { try await driver.identity() }
-    let healthy = try await settledHealth()
-    let old = try await HelperUpdateFailure.step("Inspecting the running helper failed.") { try await driver.job() }
+    let desired = try await HelperUpdateFailure.step("Checking the bundled background engine failed.") { try await driver.identity() }
+    let healthy = try await settledHealthForUpdate(desired)
+    let old = try await HelperUpdateFailure.step("Inspecting the running background engine failed.") { try await driver.job() }
     if healthy, desired.matches(old?.codeHash) {
       try? await driver.retain(desired)
       return
     } // adopt, including manual fallback; no receipt needed
-    guard !healthy || old?.codeHash != nil else { throw HelperUpdateFailure(reason: "The running helper could not be identified safely.") }
+    guard !healthy || old?.codeHash != nil else { throw HelperUpdateFailure(reason: "The running background engine could not be identified safely.") }
     guard driver.registration != .needsApproval || old?.route == .userAgent else {
       throw HelperUpdateFailure(reason: "Allow Limmr in System Settings → Login Items, then try again.")
     }
     // Keep an existing user agent on that path, including Developer ID upgrades. Ad-hoc builds
     // always leave SMAppService: its LWCR can still pin an earlier helper after unregister/register.
     let route: HelperRoute = desired.developerID && old?.route != .userAgent ? .serviceManagement : .userAgent
-    let candidate = try await HelperUpdateFailure.step("Preparing the new helper failed.") { try await driver.prepare(desired, route: route) }
+    let candidate = try await HelperUpdateFailure.step("Preparing the new background engine failed.") { try await driver.prepare(desired, route: route) }
     // Prepare the no-LWCR escape path BEFORE removing a working engine too.
-    let fallback = route == .serviceManagement ? try await HelperUpdateFailure.step("Preparing the fallback helper failed.") { try await driver.prepare(desired, route: .userAgent) } : candidate
+    let fallback = route == .serviceManagement ? try await HelperUpdateFailure.step("Preparing the fallback background engine failed.") { try await driver.prepare(desired, route: .userAgent) } : candidate
     // The original probe may have raced launchd starting a healthy process during preflight.
-    let healthyBeforeRemoval = try await settledHealth()
-    let latest = try await HelperUpdateFailure.step("Rechecking the running helper failed.") { try await driver.job() }
+    let healthyBeforeRemoval = try await settledHealthForUpdate(desired)
+    let latest = try await HelperUpdateFailure.step("Rechecking the running background engine failed.") { try await driver.job() }
     if healthyBeforeRemoval, desired.matches(latest?.codeHash) { return }
-    guard !healthyBeforeRemoval || latest?.codeHash != nil else { throw HelperUpdateFailure(reason: "The running helper changed or could not be identified during the update.") }
+    guard !healthyBeforeRemoval || latest?.codeHash != nil else { throw HelperUpdateFailure(reason: "The running background engine changed or could not be identified during the update.") }
     let rollback: HelperLaunchPlan?
-    if healthyBeforeRemoval, let latest { rollback = try await HelperUpdateFailure.step("Preparing the previous helper for recovery failed.") { try await driver.backup(latest) } } else { rollback = nil }
+    if let latest, latest.codeHash != nil { rollback = try await HelperUpdateFailure.step("Preparing the previous background engine for recovery failed.") { try await driver.backup(latest) } } else { rollback = nil }
     try Task.checkCancellation()
     do {
-      try await HelperUpdateFailure.step("Stopping the previous helper failed.") { try await driver.remove() } // exact job only
+      try await HelperUpdateFailure.step("Stopping the previous background engine failed.") { try await driver.remove() } // exact job only
       do {
-        try await HelperUpdateFailure.step("Starting the new helper failed.") { try await driver.launch(candidate) }
+        try await HelperUpdateFailure.step("Starting the new background engine failed.") { try await driver.launch(candidate) }
         if try await waitFor(desired) { return }
-        throw HelperUpdateFailure(reason: "The new helper did not become healthy with the expected build.")
+        throw HelperUpdateFailure(reason: "The new background engine did not become healthy with the expected build.")
       } catch {
-        if error is CancellationError { throw error }
+        if error is CancellationError || (error as? EngineReadinessStalled)?.busy == true { throw error }
         guard route == .serviceManagement, driver.registration != .needsApproval else { throw error }
         try await driver.remove()
         try await driver.launch(fallback)
@@ -138,6 +139,9 @@ extension HelperRegistrationDriver {
         throw BackendError.invalidResponse
       }
     } catch {
+      // An answering engine is still running. A slow health request is never
+      // grounds for replacing it with a fallback or rolling it back.
+      if (error as? EngineReadinessStalled)?.busy == true { throw error }
       // Cancelling the wait must not kill a new helper that is still initializing.
       if error is CancellationError, let job = try? await driver.job(), job.pid != nil,
          desired.matches(job.codeHash) { throw error }
@@ -150,9 +154,22 @@ extension HelperRegistrationDriver {
         try await driver.launch(rollback)
         // Unstructured task deliberately lets rollback finish even when the caller was cancelled.
         let restored = try await Task { @MainActor in try await self.waitFor(rollback.identity) }.value
-        guard restored else { throw HelperUpdateFailure(reason: "The previous helper could not restart. Try again.") }
+        guard restored else { throw HelperUpdateFailure(reason: "The previous background engine could not restart. Try again.") }
       }
       throw error
+    }
+  }
+
+  // Slowness cannot prevent installing the very build that fixes it. Only an
+  // identified, different launchd image may cross this boundary; keep rollback.
+  private func settledHealthForUpdate(_ desired: HelperIdentity) async throws -> Bool {
+    if await driver.readiness() == .busy,
+       let hash = try await driver.job()?.codeHash, !desired.matches(hash) { return false }
+    do { return try await settledHealth() }
+    catch let stalled as EngineReadinessStalled where stalled.busy {
+      guard let job = try await driver.job(), let hash = job.codeHash,
+            !desired.matches(hash) else { throw stalled }
+      return false
     }
   }
 
@@ -174,6 +191,7 @@ extension HelperRegistrationDriver {
         let newlyObserved = observedPID != pid
         observedPID = pid
         if state == .ready, identity.matches(job?.codeHash) { return .ready }
+        if state == .busy { return .busy }
         if case .starting(let progress, let grace) = state {
           if progress == nil && newlyObserved { return .starting(progress: "process-\(pid)", grace: grace) }
           return state

@@ -2,7 +2,7 @@ import LimmrKit
 import SwiftUI
 
 extension AppStore {
-  var currentNow: Date { demo ? Timestamp.date(DemoData.now)! : .now }
+  var currentNow: Date { presentationNow }
   func chatIsCurrent(_ chat: Chat) -> Bool {
     CurrentChats.isCurrent(chat, days: settings.currentDays, now: currentNow)
   }

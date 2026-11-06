@@ -27,6 +27,18 @@ public struct HomeCircleTile: Identifiable, Sendable {
 
 /// Combine the server's surfacing evidence with pinned and effort-driven work.
 public enum HomeTiles {
+  public static func waitingDescription(_ tile: HomeCircleTile) -> String? {
+    for rectangle in tile.rectangles {
+      switch rectangle {
+      case .effort(let update) where update.status == "on_you":
+        if !update.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Needs you: " + update.title }
+      case .ask(_, let text, _):
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
+      default: break
+      }
+    }
+    return nil
+  }
   public static func dueSoon(_ due: String?, now: Date) -> Bool {
     guard let date = due.flatMap(Timestamp.date) else { return false }
     return date >= now && date <= now.addingTimeInterval(7 * 86400)

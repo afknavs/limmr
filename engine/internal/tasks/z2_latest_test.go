@@ -128,7 +128,7 @@ func TestZ2SurfacingLinksKnownChatPeople(t *testing.T) {
 		name        string
 		group       bool
 		count, want int
-	}{{"DM", false, 1, 1}, {"small group", true, 3, 3}, {"big group", true, 4, 0}} {
+	}{{"DM", false, 1, 1}, {"small group", true, 3, 3}, {"big group", true, 4, 4}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, a, now := fixture(t)
 			a.Preset = "own"

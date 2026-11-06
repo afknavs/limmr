@@ -3,6 +3,7 @@ package remote
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"limmr/internal/dbutil"
 	"limmr/internal/testkit"
 	"log"
@@ -246,14 +247,30 @@ func TestAuthIssuedLogIsRedacted(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatal("refresh failed")
 	}
-	// Reusing the consumed refresh token is a normal invalid_grant.
+	// The client lost that response: the rotated token is accepted again while
+	// its replacement is unused, and the log says so.
+	replayed := serve(r.s, tokenReq(refreshForm))
+	if replayed.Code != 200 {
+		t.Fatal("replayed refresh rejected while its replacement was unused")
+	}
+	var next map[string]any
+	if json.Unmarshal(replayed.Body.Bytes(), &next) != nil {
+		t.Fatal("replay response unreadable")
+	}
+	// Using a replacement retires the old token; the second "issued" line falls
+	// inside the one-minute window and is suppressed.
+	nextForm := url.Values{"grant_type": {"refresh_token"}, "client_id": {r.clientID}, "refresh_token": {next["refresh_token"].(string)}}
+	if serve(r.s, tokenReq(nextForm)).Code != 200 {
+		t.Fatal("replacement refresh failed")
+	}
 	if serve(r.s, tokenReq(refreshForm)).Code != 400 {
-		t.Fatal("consumed refresh accepted")
+		t.Fatal("retired refresh accepted")
 	}
 	lines := strings.Split(strings.TrimSpace(r.buf.String()), "\n")
 	want := []string{
 		"INFO remote auth issued endpoint=token grant=authorization_code",
 		"INFO remote auth issued endpoint=token grant=refresh_token",
+		"INFO remote auth issued endpoint=token grant=refresh_token reason=refresh_replayed",
 		"WARN remote auth failure endpoint=token grant=refresh_token error=invalid_grant reason=refresh_unknown",
 	}
 	if len(lines) != len(want) {

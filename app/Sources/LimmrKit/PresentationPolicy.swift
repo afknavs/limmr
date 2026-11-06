@@ -25,7 +25,7 @@ public struct SetupFlow: Equatable, Sendable {
   }
   public mutating func helperFailed() {
     step = .link
-    helperError = "Limmr’s background helper isn’t running."
+    helperError = "Limmr’s engine stopped."
   }
   public mutating func helperStarted() { helperError = nil }
 }

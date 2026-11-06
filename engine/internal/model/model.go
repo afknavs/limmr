@@ -82,6 +82,7 @@ func (p Permissions) Valid() bool {
 }
 
 type Agent struct {
+	RunsOnPeer    string      `json:"runs_on_peer,omitempty"`
 	Preset        string      `json:"preset,omitempty"`
 	RunChat       string      `json:"-"`
 	Access        Access      `json:"access"`
@@ -130,28 +131,30 @@ type Attachment struct {
 	SHA256    string    `json:"sha256"`
 }
 type Approval struct {
-	AsDocument     bool        `json:"as_document,omitempty"`
-	Status         string      `json:"status,omitempty"`
-	SentAt         *time.Time  `json:"sent_at,omitempty"`
-	DeliveredAt    *time.Time  `json:"delivered_at,omitempty"`
-	ReadAt         *time.Time  `json:"read_at,omitempty"`
-	DeliveredCount int         `json:"delivered_count"`
-	ReadCount      int         `json:"read_count"`
-	ID             string      `json:"id"`
-	AgentID        string      `json:"agent_id"`
-	ChatJID        string      `json:"chat_jid"`
-	Kind           string      `json:"kind"`
-	Text           string      `json:"text"`
-	Attachment     *Attachment `json:"attachment,omitempty"`
-	ReplyTo        string      `json:"reply_to,omitempty"`
-	MessageID      string      `json:"message_id,omitempty"`
-	CreatedAt      time.Time   `json:"created_at"`
-	ExpiresAt      time.Time   `json:"expires_at"`
-	State          string      `json:"state"`
-	Edited         bool        `json:"edited"`
-	Reason         string      `json:"reason,omitempty"`
+	Upload         *UploadProgress `json:"upload,omitempty"`
+	AsDocument     bool            `json:"as_document,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	SentAt         *time.Time      `json:"sent_at,omitempty"`
+	DeliveredAt    *time.Time      `json:"delivered_at,omitempty"`
+	ReadAt         *time.Time      `json:"read_at,omitempty"`
+	DeliveredCount int             `json:"delivered_count"`
+	ReadCount      int             `json:"read_count"`
+	ID             string          `json:"id"`
+	AgentID        string          `json:"agent_id"`
+	ChatJID        string          `json:"chat_jid"`
+	Kind           string          `json:"kind"`
+	Text           string          `json:"text"`
+	Attachment     *Attachment     `json:"attachment,omitempty"`
+	ReplyTo        string          `json:"reply_to,omitempty"`
+	MessageID      string          `json:"message_id,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	State          string          `json:"state"`
+	Edited         bool            `json:"edited"`
+	Reason         string          `json:"reason,omitempty"`
 }
 type Activity struct {
+	TaskID           string    `json:"task_id,omitempty"`
 	CalledAs         string    `json:"called_as,omitempty"`
 	OwnerInstruction string    `json:"owner_instruction,omitempty"`
 	QueueForApproval bool      `json:"queue_for_approval,omitempty"`

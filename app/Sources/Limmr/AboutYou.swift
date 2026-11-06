@@ -35,7 +35,7 @@ struct AboutYouCard: View {
           Text("Your contexts").font(AppType.blockHeading)
           ForEach(store.aboutYouContexts) { circle in
             VStack(alignment: .leading, spacing: 4) {
-              Label(circle.name, systemImage: circle.symbol).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
+              Label(circle.name, systemImage: circle.displaySymbol).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
               if !circle.description.isEmpty {
                 Text(circle.description).font(.callout).foregroundStyle(AccessibleSecondary())
               }

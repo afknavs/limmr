@@ -289,6 +289,7 @@ func (s *Service) Forget(id string) error {
 		`DELETE FROM objects WHERE bucket='people' AND id=?`,
 		`DELETE FROM objects WHERE bucket='stats' AND id=?`,
 		`DELETE FROM objects WHERE bucket='person_summaries' AND id=?`,
+		`DELETE FROM objects WHERE bucket='person_summary_undo' AND id=?`,
 		`DELETE FROM objects WHERE bucket='relationship_inferences' AND id=?`,
 	} {
 		args := []any{}

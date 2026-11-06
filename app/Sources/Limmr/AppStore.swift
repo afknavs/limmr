@@ -15,7 +15,9 @@ import SwiftUI
   var showProposalReview = false
   var writingMacBriefs = false
   var macBriefNotice: String?
-  var home = HomeResponse.empty { didSet { syncEffortNaming() } }
+  var allTasks: [TaskSummary] = []
+  var allTasksError: String?
+  var home = HomeResponse.empty { didSet { syncEffortNaming(); notifyTaskCheckIns() } }
   var circles: [LimmrKit.Circle] = []
   var circleMap = CircleMap.empty
   var presence: [AgentPresence] = []
@@ -27,10 +29,24 @@ import SwiftUI
   @ObservationIgnored private var mapEventDiff = MapEventDiff()
   var activityAgent = "all"
   var activityDay: String?
+  // MARK: lane-2 — bounded task workspaces; replaced on backend changes.
+  var taskWorkspaceCache: [String: TaskWorkspace] = [:]
+  var taskWorkspaceOrder: [String] = []
+  var taskWorkspaceGeneration = -1
+  var taskQuietUndo: TrackedTask?
+  var taskQuietNotice: String?
+  // MARK: end lane-2
   var taskActions: Set<String> = []
   var taskActionErrors: [String: String] = [:]
   var activityFilter = "sends"
   var selectedTask: Int64?
+  let taskCovers = TaskCoverCache()
+  var taskCoverStartupGeneration = -1
+  var circlePictureData: [String: Data] = [:]
+  var pendingSidebarCircle: String?
+  // The circle opened by a sidebar click. Only then does the sidebar highlight a circle:
+  // moving the sidebar highlight makes the split view reset the detail stack.
+  var sidebarOpenedCircle: String?
   var history: StatsHistory?
   var recentIcons: [EntityIcon] = []
   var requestedReplyDrafts: Set<String> = []
@@ -66,6 +82,8 @@ import SwiftUI
   var activityPath: [ActivityRoute] = []
   var pendingActivityRoute: ActivityRoute?
   /// Where a task or effort was opened from, so Back returns there instead of to Activity.
+  var peopleReturnPage: Page?
+  var activityReturnPeoplePage: Page?
   var activityReturnPage: Page?
   var activityReturnPath: [CircleDestination] = []
   var activityNavigationReady = false
@@ -88,6 +106,17 @@ import SwiftUI
   var searchRequest = 0
   var escapeRequest = 0
   var page: Page = .overview
+  // MARK: lane-1 Connection presentation and Settings disclosures
+  var snapshotConnectionState: EngineSurfaceState?
+  var privacyHidden = false
+  var privacyPeople = false
+  var privacyBriefs = false
+  var privacyProfile = false
+  var connectionSync: DotSyncStatus?
+  var connectionDetails = false
+  var connectionAdvanced = false
+  var connectionRemote = false
+  // MARK: end lane-1
   var settingsTab: SettingsTab = .general
   var showSettings = false
   var showConnect = false
@@ -142,7 +171,10 @@ import SwiftUI
   var pending: [Approval] { approvals.filter(\.isPending) }
   var resolved: [Approval] { approvals.filter { !$0.isPending } }
   var currentAgent: Agent? { agents.first { $0.id == selectedAgent } }
-  init(demo: Bool, snapshot: Bool = false, backend: (any Backend)? = nil,
+  var usesFixtureClock: Bool
+  var fixtureNow = Timestamp.date(DemoData.now)!
+  var presentationNow: Date { usesFixtureClock ? fixtureNow : Date() }
+  init(demo: Bool, snapshot: Bool = false, fixedClock: Bool? = nil, backend: (any Backend)? = nil,
        launchAtLoginService: (any LaunchAtLoginManaging)? = nil,
        retryPause: (@Sendable (Duration) async throws -> Void)? = nil,
        effortNamingEnvironment: EffortNamingWorker.Environment? = nil,
@@ -150,6 +182,7 @@ import SwiftUI
     self.effortNamingEnvironment = effortNamingEnvironment
     self.effortNamingModel = effortNamingModel
     self.demo = demo
+    self.usesFixtureClock = fixedClock ?? demo
     self.snapshot = snapshot
     // Offscreen fixtures exercise retry attempts without waiting on a real clock.
     // Live requests keep the production backoff; tests may supply a controlled clock.
@@ -158,11 +191,9 @@ import SwiftUI
     }
     system = SystemActions(demo: demo, loginService: launchAtLoginService ?? MainAppLoginService(demo: demo || snapshot))
     notifications = NotificationBridge(active: !demo && !snapshot)
-    self.backend =
-      backend
-      ?? (demo
-        ? DemoBackend() as any Backend
-        : APIClient(credentialFile: RuntimePaths().home.appending(path: "control-token")))
+    self.backend = CoalescingBackend(backend: backend
+      ?? (demo ? DemoBackend() as any Backend
+        : APIClient(credentialFile: RuntimePaths().home.appending(path: "control-token"))))
     notifications.navigate = { [weak self] url in self?.navigate(url) }
     notifications.resolve = { [weak self] id, approve in
       Task { await self?.resolve(id, approve: approve) }
@@ -252,7 +283,9 @@ import SwiftUI
     guard generation == backendGeneration, !Task.isCancelled else { return }
     // A down helper cannot answer the remaining reads. Keep their placeholders pending,
     // rather than spending a separate retry window on every endpoint.
-    guard status != nil else { return }
+    // MARK: lane-1 A failed status read keeps cached content but skips the
+    // remaining expensive reads until the independent connection probe recovers.
+    guard status != nil, !loadFailures.keys.contains(where: { $0.components(separatedBy: "?")[0] == "/v1/status" }) else { return }
     await load("/v1/agents", title: "Integrations") { (v: AgentsResponse) in agents = v.agents }
     guard generation == backendGeneration else { return }
     await load("/v1/approvals", title: "Approvals") { (v: ApprovalsResponse) in
@@ -262,8 +295,11 @@ import SwiftUI
     await load("/v1/activity?limit=50", title: "Activity") { (v: ActivityPage) in
       allRecentActivity = v.items.sorted(by: Activity.newestFirst)
       if activityQuery.isEmpty {
-        activity = allRecentActivity
-        activityBefore = v.nextBefore
+        // Preserve earlier pages while new rows arrive. The cursor belongs to
+        // the oldest loaded page, not the new first page.
+        let hadEarlier = activityBefore != nil && activity.count > 50
+        activity = Dictionary((activity + allRecentActivity).map { ($0.id, $0) }, uniquingKeysWith: { _, newest in newest }).values.sorted(by: Activity.newestFirst)
+        if !hadEarlier { activityBefore = v.nextBefore }
       }
     }
     guard generation == backendGeneration else { return }
@@ -284,6 +320,13 @@ import SwiftUI
     }
     guard generation == backendGeneration else { return }
     await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v }
+    // Seed Tasks and warm recent covers independently of lazy view appearance.
+    await prepareTaskCovers()
+    // Home owns the short activity calendar: load it before slower map/setup enrichment.
+    if history == nil || Date().timeIntervalSince(lastUsageRefresh) >= 60 {
+      await refreshHistory()
+    }
+    if page == .tasks || page == .circles && !circlePath.isEmpty { await refreshAllTasks() }
     if home.effortsReady == false { retryHomeUntilEffortsReady() }
     guard generation == backendGeneration else { return }
     await load("/v1/circles", title: "Circles") { (v: CirclesResponse) in circles = v.circles }
@@ -315,6 +358,10 @@ import SwiftUI
     system.login.refresh()
     settings.launchAtLogin = system.login.isOn
     await load("/v1/remote", title: "Remote access") { (v: RemoteState) in remote = v }
+    // MARK: lane-1 Sync status also drives the shared attention card.
+    if let sync: DotSyncStatus = try? await backend.get("/v1/sync"), generation == backendGeneration {
+      connectionSync = sync
+    }
     RemotePairingReview.shared.update(store: self)
     await load("/v1/setup/status", title: "Setup") { (v: SetupStatus) in
       setupStatus = v
@@ -350,19 +397,8 @@ import SwiftUI
         }
       } catch { /* Old engines keep the dashboard unavailable instead of inventing totals. */  }
     }
-    // History has its own loading/error state, even when the totals endpoint is unavailable.
-    if status?.linked == false {
-      history = nil
-      payloads = payloads.filter { $0.key.components(separatedBy: "?")[0] != "/v1/stats/history" }
-      loadedRoutes.remove("/v1/stats/history")
-      for key in Array(loadFailures.keys) where key.components(separatedBy: "?")[0] == "/v1/stats/history" {
-        loadFailures[key] = nil
-      }
-      updateRefreshError()
-    } else if status?.linked == true {
-      if history == nil || refreshUsage { await refreshHistory() }
-      if Date().timeIntervalSince(lastDigestRefresh) >= 4 * 3600 { await refreshDigests() }
-    }
+    // Retained history remains useful while unlinked; unlink is not a data reset.
+    if status?.linked == true, Date().timeIntervalSince(lastDigestRefresh) >= 4 * 3600 { await refreshDigests() }
     notifications.update(approvals)
     schedulePeopleInference()
     scheduleContactsImport()
@@ -436,10 +472,15 @@ import SwiftUI
         try? await Task.sleep(for: pause)
         guard !Task.isCancelled, generation == backendGeneration else { return }
         await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v }
+    // Home owns the short activity calendar: load it before slower map/setup enrichment.
+    if history == nil || Date().timeIntervalSince(lastUsageRefresh) >= 60 {
+      await refreshHistory()
+    }
         if home.effortsReady != false { return }
       }
     }
   }
+  func scheduleDataRefresh() { scheduleRefresh() }
   private func scheduleRefresh() {
     guard refreshScheduled == nil else { return }
     let delay = refreshing ? 2 : max(0, 2 - Date().timeIntervalSince(lastRefresh))
@@ -448,6 +489,7 @@ import SwiftUI
       guard !Task.isCancelled else { return }
       refreshScheduled = nil
       await refresh()
+      if !activityQuery.isEmpty { await refreshDetailedActivity(force: true) }
     }
   }
   /// Try again: refresh, and if the helper is down, restart it (an app update can leave launchd
@@ -463,14 +505,17 @@ import SwiftUI
       }
     } catch {
       refreshError =
-        "Limmr’s background helper didn’t start. Settings → Health has the details."
+        "Limmr’s engine didn’t start. Settings → Connections has the details."
     }
   }
   func monitor() async {
     guard !snapshot else { return }
     async let events: Void = watchActivity()
     async let digests: Void = monitorDigests()
-    _ = await (events, digests)
+    // MARK: lane-2 — check-ins also fire when no chat activity arrives.
+    async let checkIns: Void = monitorTaskCheckIns()
+    async let visualState: Void = monitorVisualState()
+    _ = await (events, digests, checkIns, visualState)
   }
   @ObservationIgnored private var pairingMonitorRunning = false
   /// OAuth pairing doesn't emit activity events. Poll only this small endpoint, independently
@@ -535,9 +580,15 @@ import SwiftUI
       if Date().timeIntervalSince(lastDigestRefresh) >= 4 * 3600 { await refreshDigests() }
     }
   }
-  private func watchActivity() async {
+  func watchActivity() async {
     while !Task.isCancelled {
-      do { for try await _ in backend.events("/v1/activity/stream") { scheduleRefresh() } } catch
+      let generation = backendGeneration
+      do {
+        for try await event in backend.events("/v1/activity/stream") {
+          guard generation == backendGeneration, !Task.isCancelled else { break }
+          handleActivityEvent(event)
+        }
+      } catch
       { /* Keep last good data; reconnect without reloading heavy endpoints. */  }
       try? await Task.sleep(for: .seconds(5))
     }
@@ -586,6 +637,8 @@ import SwiftUI
     briefSettings = BriefSettings()
     macBriefNotice = nil
     showProposalReview = false
+    taskCovers.reset(generation: backendGeneration)
+    circlePictureData = [:]
     home = .empty
     homeEfforts = []
     homeEffortsReady = false
@@ -663,11 +716,8 @@ import SwiftUI
     notifications.resolve = { [weak self] id, approve in
       Task { await self?.resolve(id, approve: approve) }
     }
-    backend =
-      enabled
-      ? DemoBackend()
-      : realBackend
-        ?? APIClient(credentialFile: RuntimePaths().home.appending(path: "control-token"))
+    backend = CoalescingBackend(backend: enabled ? DemoBackend() : realBackend
+        ?? APIClient(credentialFile: RuntimePaths().home.appending(path: "control-token")))
     error = nil
     retryWork = nil
     notice = nil
@@ -811,7 +861,7 @@ import SwiftUI
 
   func filterActivity(agent: String, kind: String, chat: String) async {
     var components = URLComponents()
-    components.queryItems = [("agent", agent), ("kind", kind), ("chat", chat)].compactMap {
+    components.queryItems = [("agent", agent), ("kind", kind), ("chat", chat), ("quiet", "true")].compactMap {
       name, value in value == "all" ? nil : URLQueryItem(name: name, value: value)
     }
     activityQuery = components.percentEncodedQuery ?? ""
@@ -836,9 +886,12 @@ import SwiftUI
     guard let before = activityBefore, !loadingMore else { return }
     loadingMore = true
     defer { loadingMore = false }
+    let query = activityQuery
+    let generation = backendGeneration
     await perform { [self] in
       let nextPage: ActivityPage = try await backend.get(
-        "/v1/activity?limit=50&before=\(before)&" + activityQuery)
+        "/v1/activity?limit=50&before=\(before)&" + query)
+      guard generation == backendGeneration, query == activityQuery, !Task.isCancelled else { return }
       let next = nextPage.items
       activityBefore = nextPage.nextBefore
       activity += next.filter { row in !activity.contains { $0.id == row.id } }
@@ -846,6 +899,7 @@ import SwiftUI
       if next.isEmpty { notice = "You’ve reached the beginning of the log." }
     }
   }
+
   func fix(_ id: String) async {
     if id == "migrate_whatsapp_mcp" {
       setupStep = 1
@@ -853,7 +907,7 @@ import SwiftUI
       return
     }
     if id == "update_client" {
-      notice = "Update the engine helper to refresh the WhatsApp client, then reconnect."
+      notice = "Update Limmr to refresh the WhatsApp connection, then reconnect."
       return
     }
     await perform { [self] in
@@ -976,14 +1030,14 @@ import SwiftUI
     return "Unknown"
   }
   var todayActivity: [Activity] {
-    let today = demo ? Timestamp.date(DemoData.now)! : Date()
+    let today = presentationNow
     return allRecentActivity.filter { row in
       Timestamp.date(row.at).map { Calendar.current.isDate($0, inSameDayAs: today) } ?? false
     }
   }
   func expires(_ date: String) -> String {
     guard let end = Timestamp.date(date) else { return "Expires in 30 minutes" }
-    let now = demo ? Timestamp.date(DemoData.now)! : Date()
+    let now = presentationNow
     let minutes = max(0, Int(ceil(end.timeIntervalSince(now) / 60)))
     return minutes == 0 ? "Expiring now" : "Expires in \(minutes) min"
   }
@@ -995,40 +1049,36 @@ import SwiftUI
 
 enum Page: String, CaseIterable, Identifiable {
   case overview = "Home"
+  case tasks = "Tasks"
   case circles = "People"
   case activity = "Activity"
   var id: String { rawValue }
   var symbol: String {
     switch self {
     case .overview: "house"
+    case .tasks: "square.grid.2x2"
     case .circles: "person.2"
     case .activity: "clock"
     }
   }
 }
 
+// MARK: lane-1 Settings navigation
+// Aliases retain existing deep links and snapshot routes while presenting four tabs.
 enum SettingsTab: String, CaseIterable, Identifiable {
   case general = "General"
-  case sources = "Sources"
+  case connections = "Connections"
   case integrations = "Integrations"
-  case people = "People"
-  case briefs = "Briefs"
-  case hiddenChats = "Hidden chats"
-  case remote = "Remote access"
-  case health = "Health"
-  case advanced = "Advanced"
+  case privacy = "Privacy"
+  static let sources = Self.privacy, people = Self.privacy, briefs = Self.privacy, hiddenChats = Self.privacy
+  static let remote = Self.connections, health = Self.connections, advanced = Self.connections
   var id: String { rawValue }
   var symbol: String {
     switch self {
     case .general: "gearshape"
-    case .sources: "tray.2"
-    case .people: "person.2"
+    case .connections: "network"
     case .integrations: "puzzlepiece.extension"
-    case .briefs: "text.alignleft"
-    case .hiddenChats: "eye.slash"
-    case .remote: "network"
-    case .health: "checkmark.circle"
-    case .advanced: "slider.horizontal.3"
+    case .privacy: "hand.raised"
     }
   }
 }
@@ -1059,7 +1109,7 @@ enum ConnectKind: String, Identifiable, CaseIterable {
     case .claudeCode: "chevron.left.forwardslash.chevron.right"
     case .codex: "terminal"
     case .cursor: "cursorarrow.rays"
-    case .other: "sparkle"
+    case .other: "app.connected.to.app.below.fill"
     }
   }
 }

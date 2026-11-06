@@ -3,7 +3,7 @@
     {
       "body": "Hi Maya, your revision notes are ready to review.",
       "chat_jid": "15550100004@s.whatsapp.net",
-      "circle_id": "",
+      "circle_id": "friends",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": "agent-2",
       "draft_source": "ai",
@@ -21,7 +21,7 @@
     {
       "body": "Hi Maya, just checking in on the project syllabus. No rush!",
       "chat_jid": "15550100004@s.whatsapp.net",
-      "circle_id": "",
+      "circle_id": "friends",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": "agent-2",
       "draft_source": "template",
@@ -39,6 +39,10 @@
   ],
   "tasks": [
     {
+      "circle_ids": [
+        "university"
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
         "name": "You"
@@ -46,6 +50,7 @@
       "effort_id": "effort-95c52b2c6f233249fb8995d6",
       "id": "tsk_demo_linked",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "owner",
       "progress": {
@@ -56,12 +61,23 @@
       "title": "Track festival review"
     },
     {
+      "circle_ids": [
+        "university"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "university",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
         "name": "Codex"
       },
       "id": "tsk_demo_short",
       "kind": "short",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "agent",
       "progress": {
@@ -72,12 +88,23 @@
       "title": "Book a dentist appointment"
     },
     {
+      "circle_ids": [
+        "friends"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "friends",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
         "name": "Codex"
       },
       "id": "tsk_demo_study",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": true,
       "needs_you_reason": "An update is ready for your review",
       "next_check_in_at": "2026-10-24T12:00:00Z",
@@ -90,12 +117,23 @@
       "title": "Maya's study plan"
     },
     {
+      "circle_ids": [
+        "friends"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "friends",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
         "name": "Codex"
       },
       "id": "tsk_demo_waiting",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": true,
       "needs_you_reason": "An update is ready for your review",
       "origin": "agent",

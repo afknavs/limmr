@@ -96,7 +96,7 @@ func (s *Service) enrichAffinity(a *model.Agent, ps []model.Person, ms []model.M
 			jids = append(jids, jid)
 		}
 		encoded, _ := json.Marshal(jids)
-		rows, e := s.Hub.Messages.DB.Query(`SELECT chat_jid,text FROM (SELECT chat_jid,SUBSTR(COALESCE(content,''),1,300) AS text,ROW_NUMBER() OVER (PARTITION BY chat_jid ORDER BY timestamp DESC,id DESC) AS n FROM messages WHERE deleted_at IS NULL AND chat_jid IN (SELECT value FROM json_each(?)) AND julianday(timestamp) BETWEEN julianday(?) AND julianday(?)) WHERE n<=40`, string(encoded), s.Hub.Now().AddDate(0, 0, -90), s.Hub.Now())
+		rows, e := s.Hub.Messages.DB.Query(`SELECT j.value,SUBSTR(COALESCE(m.content,''),1,300) FROM json_each(?) j JOIN messages m ON m.rowid IN (SELECT rowid FROM messages WHERE chat_jid=j.value AND deleted_at IS NULL AND julianday(timestamp) BETWEEN julianday(?) AND julianday(?) ORDER BY julianday(timestamp) DESC,id DESC LIMIT 40)`, string(encoded), s.Hub.Now().AddDate(0, 0, -90), s.Hub.Now())
 		if e != nil {
 			return e
 		}
@@ -187,6 +187,7 @@ func (s *Service) enrichAffinity(a *model.Agent, ps []model.Person, ms []model.M
 		}
 		peersByCircleGroup[c.ID], peerCounts[c.ID] = byGroup, counts
 	}
+	knownCircles := confirmedCirclePeople(cs, ms)
 	for i := range ps {
 		p := &ps[i]
 		p.GroupsInCommon = []model.GroupInCommon{}
@@ -242,7 +243,7 @@ func (s *Service) enrichAffinity(a *model.Agent, ps []model.Person, ms []model.M
 			}
 			p.DetailSuggestions = filtered
 		}
-		if v, ok := inferences[p.ID]; ok {
+		if v, ok := inferences[p.ID]; ok && !hasRelationship(*p) && !knownCircles[p.ID] {
 			p.InferredRelationship = &v
 		}
 		dm := tokens(texts[p.ID])

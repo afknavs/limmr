@@ -146,12 +146,12 @@ func TestForgetScrubsReplicatedKnowledgeAndHistory(t *testing.T) {
 	must(t, a.h.Repo.Delete("facts", "old"))
 	pair(t, a, b)
 	exchange(t, a, b)
-	old, err := b.s.Pull(ctx, syncer.PullRequest{PeerEngineID: a.s.EngineID, SyncVersion: 1, Schema: 10})
+	old, err := b.s.Pull(ctx, syncer.PullRequest{PeerEngineID: a.s.EngineID, SyncVersion: syncer.Version, Schema: syncer.Schema})
 	must(t, err)
 	must(t, a.p.Forget("maya"))
 	exchange(t, a, b)
 	// Replaying a pre-forget page cannot restore payloads or circle references.
-	_, err = a.s.Push(ctx, syncer.PushRequest{Changes: old.Changes, FromEngineID: b.s.EngineID, SyncVersion: 1, Schema: 10})
+	_, err = a.s.Push(ctx, syncer.PushRequest{Changes: old.Changes, FromEngineID: b.s.EngineID, SyncVersion: syncer.Version, Schema: syncer.Schema})
 	must(t, err)
 	exchange(t, a, b)
 	same(t, a, b)
@@ -168,7 +168,7 @@ func TestForgetScrubsReplicatedKnowledgeAndHistory(t *testing.T) {
 		if e == a {
 			peer = b.s.EngineID
 		}
-		page, err := e.s.Pull(ctx, syncer.PullRequest{PeerEngineID: peer, SyncVersion: 1, Schema: 10})
+		page, err := e.s.Pull(ctx, syncer.PullRequest{PeerEngineID: peer, SyncVersion: syncer.Version, Schema: syncer.Schema})
 		must(t, err)
 		rows, err := e.h.Repo.DB.Query(`SELECT data FROM objects UNION ALL SELECT data FROM sync_log UNION ALL SELECT data FROM sync_deleted`)
 		must(t, err)
@@ -203,7 +203,7 @@ func TestUnknownBucketAndFailedApplyRollbackEntireBatch(t *testing.T) {
 		before := knowledge(t, e)
 		var count, after int
 		must(t, e.h.Repo.DB.QueryRow(`SELECT count(*) FROM sync_log`).Scan(&count))
-		_, err := e.s.Push(ctx, syncer.PushRequest{Changes: []syncer.Change{valid, bad}, FromEngineID: valid.Origin, SyncVersion: 1, Schema: 10})
+		_, err := e.s.Push(ctx, syncer.PushRequest{Changes: []syncer.Change{valid, bad}, FromEngineID: valid.Origin, SyncVersion: syncer.Version, Schema: syncer.Schema})
 		if err == nil {
 			t.Fatal("bad batch accepted")
 		}
@@ -229,12 +229,12 @@ func TestPagingReplayAndClockSurviveRestart(t *testing.T) {
 		id := dbutil.ID()
 		put(t, a, "people", id, map[string]any{"id": id, "label": "Maya"})
 	}
-	page, err := a.s.Pull(ctx, syncer.PullRequest{PeerEngineID: b.s.EngineID, SyncVersion: 1, Schema: 10})
+	page, err := a.s.Pull(ctx, syncer.PullRequest{PeerEngineID: b.s.EngineID, SyncVersion: syncer.Version, Schema: syncer.Schema})
 	must(t, err)
 	if len(page.Changes) != 500 || !page.More {
 		t.Fatal("page bound not enforced")
 	}
-	q := syncer.PushRequest{Changes: page.Changes, FromEngineID: a.s.EngineID, SyncVersion: 1, Schema: 10}
+	q := syncer.PushRequest{Changes: page.Changes, FromEngineID: a.s.EngineID, SyncVersion: syncer.Version, Schema: syncer.Schema}
 	_, err = b.s.Push(ctx, q)
 	must(t, err)
 	r, err := b.s.Push(ctx, q)
@@ -331,7 +331,7 @@ func TestBlobAndHandlerBounds(t *testing.T) {
 		}
 	}
 	w = httptest.NewRecorder()
-	e.s.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/sync/pull", strings.NewReader(`{"peer_engine_id":"invented","sync_version":2,"schema":10}`)))
+	e.s.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/sync/pull", strings.NewReader(`{"peer_engine_id":"invented","sync_version":3,"schema":18}`)))
 	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), `"error":"update_needed"`) {
 		t.Fatal("update response mismatch")
 	}

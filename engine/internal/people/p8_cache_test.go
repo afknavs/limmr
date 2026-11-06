@@ -67,12 +67,27 @@ func TestP8PeopleCacheCopiesNestedStorage(t *testing.T) {
 	xs[0].DetailSuggestions[0].Value = "changed"
 	xs[0].CircleAffinity[0].Reasons[0] = "changed"
 	xs[0].GroupsInCommon[0].CircleIDs[0] = "changed"
-	xs[0].InferredRelationship.Label = "changed"
+	if xs[0].InferredRelationship != nil {
+		t.Fatal("known circle member retained a DM-only inference")
+	}
 	again, e := p.PeopleAll(nil, "", true)
 	testkit.Must(t, e)
 	v := again[0]
-	if v.JIDs[0] == "changed" || v.Details.Phones[0].Value == "changed" || v.DetailSuggestions[0].Value == "changed" || v.CircleAffinity[0].Reasons[0] == "changed" || v.GroupsInCommon[0].CircleIDs[0] == "changed" || v.InferredRelationship.Label == "changed" {
+	if v.JIDs[0] == "changed" || v.Details.Phones[0].Value == "changed" || v.DetailSuggestions[0].Value == "changed" || v.CircleAffinity[0].Reasons[0] == "changed" || v.GroupsInCommon[0].CircleIDs[0] == "changed" {
 		t.Fatal("caller changed nested cached storage")
+	}
+	// Unknown contacts still get an independent copy of optional inference data.
+	testkit.Must(t, h.Repo.Delete("circles", "design"))
+	xs, e = p.PeopleAll(nil, "", true)
+	testkit.Must(t, e)
+	if xs[0].InferredRelationship == nil {
+		t.Fatal("unknown contact inference missing")
+	}
+	xs[0].InferredRelationship.Label = "changed"
+	again, e = p.PeopleAll(nil, "", true)
+	testkit.Must(t, e)
+	if again[0].InferredRelationship.Label == "changed" {
+		t.Fatal("caller changed cached inference")
 	}
 }
 

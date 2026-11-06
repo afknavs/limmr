@@ -51,7 +51,9 @@ struct PersonLately: View {
   @State private var efforts: [Effort] = []
   @State private var refreshing = false
   @State private var refreshFailed = false
-  private var now: Date { store.demo ? Timestamp.date(DemoData.now) ?? Date() : Date() }
+  @State private var updated = false
+  @Environment(\.snapshotProfileUpdated) private var snapshotUpdated
+  private var now: Date { store.presentationNow }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       let needsTasks = tasks.filter(\.needsYou)
@@ -66,7 +68,7 @@ struct PersonLately: View {
         BlockHeading(title: "Lately")
         Spacer()
         if (profile?.stats.dmMessages30 ?? 0) >= 5 {
-          Button(refreshing ? "Refreshing…" : "Refresh") { Task { await refreshSummary() } }.limmrButton().font(AppType.caption).disabled(refreshing)
+          Button("Refresh") { Task { await refreshSummary() } }.peopleQuietButton().font(AppType.caption).disabled(refreshing)
         }
       }
       if let stats = profile?.stats {
@@ -76,7 +78,11 @@ struct PersonLately: View {
       if let summary, (profile?.stats.dmMessages30 ?? 0) >= 5 {
         Text(summary.text).font(.callout).fixedSize(horizontal: false, vertical: true)
         let stale = summary.writtenAt.flatDate.map { $0 < now.addingTimeInterval(-7 * 86400) } ?? true
-        Text("\(summary.writtenBy == "This Mac" ? "This Mac" : store.agentName(summary.writtenBy)) · \(store.relativeTime(summary.writtenAt))\(stale ? " · Ready to refresh" : "")").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+        HStack(spacing: 10) {
+          Text((updated || snapshotUpdated) ? "Updated" : "Updated " + store.relativeTime(summary.writtenAt) + (stale ? " · Ready to refresh" : ""))
+          if updated || snapshotUpdated { Button("Undo") { Task { await undoSummary(summary) } }.peopleQuietButton() }
+        }.font(AppType.caption).foregroundStyle(AccessibleSecondary())
+          .help("Updated by " + (summary.writtenBy == "This Mac" ? "This Mac" : store.agentName(summary.writtenBy)))
       }
       }
       if !tasks.isEmpty {
@@ -84,7 +90,7 @@ struct PersonLately: View {
         ForEach(tasks) { task in SurfacedTaskRow(store: store, task: task) }
       }
       if refreshFailed { Text("Couldn’t refresh").font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
-    }.task(id: profile?.person.id) { await load() }
+    }.task(id: profile?.person.id) { if profile != nil { await load() } }
   }
   private func load() async {
     do {
@@ -97,14 +103,30 @@ struct PersonLately: View {
       if self.summary == nil && !store.demo && !store.snapshot { await refreshSummary() }
     } catch { if !Task.isCancelled { refreshFailed = true } }
   }
+  private func undoSummary(_ value: PersonSummary) async {
+    do {
+      try await store.backend.post("/v1/people/\(id)/summary/undo", ["written_at": value.writtenAt])
+      let response: PersonSummaryResponse = try await store.backend.get("/v1/people/\(id)/summary")
+      summary = response.summary; updated = false
+    } catch { refreshFailed = true }
+  }
+
   private func refreshSummary() async {
     guard let profile, !store.demo, !store.snapshot else { return }
     refreshing = true; defer { refreshing = false }
     do {
       if try await OnDevicePersonSummaryWriter(backend: store.backend, model: ApplePersonSummaryModel()).write(person: profile.person, stats: profile.stats, tasks: tasks) {
-        let response: PersonSummaryResponse = try await store.backend.get("/v1/people/\(id)/summary"); summary = response.summary
+        let response: PersonSummaryResponse = try await store.backend.get("/v1/people/\(id)/summary"); summary = response.summary; updated = true
       }
     } catch { /* Model unavailability degrades quietly. */ }
   }
 }
 private extension String { var flatDate: Date? { Timestamp.date(self) } }
+
+private struct SnapshotProfileUpdatedKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+ var snapshotProfileUpdated: Bool {
+  get { self[SnapshotProfileUpdatedKey.self] }
+  set { self[SnapshotProfileUpdatedKey.self] = newValue }
+ }
+}

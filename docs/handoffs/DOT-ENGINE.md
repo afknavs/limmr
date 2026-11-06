@@ -96,7 +96,7 @@ WhatsApp connection or automation runtime.
    OAuth with PKCE and polls for approval; no callback listener is needed.
 3. Wait for the command's successful exit and `Paired. Sync complete` status.
    The rotating refresh credential is saved as `LIMMR_HOME/sync-oauth.json`, mode
-   0600. Do not copy this file between engines. Pairing grants only knowledge
+   0600. Do not copy this file between engines. Pairing grants knowledge and approved-queue
    sync; it does not grant message reads, media access or sending permission.
 4. Schedule one short command every five minutes:
 
@@ -108,27 +108,44 @@ WhatsApp connection or automation runtime.
    status. Failure exits 1 with a redacted reason; retry at the next scheduled
    run. Without `--once`, the command stays alive and repeats every five minutes.
    Serialize scheduled invocations so refresh-token rotation cannot overlap.
-5. Both sides may edit knowledge offline. The next run pulls changes and missing
+5. Upgrade both sides to schema 18 / sync protocol 2. Both sides may edit knowledge offline. The next run pulls changes and missing
    photos, uploads the dot's photos, then pushes changes. Cursors survive process
    restarts; interrupted pages can be retried. Similar independently created
    tasks/circles stay separate until the owner chooses Merge or Keep both.
 
-**Who runs automations:** while paired, only the lease holder runs reminders,
-check-ins, watches and task suggestions. Pairing makes the Mac the holder, and the
-dot never takes over on silence: a partitioned dot cannot tell a Mac that is off
-from one it cannot reach, so a time-based takeover could let both send. Authority
-moves only when the holder hands it over with `POST /v1/sync/lease {"take":false}`
-(it stops at once; the other side starts after it syncs the handoff, so there is a
-gap, never an overlap) or when the owner unpairs. If the Mac is gone for good, run
-`limmr-engine sync unpair --home <dot home>` on the dot; it then runs standalone.
-Unpair on the Mac as well, or both will run reminders.
+**Who sends and runs automations:** the Mac is the initial holder. Settings →
+Connections and `whoami.sending` show the role and last sync. Both engines receive
+WhatsApp independently. The holder runs reminders, check-ins and watches. An
+approved send on either engine is copied into a durable queue with one original
+WhatsApp message ID; its file chunks follow it. New paired sends wait until the
+peer durably acknowledges the holder's claim. The origin keeps the final receipt.
 
-Pause stops knowledge exchanges and keeps the pairing and lease. Resume allows
-scheduled runs again. Unpair in Settings revokes the dot's sync permission and
-keeps all knowledge. On the dot, call `DELETE /v1/sync/pair` through its local
-control API too; this removes its refresh file and restores its independent
-lease. Both copies then work independently. A Mac-side unpair cannot remotely
-contact an outbound-only dot; its next sync fails until local unpair/re-pair.
+The lease lasts 30 minutes, renews after a successful scheduled exchange and
+carries a monotonically increasing epoch. Neither silence nor process restart
+grants authority. After expiry both sides queue. To move the role, use Manage in
+the Mac app, or the owner-only local `POST /v1/sync/lease {"take":true}` on the
+receiving side. This requests a handover; it does not force it. The current holder
+can instead give with `{"take":false}`. Its transaction stops it first; the other
+side starts after syncing. An in-flight or uncertain send blocks handover.
+
+**If the holder cannot be reached:** wait until expiry **plus one minute**,
+stop the former sending device and explicitly confirm **“I have stopped the
+previous sending device”** in the app's recovery action. The owner-only local
+API equivalent is `{"take":true,"previous_holder_stopped":true}`. Keep clocks
+correct. Ordinary MCP agents cannot recover the lease. Recovery moves the role
+but queued sends still need the peer's acknowledged ledger; do not promise
+unattended delivery during a partition. Restore sync for both-offline recovery.
+Never request a fresh send to retry an uncertain identity.
+
+Pause stops knowledge exchanges, retains pairing and does not extend the lease.
+Unpair keeps knowledge/identities and revokes the Mac-side grant. The dot removes
+its own refresh file with local `DELETE /v1/sync/pair` or `sync unpair`. A Mac-side
+unpair cannot remotely contact an outbound-only dot. An unpaired non-holder keeps
+a local sending fence until the old lease expires plus one minute and the owner
+confirms the old sending device stopped. The recovery action also works after
+unpairing. Repeating unpair does not clear the fence. Imported queued requests
+stay quarantined; only locally originated requests can run standalone. A
+never-paired engine has no such fence and works fully on its own.
 
 ## Verification and recovery
 
@@ -157,3 +174,20 @@ for its remote base URL, run sync pair, show me only the six-digit approval
 code, then schedule serialized sync --peer <url> --once every five minutes.
 Verify sync status after a run. Do not claim a detached command is a service.
 ```
+
+## Delivery and verification limits
+
+The dispatcher guarantees an at-most-once application attempt per durable send
+identity. A crash or network failure across WhatsApp acceptance leaves
+`uncertain`; it is never automatically retried. An outgoing echo already in the
+local message store with the same reserved ID can passively reconcile it as sent. There is no claim of server-side
+exactly-once delivery. Keep the ledger and restore sync to reconcile outcomes.
+Files in approved sends travel with the queue, including a restarted or offline
+peer; approved file chunks currently remain in private sync history. Pair only
+trusted storage. See [the full contract](../lanes/SYNC-CONTRACT.md).
+
+The lane verifies invented fixtures and fake WhatsApp clients, including
+handover, duplicate prevention, both-offline recovery and a queued multi-megabyte
+file moving sides. Physical-dot persistence, real public networking, linking and
+live WhatsApp sends require separate operational verification; no live send was
+performed here.

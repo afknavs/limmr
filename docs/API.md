@@ -331,7 +331,7 @@ never sends. It uses the owner's Codex plan.
 | `POST /v1/approvals/{id}/deny` | control | `{}` or `{"reason":"Not today"}` | denied approval |
 | `POST /v1/attachments` | control | `{"filename":"sketch.txt","data_base64":"aGVsbG8="}` | attachment metadata below |
 
-Attachments are uploaded by the app/owner, bounded at 20 MiB, copied into private
+Attachments are uploaded by the app/owner, checked against 100 MiB document / 16 MiB media limits and the 28 MiB inline request-body cap, copied into private
 outbox storage, and pinned by digest. MCP agents may supply generated text/base64, HTTPS sources, a ChatGPT file reference, or reuse an attachment ID (see N1 below); never an arbitrary local filesystem path. Neither symlinks nor arbitrary file paths are
 accepted through the API. The approved bytes' digest is verified before upload.
 
@@ -488,7 +488,7 @@ focus returns 404. Export has no graph node truncation.
 | `PUT /v1/settings` | control | complete settings object | settings |
 | `GET /v1/health` | control | none | `{"checks":[check],"health":"warn"}` |
 | `POST /v1/fix/{fix_id}` | control | no body | `{"ok":true}` |
-| `GET /v1/diagnostics` | control | none | redacted **text/plain**, counts and booleans only |
+| `GET /v1/diagnostics` | control | none | redacted **text/plain**, versions, counts, check states, fixed warning summaries and numeric timings |
 | `POST /v1/migrate/whatsapp-mcp` | control | `{"dry_run":true}`; false only on owner click | migration plan below |
 | `POST /v1/migrate/undo` | control | no body; only on owner click | migration plan |
 
@@ -503,6 +503,15 @@ start/reconfiguration and every 60 seconds. Health/status never await the public
 URL. The remote health detail initially says "Checking public discovery…", then
 reports the cached result and its UTC check time. A failed probe is a warning,
 independent of local listener availability.
+The startup wrapper answers authenticated GET requests to `/v1/ping` with 204,
+before and after initialization, without opening a database. It accepts the
+control credential only and enforces the same local host and Origin restrictions.
+The engine watchdog exits with status 75 after 60 seconds of failed pings or a
+stalled main loop. More than three restarts in ten minutes produces an
+`engine_restarts` warning and delays subsequent watchdog exits by 2–8 minutes.
+Diagnostics rebuild warning summaries and timings from approved categories;
+arbitrary log text, check details, AI names and identifiers are never copied.
+
 Fix IDs: `reconnect`, `refresh_groups`, `rebuild_search`, `vacuum`, `trim_logs`,
 `history_sync`, `restart_remote`. `update_client` and `migrate_whatsapp_mcp` are
 navigation actions for the app, not automatic network/install mutations.
@@ -1537,6 +1546,9 @@ retrying an uncertain delivery. See the update contract below.
     },
     "url": {
       "type": "string"
+    },
+    "path": {
+      "type": "string"
     }
   },
   "required": [],
@@ -1561,6 +1573,9 @@ Check your send without sending; supply exactly one of message_id,approval_id,ke
     },
     "message_id": {
       "type": "string"
+    },
+    "upload_id": {
+      "type": "string"
     }
   },
   "required": [],
@@ -1578,6 +1593,12 @@ Upload one file source for reuse (needs: sending). Returns attachment_id, name, 
   "properties": {
     "attachment_id": {
       "type": "string"
+    },
+    "chunk_count": {
+      "type": "integer"
+    },
+    "chunk_index": {
+      "type": "integer"
     },
     "content_base64": {
       "type": "string"
@@ -1614,6 +1635,15 @@ Upload one file source for reuse (needs: sending). Returns attachment_id, name, 
       ]
     },
     "filename": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "total_size": {
+      "type": "integer"
+    },
+    "upload_id": {
       "type": "string"
     },
     "url": {
@@ -1698,6 +1728,9 @@ The shared update pause blocks this send too, with “Limmr is updating; try aga
     "voice": {
       "deprecated": true,
       "description": "Deprecated; accepted and ignored.",
+      "type": "string"
+    },
+    "path": {
       "type": "string"
     }
   },
@@ -4120,6 +4153,12 @@ Upload one file source for reuse (needs: sending). Returns attachment_id, name, 
     "attachment_id": {
       "type": "string"
     },
+    "chunk_count": {
+      "type": "integer"
+    },
+    "chunk_index": {
+      "type": "integer"
+    },
     "content_base64": {
       "type": "string"
     },
@@ -4155,6 +4194,12 @@ Upload one file source for reuse (needs: sending). Returns attachment_id, name, 
       ]
     },
     "filename": {
+      "type": "string"
+    },
+    "total_size": {
+      "type": "integer"
+    },
+    "upload_id": {
       "type": "string"
     },
     "url": {
@@ -4278,6 +4323,9 @@ Check your send by exactly one of message_id, approval_id or key; passive delive
     },
     "message_id": {
       "type": "string"
+    },
+    "upload_id": {
+      "type": "string"
     }
   },
   "required": [],
@@ -4320,7 +4368,7 @@ People relevance now requires an owner-sent DM, a current group message, confirm
 `send_file` requires recipient and exactly one source; `upload_attachment` takes the same source choices and returns `{attachment_id,name,size,sha256}` for reuse:
 
 - `attachment_id`: this AI's upload or an owner upload, still present in the outbox.
-- `content_text` plus `filename`: nonempty UTF-8, at most 20 MiB.
+- `content_text` plus `filename`: nonempty UTF-8, at most 100 MiB logically (the 28 MiB MCP request-body cap also applies; use chunks for large files).
 - `content_base64` plus `filename`: strict base64, at most 8 MiB decoded.
 - `url`: HTTPS download.
 - `file`: `{download_url,file_id?,name?,mime_type?}` or a plain HTTPS URL string; best effort for ChatGPT file references. These tools carry `_meta:{"openai/fileParams":["file"]}`. Text/base64/URL sources work independently of file-reference support.
@@ -4329,7 +4377,7 @@ People relevance now requires an owner-sent DM, a current group message, confirm
 
 `get_chat`, `list_messages`, `get_message_context` and `search_messages` accept `me` or `myself` in `chat_jid`, just like send recipients. Aliases resolve to the linked owner's verified self-chat before visibility checks. Hidden-chat, access and per-AI scope rules still apply. An unknown owner returns an error, including for search; it never becomes an unscoped request.
 
-HTTPS fetching has a 30-second total timeout, at most three redirects, and a streamed 20 MiB cap. Every DNS answer is checked before each connection and redirect, and the dial uses the validated public IP. Loopback, private, link-local, CGNAT/tailnet, ULA, multicast and reserved ranges are refused. No cookies, authorization, proxy or URL credentials are used. Names are sanitized; MIME is sniffed from bytes rather than trusted from the reference. Outbox files and metadata expire after seven days (startup, uploads and the existing maintenance tick; no new polling). MCP bodies are capped at 28 MiB, allowing an encoded 8 MiB binary.
+HTTPS fetching has a 30-second total timeout, at most three redirects, and streamed content-specific caps (100 MiB documents, 16 MiB image/video/audio). Every DNS answer is checked before each connection and redirect, and the dial uses the validated public IP. Loopback, private, link-local, CGNAT/tailnet, ULA, multicast and reserved ranges are refused. No cookies, authorization, proxy or URL credentials are used. Names are sanitized; MIME is sniffed from bytes rather than trusted from the reference. Outbox files and metadata expire after seven days (startup, uploads and the existing maintenance tick; no new polling). MCP bodies are capped at 28 MiB, allowing an encoded 8 MiB binary.
 
 Send results add `{status,message_id?,approval_id?,sent_at?,delivered_at?,read_at?,delivered_count,read_count}` to the existing draft. `check_send(approval_id)` and `get_send_status` (exactly one of message_id, approval_id or key) return this shape for the calling AI only. Status is queued, sent (server acknowledged), delivered, read or failed. For groups any recipient advances delivered/read and distinct recipient counts are retained. Passive incoming receipts update only known outbound messages, never mark a message read or send a receipt, presence or typing event. Read may be absent when the recipient does not provide it.
 
@@ -4655,7 +4703,7 @@ of delivery bookkeeping. `/v1/status` includes `engine_version` for the release 
 For hosted connector compatibility, decimal string limits are normalized before
 validation; malformed strings and out-of-range limits return an audited tool error.
 
-Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_check_in/draft_nudge, needs_you. Never sends. Reads need read_messages; writes save_summaries. See task contract for nested fields.
+Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_check_in/draft_nudge, needs_you. End conditions: agent_done or checklist_done; end_at is an RFC3339 date. Never sends. Reads need read_messages; writes save_summaries. See task contract for nested fields.
 
 ```json
 {
@@ -4666,6 +4714,7 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
         "create",
         "list",
         "get",
+        "brief",
         "keep",
         "dismiss",
         "update",
@@ -4708,6 +4757,12 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
       "type": "string"
     },
     "effort_id": {
+      "type": "string"
+    },
+    "end_at": {
+      "type": "string"
+    },
+    "end_condition": {
       "type": "string"
     },
     "goal": {
@@ -4830,7 +4885,7 @@ The following routes require the **control** credential:
 | --- | --- | --- |
 | `GET /v1/tasks` | `status=open` (active + waiting, default), `closed`, or `all`; `limit=1..500`, default 100 | `{tasks:[TaskSummary]}` |
 | `GET /v1/tasks/{id}` | | Full Task plus owner-only `history:[{at,kind,text}]` and `latest:[{chat_jid,message_id,chat,sender,timestamp,text}]`, newest first |
-| `POST /v1/tasks` | `title`, `kind=long\|short`, optional `goal`, `effort_id`, `chats`, `people`, `items`, `checklist`, `check_in`, `lifespan_days` | Task |
+| `POST /v1/tasks` | `title`, `kind=long\|short`, optional `goal`, `effort_id`, `chats`, `people`, `items`, `checklist`, `check_in`, `lifespan_days`, `end_at`, `end_condition` | Task |
 | `PATCH /v1/tasks/{id}` | Editable `title`, `goal`, `kind`, `status`, `lifespan_days`, `summary`, `check_in`, `waiting`; `null` clears check-in/waiting | Task |
 | `POST /v1/tasks/{id}/items` | WorkspaceItem (engine assigns ID, provenance and date) | Task |
 | `DELETE /v1/tasks/{id}/items/{item}` | | Task |
@@ -4842,7 +4897,7 @@ The following routes require the **control** credential:
 `TaskSummary` contains `id`, `title`, `kind`, `status`, `progress:{done,total}`,
 `needs_you`, optional `needs_you_reason`, `effort_id`, `next_check_in_at`,
 `last_update_at`, and `waiting:{on_name,what,since,days}`. Home adds `tasks`, with
-at most six open summaries, needs-you first. Effort detail adds `task_id` when tracked.
+at most six open summaries, needs-you first and then most recently active. Effort detail adds `task_id` when tracked.
 
 Owner task history resolves AI names and includes suggestion/review, automatic keeping,
 workspace additions, checklist changes, updates sent and status transitions. Ordinary agent
@@ -4988,8 +5043,8 @@ supports one stored peer and refuses exchanges naming another peer.
 
 | Package handler | Request | Response |
 | --- | --- | --- |
-| `POST /sync/pull` | `{since_seq,peer_engine_id,sync_version:1,schema:10}` | `{changes,next_seq,more,lease,engine_id}` |
-| `POST /sync/push` | `{changes,from_engine_id,sync_version:1,schema:10}` | `{applied,stale,conflicts,ack_seq}` |
+| `POST /sync/pull` | `{since_seq,peer_engine_id,sync_version:2,schema:18}` | `{changes,next_seq,more,lease,engine_id}` |
+| `POST /sync/push` | `{changes,from_engine_id,sync_version:2,schema:18,complete?,lease?}` | `{applied,stale,conflicts,ack_seq}` |
 | `POST /sync/blob` | `{sha256}` | Verified JPEG, PNG or HEIC bytes, at most 4 MiB |
 
 A change carries `{seq,bucket,id,hlc,origin,op,data,items?}`. Objects use last writer
@@ -5058,7 +5113,7 @@ Agent notes are suggestions. Pronoun/gender statements go to `details.pronouns`,
 
 ### Paired automation holder
 
-`GET /v1/sync` reports `automation_policy:"single_holder"` and `lease.this_mac` (true when this engine runs automations; always true unpaired). Only the lease holder runs automations while paired, with no takeover on silence. `POST /v1/sync/lease` with `{take:false}` hands automations to the peer and is accepted only from the holder; `{take:true}` is a no-op for the holder and a conflict for the non-holder. Pausing sync never moves the lease.
+`GET /v1/sync` reports `automation_policy:"single_holder"`, `sending_summary`, safe `sending` status, and the lease's holder/epoch/expiry. `lease.this_mac` identifies the recorded side; `sending.lease_active` says whether its authority is still valid. Leases expire after 30 minutes without sync. `{take:false}` gives to the peer; `{take:true}` on a non-holder requests handover through sync. Owner-only `{take:true,previous_holder_stopped:true}` recovers after expiry plus one minute and explicit confirmation that the old holder stopped. It never bypasses unresolved send claims or peer acknowledgement. Unpairing a non-holder preserves a local retirement fence until this same rule is satisfied. Pausing never grants authority.
 
 ### Sync control routes
 
@@ -5069,10 +5124,141 @@ All require the local control credential and an initialized knowledge-sync servi
 | `GET /v1/sync` | Current peer, convergence and automation holder. |
 | `POST /v1/sync/pair` | `{code}` approves the pending dot OAuth request; an empty code returns pairing instructions. Requires enabled remote service. |
 | `DELETE /v1/sync/pair` | Removes local pairing and sync OAuth file, revokes the paired agent's sync permission, retains knowledge. |
-| `POST /v1/sync/lease` | `{take}`; while paired only the holder may act, and `take:false` hands off to the peer. |
+| `POST /v1/sync/lease` | `{take,previous_holder_stopped?}`; holder gives, non-holder requests handover; owner recovery obeys expiry and stop confirmation. |
 | `POST /v1/sync/pause` | `{paused}` changes transport pause state; never moves the automation holder. |
 | `POST /v1/sync/now` | Runs one configured outbound exchange. |
 | `GET /v1/sync/reviews` | Pending duplicate-knowledge reviews. |
 | `POST /v1/sync/reviews/{id}` | `{action}` resolves a review using the service's supported actions. |
 
 Photo replication includes selected custom and retained Contacts fallback references from people records only. Message media and the WhatsApp avatar cache are excluded. Person task/effort filters apply before the result limit.
+
+### Task workspace additions (Lane 2)
+- `POST /v1/tasks/{id}/reopen` restores a closed task with a fresh quiet period; expired end dates are cleared.
+- `POST /v1/tasks/{id}/items/{item}/download` fetches a visible task file through the existing media downloader or attachment store and returns `{path}` for this Mac. Hidden/deleted chat media is denied.
+- Task create/update accepts optional `end_at` (RFC3339) and `end_condition` (`agent_done` or `checklist_done`). Existing `lifespan_days` closes short tasks after quiet conversation days. Check-in rule `reply` fires once when an incoming chat message arrives after `next_at`; ordinary timed schedules are unchanged.
+- Home task summaries include `created_at`, `last_active_at`, `circle_ids`; task history includes scheduled and fired check-ins. Due events remain durable in `agent_updates` for the creating AI; Home queues the review and the app posts a local notification when authorized. No task timer sends a message.
+
+### Person summary Undo and circle photos (28 Oct)
+
+| Route | Access | Body | Result |
+|---|---|---|---|
+| `POST /v1/people/{id}/summary/undo` | admin | `{written_at: RFC3339}` from the displayed summary | `{ok:true}`; restores the preceding summary, or clears the first summary. 409 if a newer summary exists; 404 if there is nothing to undo. |
+
+Summary writes retain one preceding value per person, replacing it on the next
+write. Undo changes summaries only; it never changes people or messages.
+Circle icon patches also accept `{icon:{kind:"monogram",value:"WS"}}` (1–4 letters
+or digits). Picture choices remain in the existing synced `entity_icons` bucket.
+With no saved choice, the app generates an initials tile from the circle name.
+Confirmed circle placements, including membership in a circle's group chats,
+exclude a person from the DM-only relationship inference queue. Stale inferences
+cannot be saved, confirmed, or displayed for those people.
+
+### Task previews and owner notes (oct29)
+
+- `GET /v1/tasks/{id}/items/{item}/preview` (owner): cached local path and embedded WhatsApp thumbnail only; never downloads. Hidden/deleted source messages return 404.
+- `PATCH /v1/tasks/{id}/items/{item}/metadata` (owner): `{name,description,ocr,width,height}` persists local Vision/OCR names for app and MCP. Agents can read this metadata.
+- `POST /v1/tasks/{id}/notes` (owner): `{id?,text,remove?}` adds, edits or removes owner notes. Agents cannot use this route or edit notes through task update. Task get/brief and get_updates return `owner_notes`.
+
+Task PATCH also accepts owner-only `cover_item_id` and `cover_removed`. Notes sync with per-item conflict resolution and deletion tombstones. Due events sync to the paired engine; it creates a local check-in notification and a receipt. Delivery is acknowledged only after that receipt returns. ChatGPT and Pip pick up durable updates when they next connect; Limmr cannot wake them externally.
+
+### Findable tasks, quiet state, circles and Recently (N1)
+
+Hub schema **17** invalidates earlier automatic chat covers once; protocol schema stays **10**.
+The control route count remains **158** (no routes added by N1).
+
+- `GET /v1/tasks`: `status=open` (default) returns active/waiting, `quiet` selects quiet,
+  `closed` selects done/dropped (including dismissed suggestions), `suggested` selects suggestions,
+  and `all` includes every retained state. Limits remain 1–500. Needs-you sorts first, then newest
+  meaningful activity, before limiting. Summaries add `closed_at`, `close_reason`, `circle_suggestions`.
+- `PATCH /v1/tasks/{id}` accepts `status:quiet` or `active` for owner quiet/wake. Owner-only
+  `circle_ids:[id,...]` replaces placement (empty means No circle), clears inferred suggestions and
+  prevents inference from restoring an undone choice. Tasks carry `circle_suggestions:[{circle_id,reason}]`
+  and persisted `circles_edited`. These travel in the existing task sync row; no new bucket is needed.
+- `GET /v1/home` includes `recently:[string,...]`, three to five plain lines from stored events.
+  MCP `get_updates` returns the same field filtered to the calling agent; `brief {action:get,id}`
+  narrows it to that circle. Window: 24 hours, falling back to three days only when there is no
+  visible activity. Counts and fallback selection occur after access filtering. Message/note bodies
+  are never included. No model is required.
+- Quiet begins after seven days without meaningful activity and leaves Home; chat messages, owner
+  notes, checklist/item changes, sent updates and due check-ins wake a quiet task. Quiet is retained,
+  never purged, and replicated by existing transactional task/event sync. Paired automation gates
+  remain unchanged; quiet/wake edits and incoming activity sync normally.
+- Automatic cover candidates need a locally downloaded original, at least **960×640** pixels, and
+  caption/AI-name/OCR relevance to the task title/goal. This applies to DMs and groups. Recognized
+  memes/reactions, stickers, chat screenshots, tiny and undownloaded images use typography instead.
+  Explicit owner/AI attachments need no inferred text match. Owner-picked covers are preserved on
+  upgrade. JPEG/PNG/GIF originals can be inspected locally; other formats safely retain typography.
+  Card rendering uses the original and never substitutes an embedded WhatsApp thumbnail.
+
+### N1 file and coordination status
+
+`upload_attachment` additionally accepts `upload_id`, integer `chunk_index`,
+`chunk_count` and `total_size`. First chunk requires filename/count/total/index;
+base64 chunks are <=1 MiB encoded, uploaded state expires after one hour and
+returns missing indexes for resumption. Four active uploads per AI and 256 MiB
+reserved total. Documents cap at 100 MiB; image/video/audio at 16 MiB. Completed
+uploads return an attachment ID for `send`.
+
+`send_status` adds the mutually exclusive `upload_id` selector. File sends return
+`upload:{phase,uploaded_bytes,total_bytes}` and original message identity with
+passive receipts. Paired queued results have `state:"queued_peer"`; an ambiguous
+attempt has `status:"uncertain"` with actionable `next_step`, never automatic
+retry. `whoami.sending` exposes holder side, summary, last sync, epoch/expiry and
+whether peer acknowledgement is required, without merge reviews or private chats.
+
+Schema 18 adds capture for `send_queue`, `send_files`, `send_acks`, `send_control`.
+Protocol 2 refuses incompatible peers before mutation. See
+[coordination](lanes/SYNC-CONTRACT.md#coordination-schema-18-protocol-2) for the
+partition rule, irreversible claim ledger, file replication and standalone rules.
+
+A final empty `complete:true` push with the observed lease renews a matching passive holder after a fully drained exchange. Partial pages do not renew a holder.
+
+### Detailed Activity performance (N1)
+
+`GET /v1/activity?quiet=true` skips successful read/search rows with zero count and no message ids **before** filling the requested page. The default endpoint preserves the complete audit. Existing `agent`, `kind`, `chat`, `before` and `limit` filters retain their access checks. `next_before` remains the last returned id, including when many quiet rows were skipped. Task actions can include an optional `task_id` for direct navigation and a plain-language `description`; older rows remain valid.
+
+### N1 presentation metadata
+
+`GET /v1/home` retains `recently: [string]` for MCP compatibility and adds
+`recent_lines: [{text, target_id, kind:"task", at, by}]`. Targets come from the same
+visibility-filtered stored events, deduplicated by task (up to three); note/message bodies
+are excluded. No model or network call generates this overview. The app puts pending approvals,
+queued drafts and `needs_you` tasks before these moved-work lines.
+
+An entity `icon` may also carry `hue`: `blue|orange|purple|green|yellow|teal|pink|indigo`.
+Circle symbol/emoji/monogram and hue live together in `entity_icons`, so the existing paired
+knowledge protocol carries them unchanged. Unset hues use a stable FNV-1a hash of the circle ID.
+
+`GET /v1/sync` adds optional `peer.agent_id` (the existing pairing credential's agent ID).
+Owner-only `PATCH /v1/agents/{id}` accepts `runs_on_peer:"<paired engine id>"` to confirm that
+this AI runs on that dot; `""` removes the confirmation. An unknown/unpaired ID is rejected.
+The field is stored with the local agent, leaves permissions unchanged and does not sync credentials.
+The UI uses the pairing link automatically, or an owner-confirmed separate AI link, to show one
+`Dot · <AI>` entry; the paired transport credential is omitted when represented by that linked AI.
+Unpairing stops the merged presentation without deleting either integration.
+
+### N2 task cover previews (additive)
+
+`GET /v1/tasks` and the tasks in `GET /v1/home` may include `cover_candidate`:
+`{item_id?,media_id?,chat_jid?,title,thumbnail_url,link_url?}`. Selection order is owner choice,
+newest workspace image with pixels, newest image with pixels in linked visible chats, then a workspace link preview.
+An explicit removed cover retains the owner's typographic choice. No captions, OCR or message bodies
+are read or returned for candidate selection. Missing candidates use the typographic cover.
+
+- `GET /v1/tasks/{id}/cover/thumbnail?revision=…` (admin) returns the local preview descriptor
+  `{path,thumbnail}`. The path points to a locally cached JPEG of at most 600 pixels on its long side,
+  beside downloaded media or in the media cache for stored thumbnails. The original photo path is never returned.
+  It rechecks task, hidden-chat and deleted-source visibility, sends `Cache-Control: no-store`, and
+  never downloads WhatsApp media. The revision includes task and message-store revisions. A link
+  candidate may supply a safe workspace URL for the app's existing bounded preview cache.
+
+For bounded startup warming, `GET /v1/tasks?status=all&sort=recent&limit=10` sorts by last activity
+before limiting. The default list retains Needs you priority. Unknown sort values return 400.
+
+For recent covers, a shutdown-bound background worker checks the ten most recent tasks once a minute.
+When WhatsApp is connected it tries the best unavailable image (including an unavailable owner choice)
+through the existing media download reader, serially, with a 30-second timeout. Local attempt dates persist
+across restarts and allow at most one attempt per image per UTC day. Successful downloads bump the message
+revision. Owner removal and current hidden/deleted-source checks apply before fetching. No message is sent
+or marked read. The app polls recent cover summaries every 30 seconds and sync/AI status every five seconds,
+so new pixels and unpairing appear without restarting or loading task workspaces.

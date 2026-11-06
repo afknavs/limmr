@@ -48,7 +48,7 @@ func (s *Store) upgrade(observer startup.Observer) error {
 	if e != nil {
 		return e
 	}
-	for _, c := range []struct{ table, col, spec string }{{"chats", "unread_count", "INTEGER NOT NULL DEFAULT 0"}, {"chats", "ephemeral_expiration", "INTEGER NOT NULL DEFAULT 0"}, {"chats", "ephemeral_setting_timestamp", "INTEGER NOT NULL DEFAULT 0"}, {"messages", "deleted_at", "TIMESTAMP"}, {"messages", "quoted_message_id", "TEXT"}, {"messages", "direct_path", "TEXT"}} {
+	for _, c := range []struct{ table, col, spec string }{{"chats", "unread_count", "INTEGER NOT NULL DEFAULT 0"}, {"chats", "ephemeral_expiration", "INTEGER NOT NULL DEFAULT 0"}, {"chats", "ephemeral_setting_timestamp", "INTEGER NOT NULL DEFAULT 0"}, {"messages", "deleted_at", "TIMESTAMP"}, {"messages", "quoted_message_id", "TEXT"}, {"messages", "direct_path", "TEXT"}, {"messages", "preview_thumbnail", "BLOB"}, {"messages", "preview_width", "INTEGER"}, {"messages", "preview_height", "INTEGER"}} {
 		rows, err := s.DB.Query("PRAGMA table_info(" + c.table + ")")
 		if err != nil {
 			return err

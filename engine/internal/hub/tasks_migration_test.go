@@ -30,7 +30,7 @@ func TestTasksMigrationPreservesExistingEffortsAndWatches(t *testing.T) {
 	var version, count int
 	require(t, migrated.DB.QueryRow("SELECT max(version) FROM hub_schema").Scan(&version))
 	require(t, migrated.DB.QueryRow("SELECT count(*) FROM tasks").Scan(&count))
-	if version != 11 || count != 0 {
+	if version != 18 || count != 0 {
 		t.Fatal("tasks migration missing")
 	}
 }

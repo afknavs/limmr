@@ -97,6 +97,11 @@ func (s *Service) callCircle(ctx context.Context, a model.Agent, name string, ar
 		if err == nil {
 			hint, ready := s.effortNamingHint(a)
 			out.(map[string]any)["efforts_ready"] = ready
+			recently, recentErr := s.TaskService().Recently(&a, id)
+			if recentErr != nil {
+				return nil, recentErr
+			}
+			out.(map[string]any)["recently"] = recently
 			if hint != "" {
 				out.(map[string]any)["effort_naming_hint"] = hint
 			}

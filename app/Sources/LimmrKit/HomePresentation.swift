@@ -55,7 +55,7 @@ public enum HomePresentation {
       "proposals", "integrations", "changes"].filter {
       switch $0 {
       case "greeting", "search", "dashboard", "circles": true
-      case "tasks": !TaskPresentation.open(home.tasks).isEmpty || !TaskPresentation.suggested(home.tasks).isEmpty
+      case "tasks": true
       case "triggers": activitySlot(home) == .triggers
       case "needs_reply": activitySlot(home) == .triggers && !home.needsReply.isEmpty
       case "changes": hasChanges(home)

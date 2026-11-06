@@ -19,7 +19,7 @@ struct RecentWidget: View {
           store.activityFilter = "all"
           store.selectPage(.activity)
         }
-        .limmrButton(id: "see-all").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+        .buttonStyle(.bordered).font(AppType.caption).foregroundStyle(AccessibleSecondary())
       }
       if includesCaptions && HomePresentation.hasChanges(store.home) {
         Button {
@@ -27,11 +27,12 @@ struct RecentWidget: View {
           store.selectPage(.activity)
         } label: {
           VStack(alignment: .leading, spacing: 8) {
-            Text(HomePresentation.changesLine(store.home, now: store.demo ? Timestamp.date(DemoData.now)! : Date()))
+            Text(HomePresentation.changesLine(store.home, now: store.presentationNow))
               .font(.callout).fixedSize(horizontal: false, vertical: true)
             Text("Review in Activity").font(AppType.caption).foregroundStyle(AccessibleSecondary())
-          }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }.limmrButton(.row(radius: 8, horizontal: 8, vertical: 6), id: "recent-changes")
+          }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+        }.quietCard()
         Divider()
       }
       ForEach(tasks) { task in
@@ -49,8 +50,9 @@ struct RecentWidget: View {
             ).lineLimit(3)
             Text("\(task.status) · \(store.relativeTime(task.end)) ago").font(AppType.caption)
               .foregroundStyle(AccessibleSecondary())
-          }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }.limmrButton(.row(radius: 8, horizontal: 8, vertical: 6), id: "recent")
+          }.padding(8).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
+        }.quietCard()
         if task.id != tasks.last?.id { Divider() }
       }
       if tasks.isEmpty && store.isLoading("/v1/activity") {
@@ -64,7 +66,7 @@ struct RecentWidget: View {
           Text(store.home.integrations.isEmpty ? "No integrations connected" : store.home.integrations.map(\.name).formatted(.list(type: .and)) + " connected")
             .font(AppType.caption).foregroundStyle(AccessibleSecondary())
           Button("Manage") { store.settingsTab = .integrations; openSettings() }
-            .limmrButton().font(AppType.caption).foregroundStyle(AccessibleSecondary())
+            .buttonStyle(.bordered).font(AppType.caption).foregroundStyle(AccessibleSecondary())
         }
       }
     }.padding(16).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 8))

@@ -400,7 +400,7 @@ func TestContract7UnsupportedVersionAtomic(t *testing.T) {
 	before := knowledge(t, a)
 	var count int
 	must(t, a.h.Repo.DB.QueryRow(`SELECT count(*) FROM sync_log`).Scan(&count))
-	_, err := a.s.Push(ctx, syncer.PushRequest{SyncVersion: 2, Schema: 10, FromEngineID: "fake-peer", Changes: []syncer.Change{{Bucket: "people", ID: "maya", HLC: 1, Origin: "fake", Op: "upsert", Data: json.RawMessage(`{"id":"maya"}`)}}})
+	_, err := a.s.Push(ctx, syncer.PushRequest{SyncVersion: syncer.Version + 1, Schema: syncer.Schema, FromEngineID: "fake-peer", Changes: []syncer.Change{{Bucket: "people", ID: "maya", HLC: 1, Origin: "fake", Op: "upsert", Data: json.RawMessage(`{"id":"maya"}`)}}})
 	if !errors.Is(err, syncer.ErrUpdateNeeded) {
 		t.Fatal(err)
 	}

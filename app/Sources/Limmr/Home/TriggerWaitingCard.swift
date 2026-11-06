@@ -64,7 +64,7 @@ struct TriggerWaitingRow: View {
         }.frame(maxWidth: .infinity, alignment: .leading)
         if !compact { timing(row).frame(maxWidth: 72, alignment: .trailing) }
       }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-    }.limmrButton(.row(radius: 10, horizontal: 8, vertical: 6, bordered: false), id: "trigger")
+    }.quietCard()
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("\(watch.where) → \(row.actor). \(row.condition), \(row.action). \(watch.status == "paused" ? "Paused" : row.fireTime ?? row.listeningLabel). \(row.timing)")
       .accessibilityValue(watch.status == "paused" ? "Paused" : row.fireTime ?? row.listeningLabel)

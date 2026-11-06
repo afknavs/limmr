@@ -225,7 +225,72 @@ extension UnderstandingLayout {
     return CGRect(x: label.maxX + 3, y: label.midY - 10, width: 38, height: 20)
   }
 
-  private mutating func updateOverview(map: CircleMap, size requested: CGSize) {
+  /// The same seeded sampler and capacity assignment, on a larger pan/zoom world.
+  mutating func updateNetwork(map: CircleMap, size: CGSize) {
+    let people = map.nodes.filter { $0.kind != "circle" }.count
+    let expansion = max(1, sqrt(Double(people) / 160))
+    updateClusteredNetwork(map: map, size: CGSize(width: size.width * expansion, height: size.height * expansion))
+  }
+
+  /// Membership barycentres keep shared members between their hubs. A seeded
+  /// sunflower search reserves avatar and label space without a force simulation.
+  private mutating func updateClusteredNetwork(map: CircleMap, size: CGSize) {
+    self.size = size
+    positions = [:]; labels = [:]; labelText = [:]; clusters = [:]; regionRadii = [:]
+    overviewContentHeight = size.height
+    let circles = map.nodes.filter { $0.kind == "circle" }.sorted { $0.id < $1.id }
+    let circleIDs = Set(circles.map(\.id))
+    var membership: [String: Set<String>] = [:]
+    for node in map.nodes {
+      membership[node.id] = Set((node.circles ?? []) + [node.primaryCircleId, node.circleId].compactMap { $0 }).intersection(circleIDs)
+    }
+    for edge in map.edges where edge.state != "reverted" {
+      if circleIDs.contains(edge.source) { membership[edge.target, default: []].insert(edge.source) }
+      if circleIDs.contains(edge.target) { membership[edge.source, default: []].insert(edge.target) }
+    }
+    for (index, circle) in circles.enumerated() {
+      let angle = -.pi / 2 + 2 * .pi * Double(index) / Double(max(1, circles.count))
+      let point = circles.count == 1 ? CGPoint(x: size.width / 2, y: size.height / 2)
+        : CGPoint(x: size.width / 2 + cos(angle) * size.width * 0.33,
+                  y: size.height / 2 + sin(angle) * size.height * 0.30)
+      positions[circle.id] = point
+      labels[circle.id] = NetworkHubLabelGeometry.reservedRect(at: point, textWidth: min(NetworkHubLabelGeometry.width, Self.measure(circle.title, font: Self.font(size: 12))))
+      labelText[circle.id] = circle.title
+    }
+    let field = CGRect(origin: .zero, size: size).insetBy(dx: 32, dy: 40)
+    var occupied: [CGPoint] = []
+    let members = map.nodes.filter { $0.kind != "circle" }.sorted {
+      let a = membership[$0.id]?.count ?? 0, b = membership[$1.id]?.count ?? 0
+      // Reserve shared-member space before the denser single-circle clusters.
+      return a == b ? $0.id < $1.id : a > b
+    }
+    for node in members {
+      let hubs = (membership[node.id] ?? []).sorted().compactMap { positions[$0] }
+      let seed = Double(MapSceneMotion.stableHash(node.id) % 100000) / 100000 * 2 * .pi
+      let target: CGPoint
+      if hubs.isEmpty {
+        target = CGPoint(x: size.width / 2 + cos(seed) * size.width * 0.47,
+                         y: size.height / 2 + sin(seed) * size.height * 0.46)
+      } else {
+        target = CGPoint(x: hubs.reduce(0) { $0 + $1.x } / Double(hubs.count),
+                         y: hubs.reduce(0) { $0 + $1.y } / Double(hubs.count))
+      }
+      for step in 0..<6400 {
+        let radius = sqrt(Double(step)) * 20
+        let angle = seed + Double(step) * 2.399963229728653
+        let candidate = CGPoint(x: target.x + cos(angle) * radius, y: target.y + sin(angle) * radius)
+        guard field.contains(candidate),
+          !circles.contains(where: { circle in
+            let hub = positions[circle.id]!
+            return hypot(candidate.x - hub.x, candidate.y - hub.y) < NetworkHubLabelGeometry.hubClearance || labels[circle.id]!.contains(candidate)
+          }), !occupied.contains(where: { hypot(candidate.x - $0.x, candidate.y - $0.y) < 38 }) else { continue }
+        positions[node.id] = candidate; occupied.append(candidate); break
+      }
+    }
+    unaffiliatedBounds = field
+  }
+
+  private mutating func updateOverview(map: CircleMap, size requested: CGSize, network: Bool = false) {
     positions = [:]; labels = [:]; labelText = [:]; clusters = [:]; regionRadii = [:]
     let circles = map.nodes.filter { $0.kind == "circle" }.sorted { $0.id < $1.id }
     let people = map.nodes.filter { $0.kind != "circle" }.sorted { $0.id < $1.id }
@@ -235,7 +300,7 @@ extension UnderstandingLayout {
     // Extra rows are only needed for exceptionally many circles / narrow standalone canvases.
     let columns = max(1, Int(max(1, requested.width - 32) / 175))
     let rows = max(1, (circles.count + columns - 1) / columns)
-    overviewContentHeight = max(280, Double(rows) * 78 + 32)
+    overviewContentHeight = max(network ? requested.height : 280, Double(rows) * 78 + 32)
     size = CGSize(width: requested.width, height: overviewContentHeight)
     let field = CGRect(origin: .zero, size: size).insetBy(dx: 18, dy: 28)
     let primary = Dictionary(uniqueKeysWithValues: people.map { ($0.id, Self.primary($0, map: map) ?? "") })
@@ -284,7 +349,7 @@ extension UnderstandingLayout {
         let distance = samples.reduce(Double.infinity) {
           min($0, ($1.x-p.x)*($1.x-p.x) + ($1.y-p.y)*($1.y-p.y))
         }
-        if distance >= Self.minimumDotSpacing * Self.minimumDotSpacing && distance > score { best = p; score = distance }
+        if distance >= pow(network ? 38 : Self.minimumDotSpacing, 2) && distance > score { best = p; score = distance }
       }
       if let best { samples.append(best) }
     }
@@ -396,5 +461,20 @@ enum UnderstandingPresentation {
     } + ((node.groupsInCommonCount ?? groups.count) > groups.count ? ["Open profile to see all groups"] : [])
     let active = node.lastActiveAt.flatMap(Timestamp.date).map { "last active · last contact \(max(0,Int(now.timeIntervalSince($0)/86400))) d ago" } ?? "Last contact unknown"
     return ([node.title]+[node.howKnown].compactMap { $0 }.filter { !$0.isEmpty }+roles+reasons+common+[active]).joined(separator:"\n")
+  }
+}
+
+/// Hubs and labels draw at a fixed screen size. Reserve their envelope at the
+/// smallest scale that shows avatars, rather than treating screen points as world points.
+enum NetworkHubLabelGeometry {
+  static let width = 220.0
+  static let height = 36.0
+  static let offset = 52.0
+  static let avatarScale = 0.38
+  static let hubClearance = (26.0 + 15 + 8) / avatarScale
+  static func reservedRect(at hub: CGPoint, textWidth: Double = width) -> CGRect {
+    let halfWidth = (textWidth / 2 + 8 + 15 + 8) / avatarScale
+    return CGRect(x: hub.x - halfWidth, y: hub.y,
+      width: halfWidth * 2, height: (offset + height / 2 + 4 + 15 + 8) / avatarScale)
   }
 }

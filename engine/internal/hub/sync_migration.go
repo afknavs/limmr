@@ -3,12 +3,13 @@ package hub
 import (
 	"fmt"
 	"limmr/internal/dbutil"
+	"strings"
 )
 
 // SyncObjectPredicate is shared by capture, bootstrap and protocol validation.
 // Existing memberships with group/admin are WhatsApp directory rows, not placements.
 func SyncObjectPredicate(row string) string {
-	return fmt.Sprintf(`(%[1]s.bucket IN ('people','person_aliases','circles','briefs','facts','relations','entity_icons','task_dismissals') OR (%[1]s.bucket='memberships' AND json_type(%[1]s.data,'$.group') IS NULL) OR (%[1]s.bucket='settings' AND %[1]s.id IN ('owner_profile','automation_lease')))`, row)
+	return fmt.Sprintf(`(%[1]s.bucket IN ('people','person_aliases','circles','briefs','facts','relations','entity_icons','task_dismissals','send_queue','send_files','send_acks','send_control') OR (%[1]s.bucket='memberships' AND json_type(%[1]s.data,'$.group') IS NULL) OR (%[1]s.bucket='settings' AND %[1]s.id IN ('owner_profile','automation_lease')))`, row)
 }
 
 func (r *Repo) migrateSync() error {
@@ -31,6 +32,21 @@ func (r *Repo) migrateSync() error {
 	_, err = tx.Exec(`INSERT OR IGNORE INTO sync_state(id,engine_id) VALUES(1,?); INSERT OR IGNORE INTO objects SELECT 'settings','engine',json_object('engine_id',engine_id) FROM sync_state WHERE id=1`, dbutil.ID())
 	if err != nil {
 		return err
+	}
+	var guarded int
+	if err = tx.QueryRow(`SELECT count(*) FROM hub_schema WHERE version=12`).Scan(&guarded); err != nil {
+		return err
+	}
+	// Drop old capture triggers once. Fresh bootstrap must run with unguarded
+	// triggers before installing the new UPDATE guards.
+	if guarded == 0 {
+		for _, table := range []string{"objects", "tasks", "task_events"} {
+			for _, op := range []string{"INSERT", "UPDATE", "DELETE"} {
+				if _, err = tx.Exec("DROP TRIGGER IF EXISTS sync_" + table + "_" + op); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	for _, table := range []string{"objects", "tasks", "task_events"} {
 		for _, op := range []string{"INSERT", "UPDATE", "DELETE"} {
@@ -63,7 +79,7 @@ func (r *Repo) migrateSync() error {
 			}
 			if table == "tasks" && op != "DELETE" {
 				// Do not recapture peer materialization as local item edits.
-				for _, list := range []string{"checklist", "items", "updates_sent"} {
+				for _, list := range []string{"checklist", "items", "updates_sent", "owner_notes"} {
 					itemID := `coalesce(json_extract(j.value,'$.id'),json_extract(j.value,'$.chat_jid')||':'||json_extract(j.value,'$.message_id'))`
 					body += fmt.Sprintf(`INSERT INTO sync_items SELECT NEW.id,'%[1]s',%[2]s,s.clock,s.engine_id,0,j.value FROM json_each(NEW.data,'$.%[1]s') j,sync_state s WHERE s.id=1 AND s.remote_hlc IS NULL AND %[2]s IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sync_items i WHERE i.task_id=NEW.id AND i.list='%[1]s' AND i.id=%[2]s AND i.data=j.value AND i.removed=0) ON CONFLICT(task_id,list,id) DO UPDATE SET hlc=excluded.hlc,origin=excluded.origin,removed=0,data=excluded.data;
  UPDATE sync_items SET removed=1,hlc=(SELECT clock FROM sync_state),origin=(SELECT engine_id FROM sync_state) WHERE task_id=NEW.id AND list='%[1]s' AND removed=0 AND (SELECT remote_hlc FROM sync_state) IS NULL AND id NOT IN (SELECT %[2]s FROM json_each(NEW.data,'$.%[1]s') j WHERE %[2]s IS NOT NULL);`, list, itemID)
@@ -105,6 +121,32 @@ func (r *Repo) migrateSync() error {
 		if err != nil {
 			return err
 		}
+	}
+	if guarded == 0 {
+		for _, table := range []string{"objects", "tasks", "task_events"} {
+			var sql string
+			name := "sync_" + table + "_UPDATE"
+			if err = tx.QueryRow(`SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?`, name).Scan(&sql); err != nil {
+				return err
+			}
+			condition := "NEW.data IS NOT OLD.data"
+			if table == "task_events" {
+				condition = "(NEW.payload IS NOT OLD.payload OR NEW.text IS NOT OLD.text OR NEW.kind IS NOT OLD.kind OR NEW.at IS NOT OLD.at OR NEW.task_id IS NOT OLD.task_id)"
+			}
+			sql = strings.Replace(sql, " WHEN ", " WHEN "+condition+" AND ", 1)
+			if _, err = tx.Exec("DROP TRIGGER " + name); err != nil {
+				return err
+			}
+			if _, err = tx.Exec(sql); err != nil {
+				return err
+			}
+		}
+		if _, err = tx.Exec(`INSERT INTO hub_schema VALUES(12)`); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.Exec(`CREATE INDEX IF NOT EXISTS sync_log_key_seq ON sync_log(bucket,id,seq)`); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

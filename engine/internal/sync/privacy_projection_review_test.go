@@ -52,7 +52,7 @@ func TestSyncedOwnerProfileUsesReceiverLocalPrivacy(t *testing.T) {
 	if len(b.h.Settings().HiddenChats) != 0 || len(a.h.Settings().HiddenChats) != 1 {
 		t.Fatal("sync overwrote local hidden-chat settings")
 	}
-	page, err := a.s.Pull(ctx, syncer.PullRequest{PeerEngineID: b.s.EngineID, SyncVersion: 1, Schema: 10})
+	page, err := a.s.Pull(ctx, syncer.PullRequest{PeerEngineID: b.s.EngineID, SyncVersion: syncer.Version, Schema: syncer.Schema})
 	must(t, err)
 	wire, err := json.Marshal(page)
 	must(t, err)

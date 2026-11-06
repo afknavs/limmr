@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"crypto/tls"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"limmr/internal/wa"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +35,11 @@ type Connection interface {
 	RequestHistory(context.Context) error
 }
 type Service struct {
+	cacheMu    sync.Mutex
+	cached     []model.Check
+	checkedAt  time.Time
+	refreshing bool
+
 	Hub           *hub.Service
 	Link          *wa.Link
 	Connection    Connection
@@ -48,6 +55,7 @@ type Service struct {
 
 func (s *Service) Checks(ctx context.Context) []model.Check {
 	checks := []model.Check{{ID: "version", Title: "Engine", State: "ok", Detail: "Limmr " + Version}}
+	checks = append(checks, WatchdogCheck(s.Home))
 	state := s.Link.State()
 	linked := state.State == "ready" || state.State == "syncing"
 	connected := linked
@@ -95,16 +103,21 @@ func (s *Service) Checks(ctx context.Context) []model.Check {
 		hist.FixID = "history_sync"
 	}
 	checks = append(checks, hist)
+	return append(checks, s.cachedStoreChecks(ctx)...)
+}
+
+func (s *Service) storeChecks(ctx context.Context) []model.Check {
+	checks := []model.Check{}
 	for _, db := range []struct {
 		id        string
 		path      string
 		integrity func() bool
 	}{{"messages", filepath.Join(s.Home, "messages.db"), func() bool {
 		var result string
-		return s.Hub.Messages.DB.QueryRow("PRAGMA quick_check").Scan(&result) == nil && result == "ok"
+		return s.integrity(ctx, "messages.db", &result)
 	}}, {"hub", filepath.Join(s.Home, "hub.db"), func() bool {
 		var result string
-		return s.Hub.Repo.DB.QueryRow("PRAGMA quick_check").Scan(&result) == nil && result == "ok"
+		return s.integrity(ctx, "hub.db", &result)
 	}}} {
 		detail := "Database available"
 		if stat, e := os.Stat(db.path); e == nil {
@@ -117,6 +130,22 @@ func (s *Service) Checks(ctx context.Context) []model.Check {
 		}
 		checks = append(checks, model.Check{ID: db.id + "_db", Title: strings.Title(db.id) + " database", State: state, Detail: detail})
 	}
+	u := url.URL{Scheme: "file", Path: filepath.Join(s.Home, "hub.db")}
+	db, err := sql.Open("sqlite3", u.String()+"?mode=ro&_busy_timeout=100")
+	guard := model.Check{ID: "sync_log", Title: "Knowledge sync history", State: "warn", Detail: "Sync history could not be checked"}
+	if err == nil {
+		var rows, keys int64
+		err = db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM sync_log),(SELECT count(*) FROM (SELECT bucket,id FROM sync_log GROUP BY bucket,id))`).Scan(&rows, &keys)
+		db.Close()
+		if err == nil {
+			guard.State = "ok"
+			if rows > 10000 && rows > keys*10 {
+				guard.State = "warn"
+			}
+			guard.Detail = fmt.Sprintf("%d history rows covering %d keys", rows, keys)
+		}
+	}
+	checks = append(checks, guard)
 	logCheck := model.Check{ID: "logs", Title: "Engine log", State: "ok", Detail: "Within size limit"}
 	if info, e := os.Stat(filepath.Join(s.Home, "logs", "engine.log")); e == nil && info.Size() > 20<<20 {
 		logCheck.State = "warn"
@@ -155,7 +184,7 @@ func (s *Service) Checks(ctx context.Context) []model.Check {
 	if s.WatchesCheck != nil {
 		checks = append(checks, s.WatchesCheck())
 	}
-	agents, _ := s.Hub.Agents()
+	agents, _ := s.Hub.WithContext(ctx).Agents()
 	for _, a := range agents {
 		state := "ok"
 		detail := "Recently used"
@@ -184,6 +213,64 @@ func (s *Service) Checks(ctx context.Context) []model.Check {
 	}
 	return checks
 }
+
+// Integrity uses an independent read-only connection, never the hub's single
+// serving connection. All potentially expensive checks run off the request path.
+func (s *Service) integrity(ctx context.Context, name string, result *string) bool {
+	u := url.URL{Scheme: "file", Path: filepath.Join(s.Home, name)}
+	db, err := sql.Open("sqlite3", u.String()+"?mode=ro&_busy_timeout=100")
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	return db.QueryRowContext(ctx, "PRAGMA quick_check").Scan(result) == nil && *result == "ok"
+}
+
+func (s *Service) cachedStoreChecks(ctx context.Context) []model.Check {
+	s.cacheMu.Lock()
+	cached := append([]model.Check(nil), s.cached...)
+	if !s.refreshing && time.Since(s.checkedAt) >= time.Minute {
+		s.refreshing = true
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			probe, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			checks := s.storeChecks(probe)
+			at := time.Now()
+			for i := range checks {
+				checks[i].Detail += " Last checked " + at.UTC().Format(time.RFC3339)
+			}
+			s.cacheMu.Lock()
+			s.cached = checks
+			s.checkedAt = at
+			s.refreshing = false
+			s.cacheMu.Unlock()
+		}()
+		s.cacheMu.Unlock()
+		// A small first check can be returned immediately, but big stores never hold
+		// up health. A refresh always preserves the previous completed result.
+		if len(cached) == 0 {
+			timer := time.NewTimer(50 * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-done:
+				s.cacheMu.Lock()
+				cached = append([]model.Check(nil), s.cached...)
+				s.cacheMu.Unlock()
+			case <-timer.C:
+			case <-ctx.Done():
+			}
+		}
+	} else {
+		s.cacheMu.Unlock()
+	}
+	if len(cached) == 0 {
+		return []model.Check{{ID: "hub_db", Title: "Local databases", State: "warn", Detail: "Checking databases and sync history…"}}
+	}
+	return cached
+}
+
 func Overall(checks []model.Check) string {
 	state := "ok"
 	for _, c := range checks {
@@ -238,28 +325,40 @@ func (s *Service) Fix(ctx context.Context, id string) error {
 	return model.ErrInvalid
 }
 func (s *Service) Diagnostics(ctx context.Context) string {
-	// Construct from an allowlist of numeric/boolean facts. Never redact free-form
-	// strings after the fact: names, text, tokens and arbitrary errors never enter.
+	start := time.Now()
+	checks := s.Checks(ctx)
+	var report strings.Builder
 	chats, messages := s.Hub.Messages.Counts()
-	agents, _ := s.Hub.Agents()
-	linked, connected := false, false
-	if s.Connection != nil {
-		linked = s.Connection.Linked()
-		connected = s.Connection.Connected()
-	} else {
-		st := s.Link.State()
-		linked = st.State == "ready" || st.State == "syncing"
-		connected = linked
+	fmt.Fprintf(&report, "chats=%d\nmessages=%d\n", chats, messages)
+	fmt.Fprintf(&report, "Engine version: %s\n", Version)
+	for _, c := range checks {
+		id := diagnosticCheckID(c.ID)
+		state := c.State
+		if state != "ok" && state != "warn" && state != "fail" {
+			state = "unknown"
+		}
+		fmt.Fprintf(&report, "check %s: %s\n", id, state)
 	}
-	return fmt.Sprintf("Limmr %s\nlinked=%t\nconnected=%t\nchats=%d\nmessages=%d\nagents=%d\npending_approvals=%d\n", Version, linked, connected, chats, messages, len(agents), s.Hub.PendingCount())
+	fmt.Fprintf(&report, "health_check_ms=%.3f\n", float64(time.Since(start))/float64(time.Millisecond))
+	report.WriteString(s.diagnosticLog())
+	return report.String()
 }
 
 // DiscoveryResult is a cached public probe, never a local health dependency.
 type DiscoveryResult struct {
 	Reachable bool
+	// Slow marks a relay that answered only after discoverySlowAfter.
+	Slow      bool
 	Reason    string
 	CheckedAt time.Time
 }
+
+// Funnel relays on mobile networks can take 10 s or more to finish the TLS handshake while
+// still serving AI apps, so the background probe waits well past that before giving up.
+var (
+	discoveryProbeTimeout = 20 * time.Second
+	discoverySlowAfter    = 5 * time.Second
+)
 
 func (r DiscoveryResult) Detail() string {
 	if r.CheckedAt.IsZero() {
@@ -276,6 +375,9 @@ func (r DiscoveryResult) Detail() string {
 	}
 	if r.Reachable {
 		detail = "Public discovery is reachable."
+		if r.Slow {
+			detail = "Public discovery is reachable but slow, so AI apps outside this Mac may take a few seconds to connect."
+		}
 	}
 	return detail + " Last checked " + r.CheckedAt.UTC().Format(time.RFC3339)
 }
@@ -431,7 +533,8 @@ func (r publicResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IP
 }
 
 func probeDiscovery(ctx context.Context, publicURL string, transport http.RoundTripper, resolver discoveryResolver) DiscoveryResult {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, discoveryProbeTimeout)
 	defer cancel()
 	failed := DiscoveryResult{Reason: "relay unavailable"}
 	req, e := http.NewRequestWithContext(ctx, "GET", publicURL+"/.well-known/oauth-authorization-server", nil)
@@ -478,7 +581,7 @@ func probeDiscovery(ctx context.Context, publicURL string, transport http.RoundT
 	if transport == nil {
 		transport = &http.Transport{DisableKeepAlives: true}
 	}
-	client := http.Client{Transport: transport, Timeout: 3 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	client := http.Client{Transport: transport, Timeout: discoveryProbeTimeout, CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, e := client.Do(req)
 	if e != nil {
 		return failed
@@ -487,7 +590,7 @@ func probeDiscovery(ctx context.Context, publicURL string, transport http.RoundT
 	if resp.StatusCode != 200 {
 		return failed
 	}
-	return DiscoveryResult{Reachable: true}
+	return DiscoveryResult{Reachable: true, Slow: time.Since(start) > discoverySlowAfter}
 }
 
 // TrimLog retains the tail in the same inode, following the upstream bridge.

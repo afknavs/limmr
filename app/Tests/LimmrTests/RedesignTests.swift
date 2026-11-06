@@ -13,7 +13,7 @@ struct RedesignTests {
     #expect(flow.step == .link)
     flow.helperFailed()
     #expect(flow.step == .link)
-    #expect(flow.helperError == "Limmr’s background helper isn’t running.")
+    #expect(flow.helperError == "Limmr’s engine stopped.")
     flow.helperStarted()
     #expect(flow.helperError == nil)
   }
@@ -209,7 +209,7 @@ struct RedesignTests {
     let store = AppStore(demo: true, snapshot: true)
     store.navigate(URL(string: "limmr://approvals/a1")!)
     #expect(store.page == .overview && store.selectedApproval == "a1")
-    #expect(Page.allCases.map(\.rawValue) == ["Home", "People", "Activity"])
+    #expect(Page.allCases.map(\.rawValue) == ["Home", "Tasks", "People", "Activity"])
   }
 
   @MainActor @Test func healthDeepLinkOpensSettingsHealth() {

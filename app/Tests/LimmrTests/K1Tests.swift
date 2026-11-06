@@ -7,7 +7,7 @@ import SwiftUI
 @Suite("K1 keyboard and spoken presentation") struct K1Tests {
   @MainActor @Test func sectionShortcutsResetDetailAndKeepExistingSidebar() {
     let store = AppStore(demo: true, snapshot: true)
-    #expect(Page.allCases.map(\.rawValue) == ["Home", "People", "Activity"])
+    #expect(Page.allCases.map(\.rawValue) == ["Home", "Tasks", "People", "Activity"])
     for (number, page) in [(1, Page.overview), (2, .circles), (3, .activity)] {
       store.circlePath = [.circle("work"), .person("maya")]
       store.activityPath = [.effort("draft")]

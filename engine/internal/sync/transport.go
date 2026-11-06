@@ -99,9 +99,20 @@ func (s *Service) Exchange(ctx context.Context, t Transport) (err error) {
 			break
 		}
 	}
+	var known Lease
+	_ = s.Repo.Get("settings", "automation_lease", &known)
+	if _, e := t.Push(ctx, PushRequest{FromEngineID: s.EngineID, SyncVersion: Version, Schema: Schema, Complete: true, Lease: &known}); e != nil {
+		return e
+	}
 	p.LastSyncAt = s.Now()
 	p.LastError = ""
-	return s.Repo.Put("settings", "sync_peer", p)
+	if e := s.Repo.Put("settings", "sync_peer", p); e != nil {
+		return e
+	}
+	if e := s.renewLease(); e != nil {
+		return e
+	}
+	return s.Coordinate(ctx)
 }
 
 // Handler contains no authentication policy. Y7 must wrap it with the sync grant

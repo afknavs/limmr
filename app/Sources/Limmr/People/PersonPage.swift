@@ -6,11 +6,23 @@ struct CirclePersonPage: View {
   @Bindable var store: AppStore
   let id: String
   var snapshotMenu = false
+  @State private var networkExpanded = false
+  @Namespace private var networkNamespace
+  @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+  @Environment(\.snapshotReducedMotion) private var snapshotReduceMotion
+  @Environment(\.snapshotNetworkExpanded) private var snapshotExpanded
+  private var showsNetwork: Bool { networkExpanded || snapshotExpanded }
+  private var networkAnimation: Animation {
+    systemReduceMotion || snapshotReduceMotion ? .easeInOut(duration: 0.18) : .spring(response: 0.55, dampingFraction: 0.88)
+  }
   @State private var forget = false
   @State private var editing = false
   @State private var accessConfirmation = false
-  private var profile: PersonDetail? { store.profile?.person.id == id ? store.profile : nil }
-  private var person: Person? { profile?.person ?? store.people.first { $0.id == id } }
+  private var profile: PersonDetail? { store.profile?.person.id == id ? store.profile : PersonPageCache.cached(id, store: store) }
+  private var person: Person? { profile?.person ?? store.peoplePreview(id) }
+  private var showsNeighbourhood: Bool {
+    PersonNetworkPresentation.shouldShow(store.circleMap, person: person, id: id, circles: PersonNetworkPresentation.circles(in: store))
+  }
   private var circles: [LimmrKit.Circle] {
     store.circles.filter { (store.circleDetails[$0.id]?.people ?? $0.people).contains { $0.personId == id } }
   }
@@ -24,35 +36,49 @@ struct CirclePersonPage: View {
     return (person.otherNames + [person.name, person.pushName ?? ""]).filter { !$0.isEmpty && seen.insert($0).inserted }
   }
   var body: some View {
+    ZStack {
+      if showsNetwork && showsNeighbourhood {
+        VStack(alignment: .leading, spacing: 16) {
+          HStack {
+            Button("Back to profile", systemImage: "chevron.left") { withAnimation(networkAnimation) { networkExpanded = false } }.peopleQuietButton()
+            Spacer()
+            Text(store.personName(id)).font(.headline)
+            Spacer()
+            Button("Open People", systemImage: "person.2") { store.leavePeopleRoute() }.peopleQuietButton()
+          }
+          NetworkMapView(store: store,
+            map: PersonNetworkPresentation.map(store.circleMap, id: id, name: store.personName(id), circles: store.circles),
+            selected: id, namespace: networkNamespace) { node in
+              if let node, node.kind == "person", node.id != id { store.circlePath.append(.person(node.id)) }
+              else if let node, node.kind == "circle" { store.circlePath.append(.circle(node.id)) }
+            }
+          Text("Highlighted: their circles and direct connections").font(.caption).foregroundStyle(AccessibleSecondary())
+        }.padding(24).transition(.opacity)
+      } else {
+        profileContent.transition(.opacity)
+      }
+    }.navigationBarBackButtonHidden(true).background { AppBackground() }
+      .onDisappear { if let profile { PersonPageCache.save(profile, store: store) } }
+      .onChange(of: id) { _, _ in networkExpanded = false }
+      .onExitCommand { if networkExpanded { withAnimation(networkAnimation) { networkExpanded = false } } }
+  }
+  private var profileContent: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 24) {
-        Button("Back", systemImage: "chevron.left") { store.leavePeopleRoute() }.limmrButton()
+        Button(store.peopleBackTitle, systemImage: "chevron.left") { store.leavePeopleRoute() }.peopleQuietButton()
         if let person {
           header(person).zIndex(snapshotMenu ? 1 : 0)
+          if showsNeighbourhood {
+            PersonNetworkHeader(store: store, id: id, namespace: networkNamespace) {
+              withAnimation(networkAnimation) { networkExpanded = true }
+            }
+          }
+          PersonCircleOverlap(store: store, id: id)
+          PersonConversations(store: store, person: person).id(person.id)
           PersonLately(store: store, id: id, profile: profile)
           if id == "me" { AboutYouCard(store: store) }
           suggestions(person)
           if let profile { learned(profile.facts.filter { $0.status != "suggested" }) }
-          if !circles.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-              BlockHeading(title: "Across your circles")
-              ForEach(circles) { circle in
-                Button { store.circlePath.append(.circle(circle.id)) } label: {
-                  HStack(spacing: 12) {
-                    Image(systemName: circle.symbol)
-                    VStack(alignment: .leading, spacing: 4) {
-                      Text(circle.name).font(AppType.rowTitle)
-                      if let member = (store.circleDetails[circle.id]?.people ?? circle.people).first(where: { $0.personId == id }), !member.role.isEmpty {
-                        Text(member.role).font(AppType.caption).foregroundStyle(AccessibleSecondary())
-                      }
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(AppType.caption).foregroundStyle(AccessibleSecondary())
-                  }.modifier(QuietRow()).contentShape(Rectangle())
-                }.limmrButton(.row(radius: 8, bordered: false)).accessibilityLabel("Open \(circle.name)")
-              }
-            }
-          }
           DisclosureGroup("Notes for your AIs") {
             ProfileEntry(title: "", value: person.notes, placeholder: "Add a note for your AIs", source: "from you") { _, value in
               Task { await patch(["notes": value]) }
@@ -64,7 +90,7 @@ struct CirclePersonPage: View {
     }.navigationBarBackButtonHidden(true).background { AppBackground() }
       .task(id: id) {
         store.selectedPerson = id
-        await store.loadPerson()
+        await store.loadPersonProgressively(id)
         if id != "me", let person { await store.loadDirectChat(for: person) }
         for circle in store.circles where store.circleDetails[circle.id] == nil { await store.loadCircle(circle.id) }
       }
@@ -100,17 +126,9 @@ struct CirclePersonPage: View {
           if !person.howKnown.isEmpty { Text(person.howKnown).font(.callout).foregroundStyle(AccessibleSecondary()) }
           if hidden {
             Button { accessConfirmation = true } label: { Label("Hidden from your AIs", systemImage: "eye.slash") }
-              .limmrButton().font(AppType.caption).foregroundStyle(AccessibleSecondary())
+              .peopleQuietButton().font(AppType.caption).foregroundStyle(AccessibleSecondary())
           }
-          if !circles.isEmpty {
-            ViewThatFits {
-              HStack(spacing: 6) { ForEach(circles) { circle in
-                Button(circle.name) { store.circlePath.append(.circle(circle.id)) }.limmrButton().font(AppType.caption)
-                  .padding(.horizontal, 8).padding(.vertical, 4).background(.primary.opacity(0.05), in: Capsule())
-              } }
-              Text(circles.map(\.name).joined(separator: " · ")).font(AppType.caption).foregroundStyle(AccessibleSecondary())
-            }
-          }
+
         }
         Spacer(minLength: 8)
         Menu { menuItems(person) } label: { Image(systemName: "ellipsis").frame(width: 28, height: 28) }
@@ -134,7 +152,7 @@ struct CirclePersonPage: View {
     }.padding(20).modifier(HomeTileSurface())
       .overlay(alignment: .topTrailing) {
         if snapshotMenu {
-          VStack(alignment: .leading, spacing: 12) { menuItems(person) }.limmrButton().font(.callout)
+          VStack(alignment: .leading, spacing: 12) { menuItems(person) }.peopleQuietButton().font(.callout)
             .padding(16).frame(width: 220, alignment: .leading).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.12), radius: 12, y: 4).offset(x: -20, y: 48)
         }
@@ -276,8 +294,8 @@ struct ProfileEntry: View {
       if editing {
         if !label.isEmpty { TextField("Label", text: $draftLabel).frame(width: 76) }
         TextField(title == "Birthday" ? "MM-DD or YYYY-MM-DD" : placeholder, text: $draft).onSubmit(commit)
-        Button("Save", action: commit).limmrButton()
-        Button("Cancel") { editing = false }.limmrButton().foregroundStyle(AccessibleSecondary())
+        Button("Save", action: commit).peopleQuietButton()
+        Button("Cancel") { editing = false }.peopleQuietButton().foregroundStyle(AccessibleSecondary())
       } else {
         Button {
           draft = value; draftLabel = label; editing = true
@@ -288,7 +306,7 @@ struct ProfileEntry: View {
             if !label.isEmpty && !value.isEmpty { Text(label).font(AppType.caption).foregroundStyle(AccessibleTertiary()) }
             Spacer(minLength: 0)
           }.contentShape(Rectangle())
-        }.limmrButton()
+        }.peopleQuietButton()
         if !source.isEmpty { Text(source).font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
       }
     }.font(.callout).padding(.vertical, 2)
@@ -307,7 +325,7 @@ struct SuggestionLine<Content: View>: View {
         HStack(spacing: 16) {
           Button("Confirm", action: confirm)
           Button("Dismiss", action: dismiss).foregroundStyle(AccessibleSecondary())
-        }.limmrButton().font(AppType.caption)
+        }.peopleQuietButton().font(AppType.caption)
 
       }
     }

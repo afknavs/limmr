@@ -2,16 +2,23 @@ import Foundation
 
 /// Readiness is separate from connection state and the running image's identity.
 enum HelperReadiness: Equatable {
+  case busy
   case ready
   case starting(progress: String?, grace: TimeInterval = 30)
   case unavailable
+}
+
+struct EngineReadinessStalled: Error, LocalizedError {
+  var busy = true
+  var errorDescription: String? { "Limmr’s background engine hasn’t made progress for 30 seconds. Restart Limmr to try again." }
 }
 
 /// Only a changed stage/counter or a newly observed PID counts as progress.
 /// Polls alone never extend the deadline. Account for probe time as well as sleeps.
 @MainActor enum HelperReadinessWait {
   static func ready(probe: () async throws -> HelperReadiness,
-                    pause: (Duration) async throws -> Void) async throws -> Bool {
+                    pause: (Duration) async throws -> Void,
+                    onBusy: () -> Void = {}) async throws -> Bool {
     let started = ProcessInfo.processInfo.systemUptime
     var elapsed: TimeInterval = 0
     var deadline: TimeInterval = 30
@@ -22,6 +29,12 @@ enum HelperReadiness: Equatable {
       let state = try await probe()
       elapsed = max(elapsed, ProcessInfo.processInfo.systemUptime - started)
       switch state {
+      case .busy:
+        onBusy()
+        guard elapsed < deadline else { throw EngineReadinessStalled() }
+        try await pause(.seconds(1))
+        elapsed += 1
+        continue
       case .ready: return true
       case .unavailable: return false
       case .starting(let progress, let grace):
@@ -31,7 +44,7 @@ enum HelperReadiness: Equatable {
         observedStarting = true
         if let progress { previous = progress }
         guard elapsed < deadline else {
-          throw HelperUpdateFailure(reason: "The helper made no startup progress for 30 seconds. Try again.")
+          throw EngineReadinessStalled(busy: false)
         }
       }
       try await pause(.milliseconds(250))

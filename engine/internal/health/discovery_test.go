@@ -110,3 +110,33 @@ func TestDiscoveryLocalSkipsDNS(t *testing.T) {
 		}
 	}
 }
+func TestDiscoverySlowRelayIsReachable(t *testing.T) {
+	timeout, slow := discoveryProbeTimeout, discoverySlowAfter
+	defer func() { discoveryProbeTimeout, discoverySlowAfter = timeout, slow }()
+	discoveryProbeTimeout, discoverySlowAfter = 500*time.Millisecond, 20*time.Millisecond
+	delay := 60 * time.Millisecond
+	transport := discoveryTransport(func(r *http.Request) (*http.Response, error) {
+		select {
+		case <-time.After(delay):
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}, nil
+		case <-r.Context().Done():
+			return nil, r.Context().Err()
+		}
+	})
+	result := probeDiscovery(context.Background(), "http://localhost", transport, nil)
+	if !result.Reachable || !result.Slow {
+		t.Fatalf("slow relay = %+v, want reachable and slow", result)
+	}
+	result.CheckedAt = time.Now()
+	if detail := result.Detail(); !strings.Contains(detail, "reachable but slow") {
+		t.Fatalf("detail = %q", detail)
+	}
+	delay = 0
+	if result := probeDiscovery(context.Background(), "http://localhost", transport, nil); !result.Reachable || result.Slow {
+		t.Fatalf("fast relay = %+v", result)
+	}
+	delay = time.Second
+	if result := probeDiscovery(context.Background(), "http://localhost", transport, nil); result.Reachable || result.Reason != "relay unavailable" {
+		t.Fatalf("relay past the timeout = %+v", result)
+	}
+}

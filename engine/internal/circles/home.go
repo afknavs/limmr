@@ -165,7 +165,8 @@ func (s *Service) Home() (any, error) {
 	}
 	queued := []model.Suggestion{}
 	for _, x := range sg {
-		if x.Kind == "reply" && x.Body != "" || x.Kind == "check_in" || x.Kind == "nudge" {
+		// Files use the shared metadata-aware review surface, including no-caption files.
+		if x.Attachment == nil && (x.Kind == "reply" && x.Body != "" || x.Kind == "check_in" || x.Kind == "nudge") {
 			queued = append(queued, x)
 		}
 	}

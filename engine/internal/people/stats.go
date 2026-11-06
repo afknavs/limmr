@@ -2,8 +2,11 @@ package people
 
 import (
 	"database/sql"
+	"encoding/json"
+	"github.com/mattn/go-sqlite3"
 	"limmr/internal/model"
 	"strings"
+	"time"
 )
 
 // allStats scans message metadata once for graph ranking/nightly refresh, rather
@@ -71,38 +74,53 @@ func (s *Service) allStats(a *model.Agent, ps []model.Person, gs []model.Group, 
 		}
 		members[m.Group][m.Person] = true
 	}
+	jids := []string{}
+	for jid := range byJID {
+		jids = append(jids, jid)
+	}
+	for jid := range groupSet {
+		jids = append(jids, jid)
+	}
+	encoded, _ := json.Marshal(jids)
 	allowed := s.Hub.ChatAccess(a)
-	rows, e := s.Hub.Messages.DB.Query("SELECT chat_jid,COALESCE(sender,''),timestamp FROM messages")
+	now := s.Hub.Now()
+	rows, e := s.Hub.Messages.DB.Query(`SELECT chat_jid,COALESCE(sender,''),MAX(timestamp),SUM(julianday(timestamp)>=julianday(?)),SUM(julianday(timestamp)>=julianday(?)),COUNT(*) FROM messages WHERE chat_jid IN (SELECT value FROM json_each(?)) AND julianday(timestamp) IS NOT NULL GROUP BY chat_jid,COALESCE(sender,'')`, now.AddDate(0, 0, -30), now.AddDate(0, 0, -365), string(encoded))
 	if e != nil {
 		return nil, e
 	}
 	defer rows.Close()
-	now := s.Hub.Now()
 	for rows.Next() {
 		var chat, sender string
-		var at sql.NullTime
-		if e = rows.Scan(&chat, &sender, &at); e != nil {
+		var raw sql.NullString
+		var dm30, dm365, count int
+		if e = rows.Scan(&chat, &sender, &raw, &dm30, &dm365, &count); e != nil {
 			return nil, e
 		}
-		if !at.Valid || !allowed(chat) {
+		if !raw.Valid || !allowed(chat) {
+			continue
+		}
+		var at time.Time
+		for _, layout := range sqlite3.SQLiteTimestampFormats {
+			if parsed, err := time.Parse(layout, strings.TrimSuffix(raw.String, "Z")); err == nil {
+				at = parsed
+				break
+			}
+		}
+		if at.IsZero() {
 			continue
 		}
 		if id := byJID[chat]; id != "" {
 			st := out[id]
-			if st.LastDM == nil || at.Time.After(*st.LastDM) {
-				copy := at.Time
+			if st.LastDM == nil || at.After(*st.LastDM) {
+				copy := at
 				st.LastDM = &copy
 			}
-			if !at.Time.Before(now.AddDate(0, 0, -30)) {
-				st.DM30++
-			}
-			if !at.Time.Before(now.AddDate(0, 0, -365)) {
-				st.DM365++
-			}
+			st.DM30 += dm30
+			st.DM365 += dm365
 			out[id] = st
 		} else if id := bySender[sender]; id != "" && members[chat][id] {
 			st := out[id]
-			st.GroupMessages++
+			st.GroupMessages += count
 			out[id] = st
 		}
 	}

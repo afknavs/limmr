@@ -115,7 +115,7 @@ struct IntegrationAccess: View {
       HStack {
         Text("Access").font(.headline)
         Spacer()
-        if access.hasEnded(at: store.demo ? Timestamp.date(DemoData.now)! : .now) {
+        if access.hasEnded(at: store.presentationNow) {
           Text(store.accessSummary(access)).font(.callout).foregroundStyle(AccessibleSecondary())
         } else {
           Text("Sees " + store.accessSummary(access)).font(.callout).foregroundStyle(AccessibleSecondary())
@@ -138,10 +138,10 @@ struct IntegrationAccess: View {
         Button("End now") {
           var next = access
           next.until = ISO8601DateFormatter().string(
-            from: store.demo ? Timestamp.date(DemoData.now)! : .now)
+            from: store.presentationNow)
           next.ended = true
           store.updateIntegrationAccess(next, id: agent.id)
-        }.disabled(access.hasEnded(at: store.demo ? Timestamp.date(DemoData.now)! : .now))
+        }.disabled(access.hasEnded(at: store.presentationNow))
       }.buttonStyle(.bordered).disabled(store.permissionsAgentID != agent.id || store.busy)
       ActionFeedback(store: store, action: "access")
     }

@@ -12,8 +12,8 @@ struct CirclePage: View {
   var body: some View {
     GeometryReader { geometry in
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 24) {
-          Button("Back", systemImage: "chevron.left") { store.leavePeopleRoute() }.buttonStyle(
+        LazyVStack(alignment: .leading, spacing: 20) {
+          Button(store.peopleBackTitle, systemImage: "chevron.left") { store.leavePeopleRoute() }.buttonStyle(
             .plain
           ).font(.callout)
           if let detail = store.circleDetails[id] {
@@ -21,19 +21,17 @@ struct CirclePage: View {
             ActionFeedback(store: store, action: "circle-\(id)")
             if let message = store.circleError {
               HStack {
-                Text(message).font(.callout).foregroundStyle(AccessibleSecondary())
+                Text(message).font(.callout).foregroundStyle(.secondary)
                 Button("Try again") { Task { await store.loadCircle(id) } }
               }
             }
             if let brief = detail.brief {
               briefCard(brief)
-            } else {
-              QuietBlockState(title: "A brief for this circle", detail: "Your AIs can save a summary of the conversations and what needs you here.")
             }
             if showHistory {
               VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 16) {
-                  Text("Brief history").font(AppType.blockHeading)
+                  Text("Brief history").font(.title3.weight(.semibold))
                   ForEach(store.circleHistory[id] ?? []) { brief in
                     HStack {
                       Button("Version \(brief.version) · \(store.time(brief.writtenAt))") {
@@ -47,31 +45,36 @@ struct CirclePage: View {
                           }
                         }.buttonStyle(NativeGlassButtonStyle())
                       } else {
-                        Text("Current").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+                        Text("Current").font(.caption).foregroundStyle(.secondary)
                       }
                     }
                   }
                 }
               }
             }
+            if CirclePageSections.hasTasks(store.allTasks, id: id) {
             VStack(alignment: .leading, spacing: 16) {
-              Text("Topics").font(AppType.blockHeading)
+              Text("Tasks").font(.title3.weight(.semibold))
+              TaskListSections(store: store, tasks: TaskListPresentation.inCircle(store.allTasks, id: id), collapseQuiet: true)
+            }
+            }
+            if !detail.topics.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+              Text("Topics").font(.title3.weight(.semibold))
               ForEach(detail.topics) { topic in
                 HStack {
                   Image(systemName: topic.status == "done" ? "checkmark.circle" : "text.bubble")
-                    .foregroundStyle(AccessibleSecondary())
-                  Text(topic.title).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
+                    .foregroundStyle(.secondary)
+                  Text(topic.title).font(.headline).lineLimit(1).truncationMode(.tail)
                   Spacer()
                   Badge(text: topic.status.capitalized)
                 }
               }
-              if detail.topics.isEmpty { QuietBlockState(title: "Topics take shape here", detail: "Shared plans and questions will appear as the conversation develops.") }
             }
+            }
+            if !detail.people.isEmpty {
             VStack(alignment: .leading, spacing: 16) {
-              Text("People").font(AppType.blockHeading)
-              if detail.people.isEmpty {
-                QuietBlockState(title: "People in this circle", detail: "People appear here when you or an AI adds them to this circle.")
-              }
+              Text("People").font(.title3.weight(.semibold))
               ForEach(detail.people) { member in
                 Button {
                   store.circlePath.append(.person(member.personId))
@@ -84,28 +87,27 @@ struct CirclePage: View {
                         store.personName(member.personId).split(separator: " ").prefix(2)
                           .compactMap(\.first)))
                     VStack(alignment: .leading, spacing: 4) {
-                      Text(store.personName(member.personId)).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
-                      Text(member.role).font(.callout).foregroundStyle(AccessibleSecondary())
+                      Text(store.personName(member.personId)).font(.headline).lineLimit(1).truncationMode(.tail)
+                      Text(member.role).font(.callout).foregroundStyle(.secondary)
                       if let note = detail.brief?.peopleNotes.first(where: {
                         $0.personId == member.personId
                       }) {
-                        Text(note.contribution).font(.callout).foregroundStyle(AccessibleSecondary())
+                        Text(note.contribution).font(.callout).foregroundStyle(.secondary)
                       }
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                   }
-                }.limmrButton()
+                }.quietCard()
               }
             }
+            }
+            if !detail.chats.isEmpty || addingChat {
             VStack(alignment: .leading, spacing: 16) {
               HStack {
-                Text("Chats included").font(AppType.blockHeading)
+                Text("Chats included").font(.title3.weight(.semibold))
                 Spacer()
                 Button(addingChat ? "Cancel" : "Add chat…") { addingChat.toggle() }.limmrButton()
-              }
-              if detail.chats.isEmpty {
-                QuietBlockState(title: "Choose conversations", detail: "Add a chat to give this circle its context.")
               }
               ForEach(detail.chats) { chat in
                 HStack(spacing: 16) {
@@ -114,7 +116,7 @@ struct CirclePage: View {
                       ? "person.2" : "person")
                   Text(store.chatName(chat.chatJid)).lineLimit(1).truncationMode(.tail)
                   Spacer()
-                  Text(chat.roleInCircle).font(.callout).foregroundStyle(AccessibleSecondary())
+                  Text(chat.roleInCircle).font(.callout).foregroundStyle(.secondary)
                 }
               }
               if addingChat {
@@ -141,29 +143,32 @@ struct CirclePage: View {
                 }.disabled(selectedChat.isEmpty).buttonStyle(NativeGlassButtonStyle())
               }
             }
+            } else {
+              Button("Add chat…", systemImage: "plus") { addingChat = true }.limmrButton()
+            }
             Divider()
             VStack(alignment: .leading, spacing: 16) {
-              Text("Who can see this").font(AppType.blockHeading)
+              Text("Who can see this").font(.title3.weight(.semibold))
               let integrations = store.agents.filter { store.canSee($0, circle: detail.circle) }
               if integrations.isEmpty {
                 Text("No integration has access to every chat in this circle.").font(.callout)
-                  .foregroundStyle(AccessibleSecondary())
+                  .foregroundStyle(.secondary)
               }
               ForEach(integrations) { agent in
                 HStack {
                   EntityIconButton(
                     store: store, bucket: "agents", id: agent.id, icon: agent.icon,
                     fallback: agent.symbol)
-                  Text(agent.name).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
+                  Text(agent.name).font(.headline).lineLimit(1).truncationMode(.tail)
                 }
               }
             }
             VStack(alignment: .leading, spacing: 16) {
-              Text("Send rule").font(AppType.blockHeading)
-              Text(detail.circle.sendRule.explanation).font(.callout).foregroundStyle(AccessibleSecondary())
+              Text("Send rule").font(.title3.weight(.semibold))
+              Text(detail.circle.sendRule.explanation).font(.callout).foregroundStyle(.secondary)
               Text(
                 "A chat in several circles follows the strictest rule. Integration permissions also apply."
-              ).font(AppType.caption).foregroundStyle(AccessibleSecondary())
+              ).font(.caption).foregroundStyle(.secondary)
 
             }
             ActionFeedback(store: store, action: "circle-\(id)")
@@ -174,29 +179,26 @@ struct CirclePage: View {
             ProgressView("Loading circle…")
           }
         }
-        .frame(maxWidth: 760).padding(.horizontal, geometry.size.width < 900 ? 24 : 32).padding(
-          .vertical, 24
-        ).frame(maxWidth: .infinity)
+        .frame(maxWidth: 1000).padding(20).frame(maxWidth: .infinity)
       }
     }
     .navigationBarBackButtonHidden(true)
-    .background { AppBackground() }
+    .background { Color(nsColor: .windowBackgroundColor) }
     .task(id: id) {
       await store.loadCircle(id)
+      await store.refreshAllTasks()
       if !store.snapshot { store.markCircleSeen(id) }
     }
   }
   private func header(_ circle: LimmrKit.Circle) -> some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(spacing: 16) {
-        EntityIconButton(
-          store: store, bucket: "circles", id: circle.id, icon: circle.icon, fallback: circle.symbol
-        ).font(.largeTitle.weight(.light))
-        Text(circle.name).font(AppType.pageTitle).lineLimit(1).truncationMode(.tail).help(circle.name)
+        CirclePictureButton(store: store, circle: circle, size: 44)
+        Text(circle.name).foregroundStyle(.primary).font(.largeTitle.bold()).lineLimit(1).truncationMode(.tail).help(circle.name)
       }
       HStack {
         if circle.kind.caseInsensitiveCompare(circle.name) != .orderedSame {
-          Text(circle.kind.capitalized).font(.callout).foregroundStyle(AccessibleSecondary())
+          Text(circle.kind.capitalized).font(.callout).foregroundStyle(.secondary)
         }
         Spacer()
         Button(archivedHere ? "Undo archive" : "Archive", systemImage: "archivebox") {
@@ -229,7 +231,7 @@ struct CirclePage: View {
             }
           }
         } label: {
-          Text(circle.sendRule.title).font(AppType.caption)
+          Text(circle.sendRule.title).font(.caption)
         }.menuStyle(.button).buttonStyle(.bordered).controlSize(.small).fixedSize().disabled(
           store.busy
         )
@@ -241,18 +243,18 @@ struct CirclePage: View {
     VStack(alignment: .leading, spacing: 0) {
       VStack(alignment: .leading, spacing: 16) {
         HStack {
-          Text("The brief").font(AppType.blockHeading)
+          Text("The brief").font(.title3.weight(.semibold))
           Spacer()
           Button("History") { showHistory.toggle() }.limmrButton().font(.callout)
         }
         Text(brief.summary).font(.body).textSelection(.enabled)
         VStack(alignment: .leading, spacing: 6) {
-          Text("What changed").font(AppType.blockHeading)
+          Text("What changed").font(.title3.weight(.semibold))
           Text(brief.whatChanged).font(.callout)
         }
         if !brief.openAsksForYou.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
-            Text("Open asks for you").font(AppType.blockHeading)
+            Text("Open asks for you").font(.title3.weight(.semibold))
             ForEach(brief.openAsksForYou, id: \.self) { ask in
               Label(ask, systemImage: "arrow.turn.down.right").font(.callout)
             }
@@ -268,7 +270,7 @@ struct CirclePage: View {
         }
         Text(
           "Written by \(store.agentName(brief.writtenBy)) · \(store.time(brief.writtenAt)) · Version \(brief.version)"
-        ).font(AppType.caption).foregroundStyle(AccessibleSecondary())
+        ).font(.caption).foregroundStyle(.secondary)
       }
     }
   }
@@ -280,16 +282,16 @@ struct BriefVersionPage: View {
   let version: Int
   var body: some View {
     ScrollView {
-      LazyVStack(alignment: .leading, spacing: 24) {
+      LazyVStack(alignment: .leading, spacing: 20) {
         Button("Back to circle", systemImage: "chevron.left") {
           store.leavePeopleRoute()
         }.limmrButton()
         Text("\(store.circleName(circleID)) · Version \(version)").font(.title.bold())
         if let brief = store.circleHistory[circleID]?.first(where: { $0.version == version }) {
           Text(brief.summary).textSelection(.enabled)
-          Text(brief.whatChanged).foregroundStyle(AccessibleSecondary())
+          Text(brief.whatChanged).foregroundStyle(.secondary)
           Text("Written by \(store.agentName(brief.writtenBy)) · \(store.time(brief.writtenAt))")
-            .font(AppType.caption).foregroundStyle(AccessibleSecondary())
+            .font(.caption).foregroundStyle(.secondary)
           Button("Revert to this version") {
             Task {
               await store.circleAction(circleID, suffix: "/briefs/\(version)/revert")
@@ -300,6 +302,12 @@ struct BriefVersionPage: View {
         }
       }.frame(maxWidth: 760).padding(32).frame(maxWidth: .infinity, alignment: .leading)
     }.navigationBarBackButtonHidden(true)
-      .background { AppBackground() }
+      .background { Color(nsColor: .windowBackgroundColor) }
+  }
+}
+
+enum CirclePageSections {
+  static func hasTasks(_ tasks: [TaskSummary], id: String) -> Bool {
+    !TaskListPresentation.inCircle(tasks, id: id).isEmpty
   }
 }

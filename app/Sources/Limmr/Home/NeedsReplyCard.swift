@@ -26,7 +26,7 @@ struct NeedsReplyCard: View {
               Text("“\(ask.text)”").font(.callout).foregroundStyle(AccessibleSecondary()).lineLimit(1).help(ask.text)
             }
           }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }.limmrButton(.row(radius: 6, bordered: false))
+        }.quietCard()
           .accessibilityElement(children: .ignore)
           .accessibilityLabel("\(ask.from ?? ask.chat ?? ask.circle). \(ask.text). \(ask.at.map { store.relativeTime($0) + " ago" } ?? "")")
           .accessibilityHint("Review this message and reply actions")

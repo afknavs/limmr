@@ -333,6 +333,9 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 	}
 	d.State = "sending"
 	d.Status = "queued"
+	if d.Attachment != nil {
+		d.Upload = &model.UploadProgress{Phase: "ready", Total: d.Attachment.Size}
+	}
 	d.ConfirmedVia = via
 	if e := s.Repo.Put("drafts", d.ID, d); e != nil {
 		return d, e
@@ -344,8 +347,17 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 	if e = ctx.Err(); e != nil {
 		return d, e
 	}
-	id, e := s.Messenger.Send(ctx, model.Approval{AsDocument: d.AsDocument, MessageID: reserved, ID: d.ID, AgentID: d.AgentID, ChatJID: d.ChatJID, Kind: d.Kind, Text: d.FinalText, Attachment: d.Attachment, ReplyTo: d.ReplyTo, State: "approved"})
-	if e != nil {
+	ctx = model.WithUploadProgress(ctx, func(p model.UploadProgress) error { d.Upload = &p; return s.Repo.Put("drafts", d.ID, d) })
+	id, e := s.Messenger.Send(ctx, model.Approval{AsDocument: d.AsDocument, MessageID: reserved, ID: d.ID, AgentID: d.AgentID, ChatJID: d.ChatJID, Kind: d.Kind, Text: d.FinalText, Attachment: d.Attachment, ReplyTo: d.ReplyTo, State: "approved", CreatedAt: d.CreatedAt, ExpiresAt: d.ExpiresAt})
+	if e == ErrSendQueued {
+		d.State = "queued_peer"
+		d.Status = "queued"
+		d.MessageID = reserved
+	} else if e == ErrSendUncertain {
+		d.State = "uncertain"
+		d.Status = "uncertain"
+		d.MessageID = reserved
+	} else if e != nil {
 		d.State = "failed"
 		d.Status = "failed"
 	} else {
@@ -413,7 +425,20 @@ func (s *Service) DismissSuggestion(id string) error {
 		return model.ErrConflict
 	}
 	x.State = "dismissed"
-	if err := s.Repo.Put("suggestions", id, x); err != nil {
+	mutations := []Mutation{{Bucket: "suggestions", ID: id, Value: x}}
+	if x.DraftID != "" {
+		var d model.Draft
+		err := s.Repo.Get("drafts", x.DraftID, &d)
+		if err != nil && err != model.ErrNotFound {
+			return err
+		}
+		if err == nil && d.State == "suggested" && d.Attachment != nil {
+			d.State = "denied"
+			d.Status = "failed"
+			mutations = append(mutations, Mutation{Bucket: "drafts", ID: d.ID, Value: d})
+		}
+	}
+	if err := s.Repo.Apply(mutations...); err != nil {
 		return err
 	}
 	if s.TaskSuggestionDone != nil {

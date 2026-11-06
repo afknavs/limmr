@@ -14,11 +14,18 @@ import (
 type EntityIcon struct {
 	Kind  string `json:"kind"`
 	Value string `json:"value"`
+	Hue   string `json:"hue,omitempty"`
 }
 
 var symbolName = regexp.MustCompile(`^[a-z0-9][a-z0-9.]{0,99}$`)
 
 func (v EntityIcon) Valid() bool {
+	if v.Hue != "" && v.Hue != "blue" && v.Hue != "orange" && v.Hue != "purple" && v.Hue != "green" && v.Hue != "yellow" && v.Hue != "teal" && v.Hue != "pink" && v.Hue != "indigo" {
+		return false
+	}
+	if v.Kind == "monogram" {
+		return utf8.RuneCountInString(v.Value) > 0 && utf8.RuneCountInString(v.Value) <= 4 && strings.IndexFunc(v.Value, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) == -1
+	}
 	if v.Kind == "symbol" {
 		return symbolName.MatchString(v.Value)
 	}

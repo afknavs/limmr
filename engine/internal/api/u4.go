@@ -127,6 +127,11 @@ func (s *Server) u4Route(pattern string, next route) route {
 		if v == nil {
 			return nil, nil
 		}
+		// Health/status contain no icon-bearing entities. Avoid an unbounded
+		// objects read (and the serving connection) after their bounded handlers.
+		if pattern == "GET /v1/health" || pattern == "GET /v1/status" {
+			return v, nil
+		}
 		return s.Hub.WithEntityIcons(v)
 	}
 }

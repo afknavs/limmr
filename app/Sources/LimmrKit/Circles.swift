@@ -105,6 +105,7 @@ public struct CircleDetail: Codable, Sendable {
   }
 }
 public struct CircleSuggestion: Codable, Identifiable, Sendable, Equatable {
+  public var attachment: Attachment? = nil
   public var id: String
   public var circleId: String
   public var kind: String
@@ -140,6 +141,8 @@ public struct CircleIntegration: Codable, Identifiable, Sendable {
   public var lastSeenAt: String?
 }
 public struct HomeResponse: Codable, Sendable {
+  public var recentLines: [HomeRecentLine] = []
+  public var recently: [String] = []
   public var tasks: [TaskSummary] = []
   public var circleUpdates: [CircleEffortUpdate] = []
   public var circleChanges: [CircleAutoChange] = []
@@ -198,7 +201,7 @@ extension Circle {
     id = try c.decode(String.self, forKey: .id)
     name = try c.decode(String.self, forKey: .name)
     kind = try c.decode(String.self, forKey: .kind)
-    symbol = try c.decode(String.self, forKey: .symbol)
+    symbol = try c.decodeIfPresent(String.self, forKey: .symbol) ?? ""
     description = try c.decode(String.self, forKey: .description)
     sendRule = try c.decode(SendRule.self, forKey: .sendRule)
     createdBy = try c.decode(String.self, forKey: .createdBy)
@@ -246,10 +249,12 @@ extension HomeResponse {
   enum CodingKeys: String, CodingKey {
     case circleUpdates, circleChanges, circleChangesMore, circleAdditions, today, suggestions, proposals, integrations, watches,
       waiting, queued, needsReply, circles,
-      recentActivity, cards, effortsReady, tasks
+      recentLines, recently, recentActivity, cards, effortsReady, tasks
   }
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(recentLines, forKey: .recentLines)
+    try c.encode(recently, forKey: .recently)
     try c.encode(tasks, forKey: .tasks)
     try c.encode(circleUpdates, forKey: .circleUpdates)
     try c.encode(circleChanges, forKey: .circleChanges)
@@ -269,6 +274,8 @@ extension HomeResponse {
   }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    recentLines = try c.decodeIfPresent([HomeRecentLine].self, forKey: .recentLines) ?? []
+    recently = try c.decodeIfPresent([String].self, forKey: .recently) ?? []
     tasks = try c.decodeIfPresent([TaskSummary].self, forKey: .tasks) ?? []
     circleUpdates = try c.decodeIfPresent([CircleEffortUpdate].self, forKey: .circleUpdates) ?? []
     circleChanges = try c.decodeIfPresent([CircleAutoChange].self, forKey: .circleChanges) ?? []
@@ -350,7 +357,7 @@ extension CircleSuggestion {
   enum CodingKeys: String, CodingKey {
     case id, circleId, kind, chatJid, draftText, why, createdBy, expiresAt, createdAt, state,
       draftId
-    case variations, body, taskId, draftSource
+    case variations, body, taskId, draftSource, attachment
   }
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
@@ -369,6 +376,7 @@ extension CircleSuggestion {
     try c.encodeIfPresent(body, forKey: .body)
     try c.encodeIfPresent(taskId, forKey: .taskId)
     try c.encodeIfPresent(draftSource, forKey: .draftSource)
+    try c.encodeIfPresent(attachment, forKey: .attachment)
   }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -387,6 +395,7 @@ extension CircleSuggestion {
     body = try c.decodeIfPresent(String.self, forKey: .body)
     taskId = try c.decodeIfPresent(String.self, forKey: .taskId)
     draftSource = try c.decodeIfPresent(String.self, forKey: .draftSource)
+    attachment = try c.decodeIfPresent(Attachment.self, forKey: .attachment)
   }
 }
 

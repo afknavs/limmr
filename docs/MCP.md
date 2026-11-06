@@ -87,6 +87,11 @@ schedule; `attach` adds links/files/notes; `checklist` manages steps. `draft_che
 and `draft_nudge` save text for owner review. `needs_you` flags attention with a reason.
 Exact shapes and routes are in [API.md](API.md#tasks-and-the-task-timeline).
 
+For a checklist addition, use `{"action":"checklist","id":"tsk_example","op":"add","steps":[{"text":"Read"}]}`.
+`items` is accepted as an alias for `steps`, and `text` can supply one step. Change
+checklists with this action rather than `update`. Set `lifespan_days` on short tasks;
+omit it when creating a long task.
+
 Reads need `read_messages`; writes also need `save_summaries`. You must see every
 task chat. Only the creator or a visible task's own-preset AI can update it. Hidden
 chat items never appear, including after a permission change. `get_updates` adds
@@ -110,3 +115,98 @@ writes retain the existing creator/own-AI rule. Own AIs receive `task_suggested`
 including automatic tracking and migrated projects, subject to current chat permissions.
 Project circle proposals need three named people across two chats; smaller proposals return
 `{"converted_to_task":"tsk_…"}` with the proposal's why as the first suggestion signal.
+
+Task lifecycle: `task create` / `task update` accepts `end_at` (RFC3339),
+`end_condition` (`agent_done` or `checklist_done`) and `lifespan_days` (quiet days for short tasks).
+An agent completes work with `task update {id,status:"done"}`. Timers queue a check-in
+and a durable `task_due` update; they never send. The owner can Undo automatic closure.
+
+Task argument errors are checked per action, including nested paths, and contain a correct call.
+Examples: `create {"action":"create","title":"Exam preparation","kind":"long"}`;
+`list {"action":"list","status":"open","limit":20}`; `get` / `brief` / `keep` use
+`{"action":"get","id":"tsk_example"}` (substitute the action); `dismiss` adds `"reason":"Not needed"`;
+`update {"action":"update","id":"tsk_example","status":"active"}`;
+`attach {"action":"attach","id":"tsk_example","item":{"kind":"note","text":"Review next"}}`;
+`checklist {"action":"checklist","id":"tsk_example","op":"add","steps":[{"text":"Read"}]}`;
+`draft_check_in` / `draft_nudge` use `{"action":"draft_nudge","id":"tsk_example","text":"Please share the syllabus"}`;
+`needs_you {"action":"needs_you","id":"tsk_example","reason":"Choose a time"}`.
+Checklist `items` and bare `text` are accepted aliases; update uses the checklist action for steps.
+
+N1 task reads: list defaults to `open` and excludes quiet. Request `status:"quiet"` or `"all"`
+explicitly to include it. Quiet/wake with `{"action":"update","id":"tsk_example","status":"quiet"}`
+or `status:"active"`. Quiet state and workspace activity wakeups sync to a paired dot; timers never send.
+Stored-reference errors name nested fields such as `check_in.to`, `waiting.on.id`, and `steps[0].id`.
+`lifespan_days` is accepted only for short tasks, including updates to an existing task.
+
+`get_updates` and `brief {action:"get",id:"circle_id"}` include `recently:[string,...]`: three to five
+plain lines from stored events, attributed where the writer is known, without message/note bodies.
+It covers 24 hours or, when no permitted activity exists, three days. Counts, titles and fallback
+selection respect the caller's current circle/chat access; a brief covers only its circle.
+
+### Local files
+
+Local agents may supply `path` to `send`, `upload_attachment` or `notify_me`, using
+an absolute path or `~/poster.pdf`. Only regular files under the owner's home
+are accepted. Symlinks, credential-like paths and Limmr data are refused. The
+accepted bytes are copied and SHA-256 checked; changing the original cannot
+change the approved file. Remote agents cannot use paths.
+
+Limits apply to every source, using detected content: **documents 100 MiB;
+images, video and audio 16 MiB each**. The document limit is Limmr's conservative
+interoperability cap, not a claim that every WhatsApp client has the same maximum.
+Inline base64 additionally has an 8 MiB decoded transport cap. Larger files must
+use a link or be compressed. Documents retain their filename and MIME type;
+images and videos carry the supplied caption. Audio with text becomes a document
+so its text is preserved. `as_document:true` forces a document envelope without
+relaxing the content's size limit. The main window's **Review files** popover shows an icon, name,
+size and target chat, including captionless sends. Legacy file approvals show the
+same preview in the menu bar.
+
+### Remote and resumable uploads
+
+Choose chunked upload for remote agents; no one-time public upload URL is
+created. Keep **each base64 string <=1 MiB encoded** (<=768 KiB decoded).
+
+1. Call `upload_attachment` with `filename`, `total_size`, `chunk_count`,
+   `chunk_index:0`, and `content_base64` for the first chunk. Counts are 1..256;
+   the total is 1..100 MiB and the media limit is checked before promotion.
+2. Retain the returned `upload_id`. Submit remaining zero-based indexes with
+   `upload_id`, `chunk_index`, `content_base64`. Chunks may arrive out of order.
+   Repeating an index with identical bytes is safe; different bytes are refused.
+3. After interruption call `upload_attachment {upload_id}` or
+   `send_status {upload_id}`. Use `missing_chunks`, `uploaded_bytes` and
+   `expires_at` to resume. Only the uploading AI can resume/reuse its upload.
+4. Completion returns `attachment_id`. Send using
+   `send {recipient,attachment_id,text?,key?,owner_instruction?}` under the usual
+   send/approval rules. A 6 MiB PDF needs eight full 768 KiB chunks.
+
+Uploads expire one hour after creation, including across restarts. There are at
+most four active uploads per AI and 256 MiB reserved across the engine. An
+expired upload must restart without `upload_id`. Completed files have the normal
+seven-day outbox retention. For an approved paired send, the copied file also
+travels in the private durable sync queue/history.
+
+`send_status` accepts exactly one of `upload_id`, `message_id`, `approval_id` or
+`key`. Upload status includes missing chunks and bytes. Send status contains
+`upload.phase` (ready, uploading, uploaded), acknowledged bytes/total and the
+original message ID plus sent/delivered/read timestamps and counts. The WhatsApp
+library exposes upload start and completion, not intermediate byte percentages.
+
+### Which device sends
+
+`whoami.sending` gives `holder_side`, a plain-language `summary`,
+`last_synced_at`, `lease_epoch`, `lease_expires_at`, `lease_active` and
+`peer_ack_required`. The app shows the same role and last sync. A paired
+non-holder queues approved sends; their identity and files sync to the holder.
+The holder waits for a durable peer acknowledgement before dispatch. An expired
+lease queues on both sides. Owner recovery never comes from an ordinary AI call.
+
+A stored outgoing echo with the same reserved ID passively reconciles an
+uncertain attempt as sent. No extra send or read acknowledgement is made.
+An unknown delivery outcome is `uncertain`: **do not create another send to
+retry it**. Restore sync and reconcile the original identity. Uncertain or
+in-flight attempts block role transfer. A never-paired engine works standalone.
+Unpairing a non-holder retains a local sending fence: wait until the old lease
+expires plus one minute and explicitly confirm that the old device has stopped.
+After unpairing each engine may dispatch only requests it originated; imported
+queues remain quarantined. Read the [partition rule](lanes/SYNC-CONTRACT.md#coordination-schema-18-protocol-2).

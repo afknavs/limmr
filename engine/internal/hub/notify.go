@@ -177,9 +177,15 @@ func (s *Service) SendStatus(a model.Agent, message, approval, key string) (mode
 	if d.State == "denied" || d.State == "expired" || d.Status == "queued" && d.State != "sending" && !s.Now().Before(d.ExpiresAt) {
 		d.Status = "failed"
 	}
+	if d.State == "uncertain" {
+		d.NextStep = "Do not request another send. Reconcile the original message ID with the sending device; the server acknowledgement may have been lost."
+	}
+	if d.State == "queued_peer" {
+		d.NextStep = "Check sending status in Limmr. Sync paired devices, or complete owner recovery if sending is paused."
+	}
 	return d, nil
 }
 
 func approvalDraft(a model.Approval) model.Draft {
-	return model.Draft{AsDocument: a.AsDocument, ID: a.ID, AgentID: a.AgentID, ChatJID: a.ChatJID, FinalText: a.Text, Status: a.Status, MessageID: a.MessageID, ApprovalID: a.ID, State: a.State, SentAt: a.SentAt, DeliveredAt: a.DeliveredAt, ReadAt: a.ReadAt, DeliveredCount: a.DeliveredCount, ReadCount: a.ReadCount, CreatedAt: a.CreatedAt, ExpiresAt: a.ExpiresAt, Attachment: a.Attachment, ReplyTo: a.ReplyTo, Kind: a.Kind}
+	return model.Draft{Upload: a.Upload, AsDocument: a.AsDocument, ID: a.ID, AgentID: a.AgentID, ChatJID: a.ChatJID, FinalText: a.Text, Status: a.Status, MessageID: a.MessageID, ApprovalID: a.ID, State: a.State, SentAt: a.SentAt, DeliveredAt: a.DeliveredAt, ReadAt: a.ReadAt, DeliveredCount: a.DeliveredCount, ReadCount: a.ReadCount, CreatedAt: a.CreatedAt, ExpiresAt: a.ExpiresAt, Attachment: a.Attachment, ReplyTo: a.ReplyTo, Kind: a.Kind}
 }

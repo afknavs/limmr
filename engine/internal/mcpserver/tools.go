@@ -96,12 +96,12 @@ func LegacyCatalog() []Tool {
 		def("get_summaries", "Read summaries for a visible chat.", "chat_jid", "limit:integer"),
 		def("download_media", "Download visible media (needs: media downloads). Local AI: path; remote AI: single-use download_url valid for 15 minutes.", "chat_jid message_id", ""),
 		def("send_message", "Send exact text. Own AIs: owner_instruction sends immediately; otherwise confirm rules return a draft. queue_for_approval requests review in Limmr.", "recipient text", "voice signed:boolean reply_to key"),
-		def("send_file", "Send images, video and audio as media; as_document forces a file. Audio with text stays a document. Own AIs: quote the owner in owner_instruction to send; queue_for_approval requests review in Limmr.", "recipient", "attachment_id content_text content_base64 filename url file as_document:boolean voice signed:boolean text reply_to key"),
+		def("send_file", "Send images, video and audio as media; as_document forces a file. Audio with text stays a document. Own AIs: quote the owner in owner_instruction to send; queue_for_approval requests review in Limmr.", "recipient", "attachment_id content_text content_base64 filename url file path as_document:boolean voice signed:boolean text reply_to key"),
 		def("send_reaction", "Send an emoji under circle rules. Own AIs: quote the owner in owner_instruction to send; queue_for_approval requests review in Limmr.", "recipient message_id text", "voice signed:boolean key"),
-		def("upload_attachment", "Upload one file source for reuse (needs: sending). Returns attachment_id, name, size, sha256.", "", "attachment_id content_text content_base64 filename url file"),
-		def("notify_me", "Tell the owner something on WhatsApp with a stable key, as this AI (needs: sending). Optional file source sends as media; as_document forces a file. Audio with text stays a document. Follows the You circle rule.", "text", "key attachment_id content_text content_base64 filename url file as_document:boolean urgent:boolean voice signed:boolean"),
+		def("upload_attachment", "Upload one file source for reuse (needs: sending). Returns attachment_id, name, size, sha256.", "", "attachment_id content_text content_base64 filename url file path upload_id chunk_index:integer chunk_count:integer total_size:integer"),
+		def("notify_me", "Tell the owner something on WhatsApp with a stable key, as this AI (needs: sending). Optional file source sends as media; as_document forces a file. Audio with text stays a document. Follows the You circle rule.", "text", "key attachment_id content_text content_base64 filename url file path as_document:boolean urgent:boolean voice signed:boolean"),
 		def("check_connection", "Cheap local connection health, can_send and last incoming event; no network request.", "", ""),
-		def("get_send_status", "Check your send by exactly one of message_id, approval_id or key; passive delivery/read status and counts.", "", "message_id approval_id key"),
+		def("get_send_status", "Check your send by exactly one of message_id, approval_id or key; passive delivery/read status and counts.", "", "message_id approval_id key upload_id"),
 		def("check_send", "Check your own approval outcome without sending.", "approval_id", ""),
 		def("my_activity", "Read your own activity within your current chat access.", "", "kind chat_jid before:integer limit:integer"),
 	}
@@ -209,6 +209,7 @@ type Service struct {
 	callOnce        sync.Once
 	callSlots       chan struct{}
 	Fetcher         *attachments.Fetcher
+	SendingStatus   func() map[string]any
 	RemoteMedia     func(model.Agent, string, string, string) (string, error)
 	Link            *wa.Link
 	Hub             *hub.Service
@@ -487,6 +488,23 @@ func (s *Service) callLegacy(ctx context.Context, a model.Agent, name string, ar
 		return s.callDigest(a, args, act)
 	}
 	if name == "upload_attachment" {
+		if args.str("upload_id") != "" || args["chunk_count"] != nil {
+			var index *int
+			if _, ok := args["chunk_index"]; ok {
+				v := args.num("chunk_index", 0)
+				index = &v
+			}
+			var encoded *string
+			if v, ok := args["content_base64"].(string); ok {
+				encoded = &v
+			}
+			for _, k := range []string{"path", "attachment_id", "content_text", "url", "file"} {
+				if args[k] != nil {
+					return nil, fmt.Errorf("Chunk upload cannot be mixed with another source. Resume using upload_id and chunks.")
+				}
+			}
+			return s.Hub.ChunkUpload(a.ID, args.str("upload_id"), args.str("filename"), args.num("chunk_count", 0), int64(args.num("total_size", 0)), index, encoded)
+		}
 		at, e := s.attachment(ctx, a, args)
 		act.Kind = "media"
 		act.Count = 1
@@ -540,6 +558,7 @@ func (s *Service) callLegacy(ctx context.Context, a model.Agent, name string, ar
 			// A long poll may outlive a permission edit. Recheck before adding counts.
 			if current, err := s.Hub.Agent(a.ID); err == nil && current.Enabled && s.Hub.CheckAccess(current) == nil {
 				out.EffortNamingHint, out.EffortsReady = s.effortNamingHint(current)
+				out.Recently, e = s.TaskService().Recently(&current, "")
 			}
 		}
 		for _, item := range out.Items {
@@ -555,6 +574,12 @@ func (s *Service) callLegacy(ctx context.Context, a model.Agent, name string, ar
 	case "check_connection":
 		return s.connection(a), nil
 	case "get_send_status":
+		if id := args.str("upload_id"); id != "" {
+			if args.str("message_id") != "" || args.str("approval_id") != "" || args.str("key") != "" {
+				return nil, model.ErrInvalid
+			}
+			return s.Hub.ChunkUpload(a.ID, id, "", 0, 0, nil, nil)
+		}
 		return s.Hub.SendStatus(a, args.str("message_id"), args.str("approval_id"), args.str("key"))
 	case "get_owner_profile":
 		act.Kind = "people_read"
@@ -614,7 +639,11 @@ func (s *Service) callLegacy(ctx context.Context, a model.Agent, name string, ar
 		if e != nil {
 			return nil, e
 		}
-		return map[string]any{"setup": setup, "whatsapp": health["whatsapp"], "can_send": health["can_send"], "health": health["health"], "owner": owner, "agent": a, "permissions": a.Permissions, "preset_summary": s.Hub.PresetSummary(a), "access": map[string]any{"circles": a.Permissions.Access.Circles, "unsorted": a.Permissions.Access.Unsorted, "until": a.Permissions.Access.Until, "ended": a.Permissions.Access.Ended(s.Hub.Now()), "sees": s.Hub.AccessSummary(a.Permissions.Access)}}, nil
+		var sending map[string]any
+		if s.SendingStatus != nil {
+			sending = s.SendingStatus()
+		}
+		return map[string]any{"sending": sending, "setup": setup, "whatsapp": health["whatsapp"], "can_send": health["can_send"], "health": health["health"], "owner": owner, "agent": a, "permissions": a.Permissions, "preset_summary": s.Hub.PresetSummary(a), "access": map[string]any{"circles": a.Permissions.Access.Circles, "unsorted": a.Permissions.Access.Unsorted, "until": a.Permissions.Access.Until, "ended": a.Permissions.Access.Ended(s.Hub.Now()), "sees": s.Hub.AccessSummary(a.Permissions.Access)}}, nil
 	case "list_chats", "get_chat":
 		cs, _, e := s.Hub.Visible(&a)
 		if e != nil {

@@ -22,6 +22,7 @@ public enum Wire {
 }
 
 public struct Agent: Codable, Identifiable, Sendable, Equatable {
+  public var runsOnPeer: String? = nil
   public var icon: EntityIcon? = nil
   public var preset: String? = nil
   public var id: String
@@ -34,14 +35,16 @@ public struct Agent: Codable, Identifiable, Sendable, Equatable {
   public var permissions: Permissions? = nil
   public var access: AgentAccess? = nil
   public var accessSummary: String? = nil
+  public var isOnDevice: Bool { id == "this-mac" || kind == "on_device" }
   public var symbol: String {
     switch kind {
+    case "on_device": "laptopcomputer"
     case "codex": "terminal"
     case "chatgpt": "bubble.left.and.bubble.right"
     case "claude_code": "chevron.left.forwardslash.chevron.right"
     case "claude_ai": "asterisk"
     case "cursor": "cursorarrow.rays"
-    default: "sparkle"
+    default: "app.connected.to.app.below.fill"
     }
   }
 }
@@ -175,6 +178,8 @@ extension Message {
   }
 }
 public struct Activity: Codable, Identifiable, Sendable, Equatable {
+  public var taskId: String? = nil
+  public var description: String? = nil
   public var ownerInstruction: String? = nil
   public var queueForApproval: Bool? = nil
   public var instructionReason: String? { ownerInstruction.map { "Because you said: \($0)" } }
@@ -193,6 +198,7 @@ public struct Activity: Codable, Identifiable, Sendable, Equatable {
   public var briefVersion: Int? = nil
   public var confirmedVia: String? = nil
   public var verb: String {
+    if (taskId != nil || tool == "task"), let description, !description.isEmpty { return description }
     if tool == "circle_structure_placed" { return note ?? "Limmr placed \(count) people" }
     if tool == "forget_person" { return "Forgot a person" }
     if tool == "review_person_detail" { return "Reviewed a profile suggestion" }
@@ -220,11 +226,15 @@ public struct HealthCheck: Codable, Identifiable, Sendable, Equatable {
   public var state: String
   public var detail: String
   public var fixId: String?
+  public init(id: String, title: String, state: String, detail: String, fixId: String? = nil) {
+    self.id = id; self.title = title; self.state = state; self.detail = detail; self.fixId = fixId
+  }
 }
 public struct PersonPhoto: Codable, Sendable, Equatable {
   public var source: String
 }
 public struct Person: Codable, Identifiable, Sendable, Equatable {
+  public var isOwner: Bool? = nil
   public var otherNames: [String] = []
   public var photo: PersonPhoto? = nil
   public var icon: EntityIcon? = nil
@@ -246,11 +256,12 @@ public struct Person: Codable, Identifiable, Sendable, Equatable {
   public var inferredRelationship: RelationshipInference? = nil
 
   enum CodingKeys: String, CodingKey {
-    case otherNames, photo, icon, id, jids, name, pushName, label, circle, role, howKnown, notes, updatedAt, details,
+    case isOwner, otherNames, photo, icon, id, jids, name, pushName, label, circle, role, howKnown, notes, updatedAt, details,
       detailSuggestions, groupsInCommon, circleAffinity, primaryCircleId, inferredRelationship
   }
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    isOwner = try c.decodeIfPresent(Bool.self, forKey: .isOwner)
     otherNames = try c.decodeIfPresent([String].self, forKey: .otherNames) ?? []
     photo = try c.decodeIfPresent(PersonPhoto.self, forKey: .photo)
     icon = try c.decodeIfPresent(EntityIcon.self, forKey: .icon)

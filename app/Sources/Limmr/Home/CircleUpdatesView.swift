@@ -9,7 +9,7 @@ struct CircleUpdatesView: View {
   private var displayTiles: [HomeCircleTile] { contentWidth >= 620 ? HomeTiles.pairedTiles(tiles) : tiles }
   private var tiles: [HomeCircleTile] {
     HomeTiles.tiles(circles: store.circles, home: store.home, efforts: store.homeEfforts,
-                    now: store.demo ? Timestamp.date(DemoData.now)! : Date())
+                    now: store.presentationNow)
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -55,43 +55,44 @@ struct HomeCircleTileView: View {
   @Bindable var store: AppStore
   let tile: HomeCircleTile
   private var reason: String {
-    if tile.reason == "on you" { return "Waiting on you" }
+    if tile.reason == "on you" { return HomeTiles.waitingDescription(tile) ?? "" }
     if tile.pinned { return "Pinned" }
     if tile.reason == "due within 7 days" { return "Due this week" }
     if tile.reason == "changed since last look" { return "New updates" }
     return tile.reason ?? "Pinned"
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Button { store.openCircle(tile.id) } label: {
-        HStack(spacing: 10) {
-          Image(systemName: tile.circle.symbol).font(.system(size: 14))
-            .frame(width: 28, height: 28)
-            .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 7))
-          VStack(alignment: .leading, spacing: 3) {
-            Text(tile.circle.name).font(.headline).lineLimit(1)
-            Text(reason).font(AppType.caption)
-              .foregroundStyle(tile.reason == "on you" ? Color.accentColor : .secondary).lineLimit(1)
-          }
-          Spacer(minLength: 0)
-          if tile.newMessages > 0 {
-            VStack(spacing: 1) {
-              Text(tile.newMessages.formatted()).font(.callout.weight(.semibold)).monospacedDigit()
-              Text("new").font(.system(size: 10)).foregroundStyle(AccessibleSecondary())
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 10) {
+        CirclePictureButton(store: store, circle: tile.circle)
+        Button { store.openCircle(tile.id) } label: {
+          HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(tile.circle.name).font(.headline).lineLimit(1)
+              if !reason.isEmpty {
+                Text(reason).font(AppType.caption).foregroundStyle(AccessibleSecondary()).lineLimit(1).help(reason)
+              }
             }
-          }
-          if tile.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(AccessibleTertiary()) }
-        }.contentShape(Rectangle())
-      }.limmrButton(.row(radius: 7, bordered: false), id: "circle")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Open \(tile.circle.name). \(reason). \(tile.pinned ? "Pinned. " : "")\(tile.newMessages) new messages")
-        .accessibilityHint("Open this circle")
+            Spacer(minLength: 0)
+            if tile.newMessages > 0 {
+              VStack(spacing: 1) {
+                Text(tile.newMessages.formatted()).font(.callout.weight(.semibold)).monospacedDigit()
+                Text("new").font(.system(size: 10)).foregroundStyle(AccessibleSecondary())
+              }
+            }
+            if tile.pinned { Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(AccessibleTertiary()) }
+          }.contentShape(Rectangle())
+        }.quietCard()
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("Open \(tile.circle.name). \(reason). \(tile.pinned ? "Pinned. " : "")\(tile.newMessages) new messages")
+          .accessibilityHint("Open this circle")
+      }
       ForEach(Array(tile.rectangles.prefix(2))) { rectangle in
         Button { open(rectangle) } label: {
           rectangleContent(rectangle).padding(8).frame(maxWidth: .infinity, alignment: .leading)
             .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
-        }.limmrButton(.row(radius: 6, bordered: false), id: "circle-update")
+        }.quietCard()
           .accessibilityElement(children: .ignore)
           .accessibilityLabel(label(rectangle))
           .accessibilityHint("Open \(isEffort(rectangle) ? "this work in Activity" : "this circle")")
@@ -106,7 +107,7 @@ struct HomeCircleTileView: View {
             .limmrButton().font(AppType.caption).accessibilityLabel("Undo status change for \(update.title)")
         }
       }
-    }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .modifier(HomeTileSurface())
       .contextMenu {
         Button(tile.pinned ? "Unpin" : "Pin") { Task { await store.togglePin(tile.circle) } }
@@ -182,15 +183,15 @@ struct OtherCirclesTile: View {
         HomeCircleChipsLayout {
           ForEach(circles) { circle in
             Button { store.openCircle(circle.id) } label: {
-              Label(circle.name, systemImage: circle.symbol).font(AppType.caption).lineLimit(1)
+              HStack(spacing: 6) { CirclePicture(circle: circle, size: 22); Text(circle.name).font(AppType.caption).lineLimit(1) }
                 .padding(.horizontal, 8).padding(.vertical, 6)
                 .background(.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-            }.limmrButton(.row(radius: 6, bordered: false))
+            }.quietCard()
               .accessibilityLabel("Open \(circle.name)")
           }
         }
       }
-    }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .modifier(HomeTileSurface())
   }
 }

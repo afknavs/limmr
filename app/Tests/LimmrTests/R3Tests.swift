@@ -42,6 +42,34 @@ import Testing
     #expect(driver.launches == 2 && driver.removals == 2)
     #expect(await driver.healthy())
   }
+  @Test func busyCandidateIsNeverReplacedOrRolledBack() async {
+    let driver = R3Driver()
+    driver.current = driver.previous
+    driver.failure = "busy"
+    do {
+      try await HelperRegistration(driver: driver, pause: { _ in driver.elapsed += 1 }).register()
+      Issue.record("Expected a busy engine timeout")
+    } catch { #expect((error as? EngineReadinessStalled)?.busy == true) }
+    #expect(driver.current == driver.candidate)
+    #expect(driver.launches == 1 && driver.removals == 1)
+  }
+  @Test(arguments: [false, true]) func busyOldBuildUpdatesWithRollback(candidateFails: Bool) async {
+    let driver = R3Driver()
+    driver.current = driver.previous
+    driver.oldBusy = true
+    driver.failure = candidateFails ? "crash" : ""
+    do { try await HelperRegistration(driver: driver, pause: { _ in driver.elapsed += 1 }).register() }
+    catch { #expect(candidateFails) }
+    #expect(driver.current == (candidateFails ? driver.previous : driver.candidate))
+    #expect(driver.launches == (candidateFails ? 2 : 1))
+  }
+  @Test func busyMatchingBuildIsNeverReplaced() async {
+    let driver = R3Driver()
+    driver.current = driver.candidate; driver.failure = "busy"
+    do { try await HelperRegistration(driver: driver, pause: { _ in driver.elapsed += 1 }).register() }
+    catch { #expect((error as? EngineReadinessStalled)?.busy == true) }
+    #expect(driver.launches == 0 && driver.removals == 0)
+  }
   @Test func spawnWindowImageIsNotAFailedUpdate() async throws {
     let driver = R3Driver()
     driver.current = driver.previous
@@ -127,6 +155,7 @@ import Testing
   var elapsed: TimeInterval = 0
   var readyAt: TimeInterval = 8
   var reportsStages = false
+  var oldBusy = false
   var failure = ""
   var execGap: TimeInterval = 0 // launchd's xpcproxy window before exec
   var launches = 0, removals = 0
@@ -134,7 +163,8 @@ import Testing
   func healthy() async -> Bool { await readiness() == .ready }
   func readiness() async -> HelperReadiness {
     guard let current else { return .unavailable }
-    if current == previous { return .ready }
+    if current == previous { return oldBusy && launches == 0 ? .busy : .ready }
+    if failure == "busy" { return .busy }
     if failure == "crash", elapsed >= 2 { self.current = nil; return .unavailable }
     if failure != "stall", elapsed >= readyAt { return .ready }
     return .starting(progress: reportsStages ? "warmup-\(Int(elapsed / 20))" : "process-42")

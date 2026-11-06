@@ -42,9 +42,9 @@ struct RemoteWizard: View {
             if ownURL {
               TextField("https://your-address.example", text: $address).textFieldStyle(.roundedBorder)
               Text(
-                "Point your tunnel to Limmr’s remote listener. Verify the address before adding your AI connector."
+                "Connect your secure address to Limmr. Verify it before adding your AI app."
               ).font(.system(size: 13)).foregroundStyle(AccessibleSecondary())
-              DisclosureGroup("Details", isExpanded: $showDetails) {
+              DisclosureGroup("Advanced", isExpanded: $showDetails) {
                 Text("Remote listener: http://127.0.0.1:18801").font(
                   .system(size: 12, design: .monospaced))
               }
@@ -52,11 +52,19 @@ struct RemoteWizard: View {
               StepRow(
                 number: 1, title: "Check Tailscale",
                 detail:
-                  "Check which Funnel ports are already in use."
+                  "Find a secure connection for this Mac."
               )
-              Button("Check available ports") { Task { await detect() } }.buttonStyle(
+              Button("Check connection") { Task { await detect() } }.buttonStyle(
                 NativeGlassButtonStyle()
               ).padding(.leading, 40)
+              if port == 443, FunnelPorts.shares443(selectedRoute) {
+                Text("Share the existing connection").font(.headline).padding(.leading, 40)
+                Text("Limmr uses /limmr. Your other apps keep their existing addresses.")
+                  .font(.callout).foregroundStyle(AccessibleSecondary()).padding(.leading, 40)
+              } else if port != 443 {
+                Text("May not work with ChatGPT").font(.callout).foregroundStyle(AccessibleSecondary()).padding(.leading, 40)
+              }
+              DisclosureGroup("Advanced", isExpanded: $showDetails) {
               if detected {
                 Picker("Use port", selection: $port) {
                   ForEach([443, 8443, 10000], id: \.self) { p in
@@ -65,14 +73,6 @@ struct RemoteWizard: View {
                   }
                 }.padding(.leading, 40)
               }
-              if port == 443, FunnelPorts.shares443(selectedRoute) {
-                Text("Share port 443 (recommended for ChatGPT)").font(.headline).padding(.leading, 40)
-                Text("Limmr uses /limmr. Your other apps keep their existing addresses.")
-                  .font(.callout).foregroundStyle(AccessibleSecondary()).padding(.leading, 40)
-              } else if port != 443 {
-                Text("May not work with ChatGPT").font(.callout).foregroundStyle(AccessibleSecondary()).padding(.leading, 40)
-              }
-              DisclosureGroup("Details", isExpanded: $showDetails) {
                 ForEach(routes) { route in
                   Text(":\(String(route.port)) · " + route.targetDescription)
                     .font(.caption).textSelection(.enabled)
@@ -95,7 +95,7 @@ struct RemoteWizard: View {
         }
         if reachable {
           Label("Ready for ChatGPT", systemImage: "checkmark.circle").font(.headline)
-          CopyField(title: "MCP address", value: address + "/mcp")
+          CopyField(title: "AI app address", value: address + "/mcp")
         }
         if offerTurnOff {
           Text("Verification didn’t finish. Remote access is still on because an approved AI may be using it.")
@@ -118,7 +118,7 @@ struct RemoteWizard: View {
       HStack {
         Text("Connect your AI after verification.").font(.caption).foregroundStyle(AccessibleSecondary())
         Spacer()
-        Button(reachable ? "Done" : ownURL ? "Verify address" : port == 443 && FunnelPorts.shares443(selectedRoute) ? "Share port 443" : "Enable Funnel") {
+        Button(reachable ? "Done" : ownURL ? "Verify address" : port == 443 && FunnelPorts.shares443(selectedRoute) ? "Share connection" : "Enable remote access") {
           if reachable { dismiss() } else { verificationTask = Task { await prepare() } }
         }
         .buttonStyle(NativeGlassButtonStyle(prominent: true))

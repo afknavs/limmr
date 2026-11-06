@@ -29,6 +29,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -97,6 +98,9 @@ func run() error {
 	defer logFile.Close()
 	logger := log.New(logFile, "", log.LstdFlags|log.LUTC)
 	logger.Print("INFO engine starting")
+	if !planOnly {
+		health.RecordEngineStart(home, time.Now())
+	}
 	control, e := dbutil.Credential(filepath.Join(home, "control-token"))
 	if e != nil {
 		return e
@@ -105,6 +109,8 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	var heartbeat atomic.Int64
+	heartbeat.Store(time.Now().UnixNano())
 	stages := startup.New(*port, control, status, logger)
 	var repo *hub.Repo
 	e = stages.Step("hub.open", func() (err error) { repo, err = hub.OpenBase(filepath.Join(home, "hub.db")); return })
@@ -134,11 +140,17 @@ func run() error {
 		defer httpServer.Close()
 		go func() { errCh <- httpServer.Serve(ln) }()
 		logger.Print("INFO local listener ready")
+		watchdog := health.Watchdog{Home: home, URL: fmt.Sprintf("http://127.0.0.1:%d", *port), Token: control, Logger: logger,
+			Beat: func() time.Time { return time.Unix(0, heartbeat.Load()) }}
+		go watchdog.Run(ctx)
 	}
 	// All migrations/warmups run behind the startup handler, on the initializing
 	// goroutine. No application or MCP request can observe a partially migrated store.
 	if e = repo.Migrate(stages.Observe); e != nil {
 		return e
+	}
+	if err := stages.Step("storage.maintenance", func() error { return repo.PrepareSyncStorage(ctx) }); err != nil {
+		logger.Print("WARN sync storage maintenance deferred; saved progress will resume")
 	}
 	if e = messages.UpgradeTimed(stages.Observe); e != nil {
 		return e
@@ -216,6 +228,7 @@ func run() error {
 		h.Messenger = live
 		link.Source = live
 		mc.Downloader = live
+		taskService.CoverMedia = live
 		avatars.Lookup = live
 	}
 	gate := &sync.RWMutex{}
@@ -225,6 +238,10 @@ func run() error {
 	rem.Logger = logger
 	defer rem.Close()
 	hs := &health.Service{Hub: h, Link: link, Home: home, LocalPort: *port, Demo: *demoMode, ProbePorts: !*demoMode, RestartRemote: rem.Start, WatchesCheck: watchesService.Check}
+	maintenanceCtx, stopMaintenance := context.WithCancel(ctx)
+	maintenanceDone := make(chan struct{})
+	go func() { defer close(maintenanceDone); repo.MaintainSync(maintenanceCtx) }()
+	defer func() { stopMaintenance(); <-maintenanceDone }()
 	hs.TasksCheck = func() model.Check {
 		if taskService.Accessory != nil {
 			return taskService.Accessory.Check(h.Settings().AccessoryCue.Enabled)
@@ -292,8 +309,10 @@ func run() error {
 			}
 			live.OnStored = enqueue
 			link.Source = live
-			h.Messenger = live
+			syncService.Messenger = live
+			h.Messenger = syncService
 			mc.Downloader = live
+			taskService.CoverMedia = live
 			avatars.Lookup = live
 			hs.Connection = live
 			return live.Resume(link.Emit)
@@ -301,6 +320,20 @@ func run() error {
 		return nil
 	}
 	mc.Link = link
+	syncService.Bind(h)
+	mc.SendingStatus = syncService.SendingStatus
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				_ = syncService.Coordinate(ctx)
+			}
+		}
+	}()
 	server := &api.Server{Knowledge: syncService, Avatars: avatars, Hub: h, People: p, MCP: mc, Link: link, Health: hs, Remote: rem, Migration: migration, Port: *port, ControlToken: control, StatusToken: status, Context: ctx, Gate: gate}
 	// Stop serving before initialization-owned services close on every exit path.
 	defer httpServer.Close()
@@ -343,6 +376,8 @@ func run() error {
 		}, gate)
 	}()
 	defer func() { stop(); <-effortDone }()
+	pulse := time.NewTicker(5 * time.Second)
+	defer pulse.Stop()
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	lastStats := time.Time{}
@@ -359,7 +394,10 @@ func run() error {
 				return nil
 			}
 			return err
+		case <-pulse.C:
+			heartbeat.Store(time.Now().UnixNano())
 		case <-ticker.C:
+			heartbeat.Store(time.Now().UnixNano())
 			gate.RLock()
 			_ = h.Expire()
 			_ = h.Retain()

@@ -70,7 +70,9 @@ func (c chatContext) hiddenPerson(p model.Person) bool {
 	}
 	return false
 }
-func (c chatContext) peopleFor(chats []Entity) []Entity {
+func (c chatContext) peopleFor(chats []Entity) []Entity    { return c.peopleForLimit(chats, true) }
+func (c chatContext) allPeopleFor(chats []Entity) []Entity { return c.peopleForLimit(chats, false) }
+func (c chatContext) peopleForLimit(chats []Entity, smallOnly bool) []Entity {
 	out := []Entity{}
 	for _, ch := range chats {
 		if c.hidden(ch.ID) {
@@ -80,16 +82,16 @@ func (c chatContext) peopleFor(chats []Entity) []Entity {
 		if strings.HasSuffix(ch.ID, "@g.us") {
 			for _, m := range c.members {
 				if m.Group == ch.ID && m.Person != "me" {
-					if p, ok := c.people[m.Person]; ok && personName(p) != "" {
+					if p, ok := c.people[m.Person]; ok && (personName(p) != "" || !smallOnly) {
 						ids[p.ID] = true
 					}
 				}
 			}
 			// Count known members before hiding people so privacy never makes a big group small.
-			if len(ids) > 3 {
+			if smallOnly && len(ids) > 3 {
 				continue
 			}
-		} else if p, ok := c.byJID[c.canonical(ch.ID)]; ok && p.ID != "me" && personName(p) != "" {
+		} else if p, ok := c.byJID[c.canonical(ch.ID)]; ok && p.ID != "me" && (personName(p) != "" || !smallOnly) {
 			ids[p.ID] = true
 		}
 		sorted := []string{}
@@ -100,7 +102,11 @@ func (c chatContext) peopleFor(chats []Entity) []Entity {
 		for _, id := range sorted {
 			p := c.people[id]
 			if !c.hiddenPerson(p) {
-				out = mergeEntities(out, []Entity{{ID: id, Name: personName(p)}})
+				name := personName(p)
+				if name == "" {
+					name = "Unnamed participant"
+				}
+				out = mergeEntities(out, []Entity{{ID: id, Name: name}})
 			}
 		}
 	}
@@ -115,6 +121,10 @@ func (s *Service) latest(t Task) ([]LatestMessage, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.latestInContext(t, c)
+}
+func (s *Service) latestInContext(t Task, c chatContext) ([]LatestMessage, error) {
+	out := []LatestMessage{}
 	// Filter hidden senders before LIMIT, including every alias and every JID of a hidden person.
 	blocked := map[string]bool{}
 	for _, p := range c.people {

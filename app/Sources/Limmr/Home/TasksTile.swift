@@ -1,3 +1,4 @@
+import AppKit
 import LimmrKit
 import SwiftUI
 
@@ -8,26 +9,29 @@ struct TaskSummaryRow: View {
     Button(action: open) {
       VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .firstTextBaseline) {
-          Text(task.title).font(AppType.rowTitle).fixedSize(horizontal: false, vertical: true)
+          Text(task.title).font(.headline).fixedSize(horizontal: false, vertical: true)
           Spacer(minLength: 12)
           if task.needsYou {
-            Text("Needs you").font(AppType.caption).foregroundStyle(Color.accentColor)
+            Text("Needs you").font(.caption).foregroundStyle(Color.accentColor)
               .padding(.horizontal, 7).padding(.vertical, 3)
               .background(Color.accentColor.opacity(0.1), in: Capsule()).fixedSize()
           }
-          else { Text(task.status.capitalized).font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
+          else { Text(task.status.capitalized).font(.caption).foregroundStyle(.secondary) }
         }
         if task.progress.total > 0 {
           ProgressView(value: task.progress.fraction).progressViewStyle(TaskCardProgressStyle()).accessibilityLabel(task.progress.text)
-          Text(task.progress.text).font(AppType.caption).foregroundStyle(AccessibleSecondary())
+          Text(task.progress.text).font(.caption).foregroundStyle(.secondary)
         }
-        if let waiting = task.waiting { Text(TaskPresentation.waiting(waiting)).font(.callout).foregroundStyle(AccessibleSecondary()) }
+        if ["done", "dropped", "dismissed"].contains(task.status) {
+          Text(TaskListPresentation.closure(task)).font(.caption).foregroundStyle(.secondary)
+        }
+        if let waiting = task.waiting { Text(TaskPresentation.waiting(waiting)).font(.callout).foregroundStyle(.secondary) }
         if let at = task.nextCheckInAt {
-          Text("Next check-in · \(TaskPresentation.checkIn(at))").font(.callout).foregroundStyle(AccessibleSecondary())
+          Text("Next check-in · \(TaskPresentation.checkIn(at))").font(.callout).foregroundStyle(.secondary)
         }
       }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .modifier(HomeTileSurface()).contentShape(RoundedRectangle(cornerRadius: 10))
-    }.limmrButton(.row(radius: 10, bordered: false), id: "task-\(task.id)")
+    }.quietCard()
       .accessibilityElement(children: .ignore)
       .accessibilityLabel(TaskPresentation.accessibilityLabel(task))
       .accessibilityHint("Open task workspace")
@@ -38,17 +42,23 @@ struct TasksTile: View {
   @Bindable var store: AppStore
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Tasks").font(AppType.blockHeading).foregroundStyle(AccessibleSecondary())
-      VStack(alignment: .leading, spacing: 10) {
-        ForEach(TaskPresentation.open(store.home.tasks).prefix(6)) { task in
-          SurfacedTaskRow(store: store, task: task)
-        }
-        ForEach(TaskPresentation.suggested(store.home.tasks).prefix(3)) { task in
-          SurfacedTaskRow(store: store, task: task)
+      HStack {
+        Text("Tasks").font(.title3.weight(.semibold)).foregroundStyle(.secondary)
+        Spacer()
+        Button("Show all") { store.selectPage(.tasks) }.buttonStyle(.bordered)
+      }
+      ScrollView(.horizontal) {
+        N1TaskGallery(store: store, tasks: Array(TaskListPresentation.active(store.home.tasks).prefix(6)), horizontal: true)
+      }.frame(height: 300)
+      if let notice = store.taskQuietNotice {
+        HStack {
+          Text(notice).font(.caption).foregroundStyle(.secondary)
+          Button("Undo") { Task { await store.undoQuietTask() } }.buttonStyle(.bordered).controlSize(.small)
         }
       }
     }
   }
+
 }
 
 /// AppKit's default linear style ignores tint inside a row button on macOS.
@@ -69,50 +79,46 @@ struct TaskCardProgressStyle: ProgressViewStyle {
 struct SurfacedTaskRow: View {
   @Bindable var store: AppStore
   let task: TaskSummary
+  var galleryFocus: FocusState<String?>.Binding? = nil
+  @Environment(\.colorScheme) private var colorScheme
+  @State private var coverPreview: URL?
+  @State private var showCoverPicker = false
+  var compact = false
   var changed: (TaskSummary) -> Void = { _ in }
   private var suggested: Bool { task.status == "suggested" }
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Button { store.openTask(task.id) } label: {
-        VStack(alignment: .leading, spacing: 6) {
-          HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(task.title).font(.callout.weight(suggested ? .regular : .semibold)).lineLimit(1)
-            Spacer(minLength: 8)
-            if suggested { Color.clear.frame(width: 150, height: 22) }
-            else if task.needsYou {
-              Text("Needs you").font(AppType.caption).foregroundStyle(Color.accentColor)
-            } else if task.progress.total > 0 {
-              Text(task.progress.text).font(AppType.caption).foregroundStyle(AccessibleSecondary())
-            }
-          }
-          if suggested, let signal = task.suggestion?.signals.first {
-            Text(signal).font(AppType.caption).foregroundStyle(AccessibleSecondary()).lineLimit(1).help(signal)
-          }
-        }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
-          .background(.primary.opacity(suggested ? 0.012 : 0.035), in: RoundedRectangle(cornerRadius: 8))
-          .contentShape(RoundedRectangle(cornerRadius: 8))
-      }.limmrButton(.row(radius: 8, bordered: false), id: "surfaced-task-\(task.id)")
-        .accessibilityLabel("Open task: \(task.title)")
-        .overlay(alignment: .topTrailing) {
-          if suggested {
-            HStack(spacing: 8) {
-              Button("Keep") { act(.keep) }.buttonStyle(.borderedProminent)
-                .accessibilityLabel("Keep \(task.title)")
-              Button("Not a task") { act(.dismiss) }.buttonStyle(.bordered)
-                .accessibilityLabel("Dismiss \(task.title) as a task")
-            }.controlSize(.small).padding(12)
-          }
-        }
-      if TaskPresentation.canUndo(task, now: store.demo ? Timestamp.date(DemoData.now)! : Date()) {
-        HStack(spacing: 4) {
-          Text("Started by \(task.createdBy.name.isEmpty ? "an AI" : task.createdBy.name) ·")
-          Button("Undo") { act(.undo) }.limmrButton().accessibilityLabel("Undo starting \(task.title)")
-        }.font(AppType.caption).foregroundStyle(AccessibleSecondary()).padding(.horizontal, 12)
+      Group {
+        if compact { PurposeTaskCard(store: store, task: task) }
+        else { N1TaskCover(store: store, task: task, preview: coverPreview, galleryFocus: galleryFocus) }
       }
+        .contextMenu {
+          Button("Open") { store.openTask(task.id) }
+          Button("Change cover…") { showCoverPicker = true }
+          if task.cover != nil { Button("Remove cover") { removeCover() } }
+          if suggested { Button("Keep") { act(.keep) } }
+          if TaskPresentation.canUndo(task, now: store.presentationNow) {
+            Button("Undo tracking") { act(.undo) }
+          }
+          Button(task.status == "quiet" ? "Wake task" : "Make quiet") { Task { await store.quietTask(task.id, status: task.status == "quiet" ? "active" : "quiet") } }
+          Button("Done") { Task { await store.quietTask(task.id, status: "done") } }
+          Button("Not now") { Task { await store.quietTask(task.id, status: "dropped") } }
+        }
       if let error = store.taskActionErrors[task.id] {
-        Text(error).font(AppType.caption).foregroundStyle(AccessibleSecondary()).padding(.horizontal, 12)
+        Text(error).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 12)
       }
     }.disabled(store.taskActions.contains(task.id))
+      .task(id: task.coverCandidate?.thumbnailUrl ?? task.cover?.id) {
+        coverPreview = await store.taskCovers.load(task, backend: store.backend, generation: store.backendGeneration)?.url
+      }
+      .sheet(isPresented: $showCoverPicker) { TaskCoverPicker(store: store, taskID: task.id) }
+  }
+  private func removeCover() {
+    Task {
+      var patch = TaskPatch(); patch.coverRemoved = true
+      do { _ = try await TaskClient(backend: store.backend).patch(task.id, patch); await store.refreshTaskHome() }
+      catch { store.taskActionErrors[task.id] = "Couldn’t remove the cover." }
+    }
   }
   private func act(_ action: TaskSurfacingAction) {
     Task { if let updated = await store.surfaceTask(task.id, action: action) { changed(updated) } }

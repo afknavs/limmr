@@ -53,7 +53,7 @@ def excluded(path):
     return ((path.startswith('docs/') and PRIVATE_PATTERN.search(path) is not None)
             or bool(set(p.parts) & EXCLUDED_PARTS) or p.name in EXCLUDED_NAMES
             or p.name.endswith('-REPORT.md') or p.name.startswith('CODEX-')
-            or path.startswith(('docs/lanes/', 'docs/snapshots/'))
+            or path.startswith(('docs/lanes/', 'docs/reports/', 'docs/snapshots/'))
             or 'how-it-was-made' in path.lower()
             or path in {'docs/SPEC.md', 'docs/OWNER-CHECKS.md', 'docs/U3-DESIGN.md', 'docs/HOW-IT-WAS-MADE.md'}
             or (path.startswith('docs/') and (p.suffix in BINARY_ASSETS or any('snapshot' in part for part in p.parts))

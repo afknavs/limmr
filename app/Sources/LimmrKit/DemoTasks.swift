@@ -45,12 +45,26 @@ public enum DemoTasks {
     ]
     return ([study, autoKept, waiting] + suggestions).map { value in
       var task = value
+      task.lastActiveAt = task.updatedAt
+      if task.circleIds.isEmpty, let effortID = task.effortId, let effort = DemoEfforts.efforts.first(where: { $0.id == effortID }) { task.circleIds = effort.circleIds }
+      if task.id == "tsk_study" {
+        task.latest = [
+          .init(chatJid: studyChat.id, messageId: "study-latest", chat: "Study group", sender: "Noor", timestamp: DemoData.now, text: "The first practice set is finished. Can we review memory next?"),
+          .init(chatJid: studyChat.id, messageId: "study-earlier", chat: "Study group", sender: "You", timestamp: "2026-10-17T11:00:00Z", text: "Yes — I’ll bring short recall questions for our next session.")
+        ]
+      }
       task.history = [
         .init(at: DemoData.now, kind: "step_done", text: "Practice set completed · Codex"),
         .init(at: "2026-10-16T12:00:00Z", kind: "item_added", text: "Revision notebook added · Codex"),
         .init(at: "2026-10-15T12:00:00Z", kind: "kept", text: "Task kept · you"),
         .init(at: "2026-10-14T12:00:00Z", kind: "suggested", text: "Limmr spotted this work")
       ]
+      if task.id == "tsk_study" {
+        task.history.insert(contentsOf: [
+          .init(at: DemoData.now, kind: "due", text: "Check-in fired — ready for review"),
+          .init(at: "2026-10-16T09:00:00Z", kind: "check_in_scheduled", text: "Check-in scheduled")
+        ], at: 0)
+      }
       if task.status == "suggested" {
         task.history = [.init(at: task.createdAt, kind: "suggested", text: "Limmr spotted this work")]
       } else if task.autoKeptAt != nil {

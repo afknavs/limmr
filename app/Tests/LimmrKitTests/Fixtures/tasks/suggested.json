@@ -1,12 +1,23 @@
 {
   "tasks": [
     {
+      "circle_ids": [
+        "work"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "work",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
         "name": "You"
       },
       "id": "tsk_demo_application",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "limmr",
       "progress": {
@@ -25,12 +36,23 @@
       "title": "Prepare the fundraiser application"
     },
     {
+      "circle_ids": [
+        "flatmates"
+      ],
+      "circle_suggestions": [
+        {
+          "circle_id": "flatmates",
+          "reason": "A linked chat is in this circle"
+        }
+      ],
+      "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
         "name": "You"
       },
       "id": "tsk_demo_guide",
       "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
       "needs_you": false,
       "origin": "limmr",
       "progress": {

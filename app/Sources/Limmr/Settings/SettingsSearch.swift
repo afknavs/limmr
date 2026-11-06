@@ -5,22 +5,24 @@ struct SettingsSearchEntry: Identifiable {
   let keywords: String
   let tab: SettingsTab
   var id: String { label }
+  var advanced: Bool { Self.advancedLabels.contains(label) }
+  static let advancedLabels: Set<String> = ["Set up Limmr", "Explore with sample data", "Updates", "Data folder", "Engine controls", "WhatsApp connection", "Circles", "Previous setup", "Run all checks"]
   static let all: [Self] = [
     .init(label: "Launch Limmr at login", keywords: "startup automatic", tab: .general),
-    .init(label: "Current chats", keywords: "days recent older history", tab: .general),
+    .init(label: "Current chats", keywords: "days recent older history", tab: .privacy),
     .init(label: "Keep activity for", keywords: "retention delete log days", tab: .general),
     .init(label: "Approval notifications", keywords: "alerts enable", tab: .general),
-    .init(label: "About you", keywords: "profile name studies work", tab: .general),
-    .init(label: "New circles", keywords: "automatic ask maximum", tab: .general),
+    .init(label: "About you", keywords: "profile name studies work", tab: .privacy),
+    .init(label: "New circles", keywords: "automatic ask maximum", tab: .privacy),
     .init(label: "Export people…", keywords: "save download json contacts", tab: .people),
     .init(label: "Fill in from your AI…", keywords: "people details suggest prompt", tab: .people),
     .init(label: "WhatsApp", keywords: "source connection linked", tab: .sources),
     .init(
       label: "Infer how I know frequent contacts", keywords: "people relationship on device re-run",
       tab: .people),
-    .init(label: "Sync with another Limmr", keywords: "dot server mac pair sync", tab: .integrations),
+    .init(label: "Sync with another Limmr", keywords: "dot server mac pair sync", tab: .connections),
     .init(
-      label: "Integrations", keywords: "agents ai permissions access chats tokens",
+      label: "AI apps", keywords: "integrations agents ai permissions access chats tokens",
       tab: .integrations),
     .init(
       label: "First briefs from This Mac", keywords: "on device model apple intelligence summaries efforts naming background",
@@ -29,12 +31,13 @@ struct SettingsSearchEntry: Identifiable {
     .init(
       label: "Allow remote connections", keywords: "chatgpt claude network mcp tunnel", tab: .remote
     ),
+    .init(label: "Run all checks", keywords: "health diagnostics repair", tab: .connections),
     .init(label: "Health", keywords: "diagnostics errors repair connection", tab: .health),
     .init(label: "Set up Limmr", keywords: "setup onboarding welcome", tab: .advanced),
     .init(label: "Explore with sample data", keywords: "demo examples", tab: .advanced),
     .init(label: "Updates", keywords: "version upgrade release", tab: .advanced),
     .init(label: "Data folder", keywords: "storage database files", tab: .advanced),
-    .init(label: "Background helper", keywords: "engine stop service", tab: .advanced),
+    .init(label: "Engine controls", keywords: "engine background helper stop service", tab: .advanced),
     .init(label: "WhatsApp connection", keywords: "unlink disconnect", tab: .advanced),
     .init(label: "Circles", keywords: "reset start over", tab: .advanced),
     .init(label: "Previous setup", keywords: "migration undo", tab: .advanced),

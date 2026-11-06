@@ -16,16 +16,16 @@ struct EntityIconButton: View {
     } label: {
       if let title {
         HStack(spacing: 5) {
-          if let icon, icon.kind == "emoji" { Text(icon.value) }
+          if let icon, (icon.kind == "emoji" || icon.kind == "monogram") { Text(icon.value) }
           else if let icon { Image(systemName: icon.value) }
           Text(title)
-          Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
+          Image(systemName: "chevron.down").font(.caption).imageScale(.small)
         }
-        .font(AppType.caption).foregroundStyle(AccessibleSecondary())
+        .font(.caption).foregroundStyle(.secondary)
         .padding(.vertical, 6).contentShape(Rectangle())
       } else {
         Group {
-          if let icon, icon.kind == "emoji" {
+          if let icon, (icon.kind == "emoji" || icon.kind == "monogram") {
             Text(icon.value)
           } else if let icon {
             Image(systemName: icon.value)
@@ -67,7 +67,7 @@ struct IconPickerView: View {
       Text("Choose an icon").font(.headline)
       TextField("Search symbols or emoji", text: $query).textFieldStyle(.roundedBorder)
       if !recent.isEmpty && query.isEmpty {
-        Text("Recent").font(.caption).foregroundStyle(AccessibleSecondary())
+        Text("Recent").font(.caption).foregroundStyle(.secondary)
         HStack { ForEach(recent.prefix(6), id: \.self) { pick($0) } }
       }
       ScrollView {
@@ -99,7 +99,7 @@ struct IconPickerView: View {
     Button {
       select(icon)
     } label: {
-      Group { if icon.kind == "emoji" { Text(icon.value) } else { Image(systemName: icon.value) } }
+      Group { if (icon.kind == "emoji" || icon.kind == "monogram") { Text(icon.value) } else { Image(systemName: icon.value) } }
         .frame(width: 32, height: 32).background(
           .primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
     }.limmrButton().help(icon.value).accessibilityLabel(icon.value)
@@ -108,11 +108,17 @@ struct IconPickerView: View {
 extension AppStore {
   func refreshHistory() async {
     await load("/v1/stats/history?days=364", title: "Message history") { (value: StatsHistory) in
-      history = value
+      history = value.days.isEmpty && status?.linked == false ? nil : value
     }
   }
 
   func setIcon(bucket: String, id: String, icon: EntityIcon?) async -> Bool {
+    var icon = icon
+    if bucket == "circles", let circle = circles.first(where: { $0.id == id }), let hue = circle.icon?.hue, icon?.hue == nil {
+      if icon == nil { icon = .init(kind: "symbol", value: circle.displaySymbol, hue: hue) }
+      else { icon?.hue = hue }
+    }
+    let chosen = icon
     var succeeded = false
     await perform(action: "icon") { [self] in
       struct Patch: Encodable {
@@ -124,8 +130,8 @@ extension AppStore {
         enum Keys: String, CodingKey { case icon }
       }
       _ = try await backend.request(
-        "/v1/\(bucket)/\(id)", method: "PATCH", body: Wire.data(Patch(icon: icon)))
-      if let icon { recentIcons = Array(([icon] + recentIcons.filter { $0 != icon }).prefix(6)) }
+        "/v1/\(bucket)/\(id)", method: "PATCH", body: Wire.data(Patch(icon: chosen)))
+      if let icon = chosen { recentIcons = Array(([icon] + recentIcons.filter { $0 != icon }).prefix(6)) }
       await refresh()
       if bucket == "circles" { await loadCircle(id) }
       succeeded = true

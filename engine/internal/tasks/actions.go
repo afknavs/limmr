@@ -29,6 +29,11 @@ func Decode(v any, out any) error {
 }
 func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task, error) {
 	type patch struct {
+		CircleIDs      *[]string       `json:"circle_ids"`
+		CoverItemID    *string         `json:"cover_item_id"`
+		CoverRemoved   *bool           `json:"cover_removed"`
+		EndAt          *time.Time      `json:"end_at"`
+		EndCondition   *string         `json:"end_condition"`
 		Title          *string         `json:"title"`
 		Goal           *string         `json:"goal"`
 		Kind           *string         `json:"kind"`
@@ -40,6 +45,17 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		Waiting        json.RawMessage `json:"waiting"`
 		Reason         *string         `json:"reason"`
 		CloseReason    *string         `json:"close_reason"`
+	}
+	if a != nil {
+		if _, ok := fields["circle_ids"]; ok {
+			return Task{}, model.ErrForbidden
+		}
+		if _, ok := fields["cover_item_id"]; ok {
+			return Task{}, model.ErrForbidden
+		}
+		if _, ok := fields["cover_removed"]; ok {
+			return Task{}, model.ErrForbidden
+		}
 	}
 	var p patch
 	if err := Decode(fields, &p); err != nil {
@@ -103,7 +119,46 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		w.NudgeState = "none"
 		w.NudgeSuggestionID = ""
 	}
+	if p.CircleIDs != nil {
+		ids := []string{}
+		for _, id := range *p.CircleIDs {
+			var circle model.Circle
+			if err := s.Hub.Repo.Get("circles", id, &circle); err != nil || circle.Archived {
+				return Task{}, model.ErrInvalid
+			}
+			if !model.Contains(ids, id) {
+				ids = append(ids, id)
+			}
+		}
+
+		p.CircleIDs = &ids
+	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		if p.CircleIDs != nil {
+			r.CircleIDs = *p.CircleIDs
+			r.CircleSuggestions = nil
+			r.CirclesEdited = true
+			if err := s.event(tx, *r, dbutil.ID(), "circles_changed", "Task circles changed", map[string]string{"by": "you"}); err != nil {
+				return err
+			}
+		}
+		if p.CoverItemID != nil {
+			found := *p.CoverItemID == ""
+			for _, it := range r.Items {
+				if it.ID == *p.CoverItemID && it.MediaType == "image" {
+					found = true
+				}
+			}
+			if !found {
+				return model.ErrInvalid
+			}
+			r.CoverItemID = *p.CoverItemID
+			r.CoverRemoved = false
+		}
+		if p.CoverRemoved != nil {
+			r.CoverRemoved = *p.CoverRemoved
+		}
+		s.chooseCover(&r.Task)
 		if r.Status == "suggested" && (p.Status != nil || p.Waiting != nil || p.CheckIn != nil) {
 			return model.ErrConflict
 		}
@@ -123,6 +178,12 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 				return model.ErrConflict
 			}
 		}
+		if p.EndAt != nil {
+			r.EndAt = p.EndAt
+		}
+		if p.EndCondition != nil {
+			r.EndCondition = *p.EndCondition
+		}
 		if p.Title != nil {
 			r.Title = strings.TrimSpace(*p.Title)
 		}
@@ -133,10 +194,20 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 			r.Kind = *p.Kind
 		}
 		if p.Status != nil {
+			if *p.Status == "quiet" {
+				r.LastActiveAt = s.now()
+			}
 			r.Status = *p.Status
+			if a != nil && *p.Status == "done" {
+				r.CloseReason = "agent_done"
+			}
 			if open(r.Task) {
 				r.ClosedAt = nil
 				r.CloseReason = ""
+				r.LastActiveAt = s.now()
+				if r.EndAt != nil && !r.EndAt.After(s.now()) {
+					r.EndAt = nil
+				}
 			}
 		}
 		if p.LifespanDays != nil {
@@ -155,6 +226,11 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		}
 		if p.CheckIn != nil {
 			r.CheckIn = ci
+			if ci != nil {
+				if err := s.event(tx, *r, "scheduled:"+s.now().Format(time.RFC3339Nano), "check_in_scheduled", "Check-in scheduled", nil); err != nil {
+					return err
+				}
+			}
 			r.DraftCheckIn = ""
 			r.DraftSlot = ""
 		}
@@ -297,13 +373,13 @@ func (s *Service) Checklist(a *model.Agent, id, op string, steps []Step) (Task, 
 					if !old.Done {
 						old.Done = true
 						old.DoneAt = &now
-						if err := s.event(tx, *r, "step:"+old.ID+":"+dbutil.ID(), "step_done", "Step completed", nil); err != nil {
+						if err := s.event(tx, *r, "step:"+old.ID+":"+dbutil.ID(), "step_done", "Step completed", actorCredit(a)); err != nil {
 							return err
 						}
 					}
 				case "undo":
 					if old.Done {
-						if err := s.event(tx, *r, "step:"+old.ID+":"+dbutil.ID(), "step_reopened", "Step marked incomplete", nil); err != nil {
+						if err := s.event(tx, *r, "step:"+old.ID+":"+dbutil.ID(), "step_reopened", "Step marked incomplete", actorCredit(a)); err != nil {
 							return err
 						}
 					}
@@ -395,11 +471,11 @@ func (s *Service) UpdateStep(id, step string, text *string, done *bool, order *i
 			if *done {
 				now := s.now()
 				st.DoneAt = &now
-				if err := s.event(tx, *r, "step:"+st.ID+":"+dbutil.ID(), "step_done", "Step completed", nil); err != nil {
+				if err := s.event(tx, *r, "step:"+st.ID+":"+dbutil.ID(), "step_done", "Step completed", actorCredit(nil)); err != nil {
 					return err
 				}
 			} else {
-				if err := s.event(tx, *r, "step:"+st.ID+":"+dbutil.ID(), "step_reopened", "Step marked incomplete", nil); err != nil {
+				if err := s.event(tx, *r, "step:"+st.ID+":"+dbutil.ID(), "step_reopened", "Step marked incomplete", actorCredit(nil)); err != nil {
 					return err
 				}
 			}

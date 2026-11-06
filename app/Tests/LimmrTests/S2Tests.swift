@@ -71,7 +71,7 @@ struct S2Tests {
     let sidebar = try source("RootView.swift")
     #expect(sidebar.contains("Label(\"Settings\", systemImage: \"gearshape\")"))
     #expect(!sidebar.contains("Image(systemName: \"ellipsis\")"))
-    #expect(sidebar.range(of: "Label(\"Settings\"")!.lowerBound < sidebar.range(of: "SidebarPresence(store:")!.lowerBound)
+    #expect(sidebar.range(of: "SidebarPresence(store:")!.lowerBound < sidebar.range(of: "Label(\"Settings\"")!.lowerBound)
     let settings = try source("HealthSettings.swift")
     #expect(!settings.contains("NavigationSplitView"))
     #expect(settings.contains("AboutYouCard(store: store)"))

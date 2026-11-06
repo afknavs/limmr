@@ -4,7 +4,7 @@ import SwiftUI
 struct BriefsSettings: View {
   @Bindable var store: AppStore
   var body: some View {
-    Section {
+    VStack(alignment: .leading, spacing: 12) {
       Toggle(
         "First briefs from This Mac",
         isOn: Binding(
@@ -31,8 +31,6 @@ struct BriefsSettings: View {
         Text(notice).font(.callout).foregroundStyle(AccessibleSecondary())
       }
       ActionFeedback(store: store, action: "mac-briefs")
-    } header: {
-      SettingsPaneTitle(title: "Briefs")
-    }
+    }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
   }
 }

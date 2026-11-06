@@ -56,11 +56,11 @@ class ExportTests(unittest.TestCase):
         return root
     def test_excludes_runtime_and_internal_files_and_uses_commit(self):
         with tempfile.TemporaryDirectory() as d:
-            root=self.repo(d,{'README.md':'com.abhinav.test /Users/abhinavm/project\n','docs/lanes/plan.md':'private plan','docs/SPEC.md':'Owner biography that must not export','runtime/hub.db':'fake database','.bridge-token':'fake denied file','docs/snapshots/a.png':'fake snapshot','docs/images/legacy/a.jpg':'fake legacy snapshot','integrations/chatgpt/instructions.md':'retained','app/Tests/LimmrKitTests/Fixtures/tasks/a.json':'{}'})
+            root=self.repo(d,{'README.md':'com.abhinav.test /Users/abhinavm/project\n','docs/reports/video-polish.md':'internal report','docs/reports/video-polish/frame.png':'invented snapshot','docs/lanes/plan.md':'private plan','docs/SPEC.md':'Owner biography that must not export','runtime/hub.db':'fake database','.bridge-token':'fake denied file','docs/snapshots/a.png':'fake snapshot','docs/images/legacy/a.jpg':'fake legacy snapshot','integrations/chatgpt/instructions.md':'retained','app/Tests/LimmrKitTests/Fixtures/tasks/a.json':'{}'})
             (root/'README.md').write_text('UNCOMMITTED')
             out=Path(d)/'candidate';module.export(root,out)
             self.assertEqual((out/'README.md').read_text(),'dev.limmr.test /Users/example/project\n')
-            for name in ['docs/lanes/plan.md','docs/SPEC.md','runtime/hub.db','.bridge-token','docs/snapshots/a.png','docs/images/legacy/a.jpg']:
+            for name in ['docs/reports/video-polish.md','docs/reports/video-polish/frame.png','docs/lanes/plan.md','docs/SPEC.md','runtime/hub.db','.bridge-token','docs/snapshots/a.png','docs/images/legacy/a.jpg']:
                 self.assertFalse((out/name).exists())
             self.assertTrue((out/'app/Tests/LimmrKitTests/Fixtures/tasks/a.json').is_file())
             with self.assertRaises(ValueError):module.export(root,out)

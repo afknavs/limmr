@@ -3,9 +3,11 @@ import Foundation
 public struct EntityIcon: Codable, Sendable, Equatable, Hashable {
   public var kind: String
   public var value: String
-  public init(kind: String, value: String) {
+  public var hue: String? = nil
+  public init(kind: String, value: String, hue: String? = nil) {
     self.kind = kind
     self.value = value
+    self.hue = hue
   }
 }
 public struct HistoryAgent: Codable, Sendable, Equatable {

@@ -19,7 +19,7 @@ extension AppStore {
   func accessSummary(_ access: AgentAccess) -> String {
     access.summary(
       names: Dictionary(uniqueKeysWithValues: circles.map { ($0.id, $0.name) }),
-      at: demo ? Timestamp.date(DemoData.now)! : .now)
+      at: presentationNow)
   }
   func refreshSetup() async {
     let generation = backendGeneration

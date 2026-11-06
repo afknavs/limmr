@@ -133,7 +133,7 @@ import Observation
     } catch is CancellationError {
       return .seconds(30)
     } catch {
-      pending = 0; notice = "Naming will check again when the helper is available."
+      pending = 0; notice = "Naming will check again when Limmr’s engine is available."
       return .seconds(30)
     }
   }

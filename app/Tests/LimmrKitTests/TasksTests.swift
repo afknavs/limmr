@@ -3,6 +3,15 @@ import Testing
 @testable import LimmrKit
 
 @Suite("Q4 task contract") struct TasksTests {
+  @Test func homeOrdersNeedsYouThenRecentActivity() {
+    var old = TaskSummary(id: "old", title: "Alpha")
+    old.lastActiveAt = "2026-10-01T12:00:00Z"
+    var recent = TaskSummary(id: "recent", title: "Zulu")
+    recent.lastActiveAt = "2026-10-30T12:00:00Z"
+    var attention = TaskSummary(id: "attention", title: "Middle", needsYou: true)
+    attention.lastActiveAt = "2026-09-01T12:00:00Z"
+    #expect(TaskPresentation.open([old, recent, attention]).map(\.id) == ["attention", "recent", "old"])
+  }
   // Literal wire fixture follows TASKS-CONTRACT; it does not depend on our encoder or demo models.
   static let fixture = #"""
   {

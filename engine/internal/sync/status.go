@@ -25,7 +25,8 @@ func (s *Service) Status() (map[string]any, error) {
 	if e = s.Repo.DB.QueryRow(`SELECT count(*) FROM sync_log WHERE seq>?`, p.LastPushedSeq).Scan(&out); e != nil {
 		return nil, e
 	}
-	return map[string]any{"paired": p.EngineID != "", "automations_paused": false, "automation_policy": "single_holder", "paused": p.Paused, "engine_id": s.EngineID, "peer": map[string]any{"engine_id": p.EngineID, "name": "Your dot", "last_sync_at": p.LastSyncAt, "last_error": p.LastError}, "lease": map[string]any{"holder": lease.EngineID, "renewed_at": lease.RenewedAt, "this_mac": s.HoldsLease()}, "pending": map[string]int{"out": out, "in": 0}, "items_in": p.Applied, "items_out": p.Sent, "merge_reviews": pending}, nil
+	sending := s.SendingStatus()
+	return map[string]any{"sending": sending, "sending_summary": sending["summary"], "paired": p.EngineID != "", "automations_paused": !sending["lease_active"].(bool), "automation_policy": "single_holder", "paused": p.Paused, "engine_id": s.EngineID, "peer": map[string]any{"engine_id": p.EngineID, "agent_id": p.AgentID, "name": "Your dot", "last_sync_at": p.LastSyncAt, "last_error": p.LastError}, "lease": map[string]any{"holder": lease.EngineID, "renewed_at": lease.RenewedAt, "expires_at": lease.ExpiresAt, "epoch": lease.Epoch, "this_mac": p.EngineID == "" || lease.EngineID == s.EngineID}, "pending": map[string]int{"out": out, "in": 0}, "items_in": p.Applied, "items_out": p.Sent, "merge_reviews": pending}, nil
 }
 
 // Owner resolution writes ordinary synced knowledge in the same transaction as

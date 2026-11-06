@@ -5,5 +5,6 @@
 <key>BundleProgram</key><string>Contents/Helpers/limmr-engine</string>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
+<key>ThrottleInterval</key><integer>30</integer>
 <key>ProcessType</key><string>Background</string>
 </dict></plist>

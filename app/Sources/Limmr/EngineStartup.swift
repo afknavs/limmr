@@ -13,17 +13,20 @@ enum EngineRegistration { case absent, registered, needsApproval }
   func recordHealthyHelper() async throws
   func unregister() async throws
   func register() async throws
+  func restart() async throws
 }
 
 extension EngineServiceManaging {
+  func restart() async throws { throw HelperUpdateFailure(reason: "Limmr’s background engine couldn’t restart. Try again.") }
   func readiness() async -> HelperReadiness { await probe() ? .ready : .unavailable }
 }
 
 /// Registration succeeding doesn't mean launchd accepted the new helper's constraints.
 /// Registration owns preflight, replacement and rollback; readiness requires authenticated health.
 @MainActor @Observable final class EngineStartup {
-  enum Phase: Equatable { case starting, restarting, updating, ready, newInstall, failed }
+  enum Phase: Equatable { case starting, busy, stalled, restarting, updating, ready, newInstall, failed }
   private(set) var phase: Phase = .starting
+  private(set) var progressMessage: String?
   private(set) var failureMessage: String?
   private var running = false
   private let log: (String) -> Void
@@ -36,21 +39,40 @@ extension EngineServiceManaging {
     self.log = log
     self.logError = logError
   }
-  func recover(using service: any EngineServiceManaging, allowInstall: Bool = false) async {
+  func recover(using service: any EngineServiceManaging, allowInstall: Bool = false, restartIfStalled: Bool = false) async {
     guard !running else { return }
     running = true
     defer { running = false }
+    let wasStalled = phase == .stalled
     phase = .starting
     failureMessage = nil
+    progressMessage = nil
+    if wasStalled && restartIfStalled {
+      if await updateBusyEngineIfNeeded(service) { return }
+      await restartExisting(service)
+      return
+    }
     let registration = service.registration
+    let initialReadiness = await service.readiness()
+    if initialReadiness == .busy, await updateBusyEngineIfNeeded(service) { return }
     var healthy: Bool
-    do { healthy = try await settledHealth(service) }
+    do { healthy = try await settledHealth(service, initial: initialReadiness) }
+    catch is EngineReadinessStalled {
+      if await updateBusyEngineIfNeeded(service) { return }
+      if restartIfStalled { await restartExisting(service) } else { offerRestart() }
+      return
+    }
     catch { fail(error); return }
     // One slow 0.75 s answer at launch must not send a running engine down the restart path.
     if !healthy && registration != .absent {
       for _ in 0..<2 where !healthy {
         try? await pause(.milliseconds(500))
         do { healthy = try await settledHealth(service) }
+        catch is EngineReadinessStalled {
+          if await updateBusyEngineIfNeeded(service) { return }
+          if restartIfStalled { await restartExisting(service) } else { offerRestart() }
+          return
+        }
         catch { fail(error); return }
       }
     }
@@ -58,7 +80,7 @@ extension EngineServiceManaging {
       do {
         if try await service.needsUpdate() {
           phase = .updating
-          log("Running helper differs from the bundled engine; preparing a safe update.")
+          log("The running background engine differs from the bundled build; preparing a safe update.")
           try Task.checkCancellation()
           try await service.register()
           for _ in 0..<16 {
@@ -70,7 +92,7 @@ extension EngineServiceManaging {
               return
             }
           }
-          throw HelperUpdateFailure(reason: "The new helper did not become healthy after registration.")
+          throw HelperUpdateFailure(reason: "Limmr’s new background engine did not become ready.")
         }
         phase = .ready
       } catch {
@@ -79,7 +101,7 @@ extension EngineServiceManaging {
         let previous = retained ? (try? await service.needsUpdate()) == true : false
         failureMessage = "The engine update couldn’t finish. " + reason
           + (previous ? " The previous engine is still running." :
-             retained ? " The background helper is still running." : " The background helper is not responding. Try again.")
+             retained ? " Limmr’s background engine is still running." : " Limmr’s background engine is not responding. Try again.")
         logError(failureMessage!)
         phase = .failed
       }
@@ -107,7 +129,7 @@ extension EngineServiceManaging {
       } catch is CancellationError { phase = .failed; return }
       catch {
         failureMessage = HelperUpdateFailure.describing(error)
-        logError("Starting the background helper failed. " + failureMessage!)
+        logError("Starting Limmr’s background engine failed. " + failureMessage!)
       }
       if attempt < 2 {
         do { try await pause(.milliseconds(250 * (1 << attempt))) }
@@ -116,8 +138,53 @@ extension EngineServiceManaging {
     }
     phase = .failed
   }
-  private func settledHealth(_ service: any EngineServiceManaging) async throws -> Bool {
-    try await HelperReadinessWait.ready(probe: { await service.readiness() }, pause: pause)
+  private func updateBusyEngineIfNeeded(_ service: any EngineServiceManaging) async -> Bool {
+    guard (try? await service.needsUpdate()) == true else { return false }
+    phase = .updating
+    do {
+      try await service.register()
+      guard try await settledHealth(service) else { throw EngineReadinessStalled() }
+      try await service.recordHealthyHelper()
+      phase = .ready
+    } catch { fail(error) }
+    return true
+  }
+  private func offerRestart() {
+    phase = .stalled
+    progressMessage = nil
+    failureMessage = EngineReadinessStalled().localizedDescription
+  }
+  private func restartExisting(_ service: any EngineServiceManaging) async {
+    phase = .restarting
+    progressMessage = "Restarting Limmr’s background engine…"
+    do {
+      try Task.checkCancellation()
+      try await service.restart()
+      progressMessage = "Waiting for Limmr’s background engine to respond…"
+      // launchd may return before the new process opens its listener. Poll health
+      // through that gap; never use registration/replacement as a restart fallback.
+      let ready = try await HelperReadinessWait.ready(probe: {
+        let state = await service.readiness()
+        return state == .unavailable ? .starting(progress: nil) : state
+      }, pause: pause)
+      guard ready else { throw EngineReadinessStalled() }
+      phase = .ready
+      progressMessage = nil
+      failureMessage = nil
+    } catch is CancellationError { phase = .failed; progressMessage = nil }
+    catch {
+      offerRestart()
+      failureMessage = "Limmr’s background engine couldn’t restart. " + HelperUpdateFailure.describing(error)
+    }
+  }
+  private func settledHealth(_ service: any EngineServiceManaging, initial: HelperReadiness? = nil) async throws -> Bool {
+    // The fast update decision already made this probe. Consume its result once
+    // instead of probing a healthy or missing engine twice.
+    var pending = initial
+    return try await HelperReadinessWait.ready(probe: {
+      if let first = pending { pending = nil; return first }
+      return await service.readiness()
+    }, pause: pause, onBusy: { self.phase = .busy })
   }
   private func fail(_ error: Error) {
     failureMessage = HelperUpdateFailure.describing(error)
@@ -129,9 +196,12 @@ extension EngineServiceManaging {
 struct EngineStartupView: View {
   let phase: EngineStartup.Phase
   var failureMessage: String? = nil
+  var progressMessage: String? = nil
   var retry: () -> Void
   private var state: EngineSurfaceState {
     switch phase {
+    case .busy: .busy
+    case .stalled: .stalled
     case .updating: .updating
     case .restarting: .restarting
     case .failed: .notRunning
@@ -144,13 +214,13 @@ struct EngineStartupView: View {
         if state.inProgress { ProgressView().controlSize(.small).accessibilityLabel(state.title) }
         VStack(alignment: .leading, spacing: 4) {
           Text(state.title).font(.headline)
-          Text(state.detail).font(.callout).foregroundStyle(AccessibleSecondary())
+          Text(progressMessage ?? state.detail).font(.callout).foregroundStyle(AccessibleSecondary())
         }
         Spacer(minLength: 0)
-        Button(phase == .failed ? "Try again" : "Check again", action: retry)
+        Button(phase == .stalled ? "Restart Limmr" : phase == .failed ? "Try again" : "Check again", action: retry)
           .buttonStyle(NativeGlassButtonStyle())
       }
-      if phase == .failed, let failureMessage {
+      if [.failed, .stalled].contains(phase), let failureMessage {
         Text(failureMessage).font(.caption).foregroundStyle(AccessibleSecondary())
           .fixedSize(horizontal: false, vertical: true)
       }

@@ -12,6 +12,7 @@ public struct EmptyBackend: Backend {
     case "/v1/waiting": return try Wire.data(WaitingResponse(waiting: []))
     case "/v1/tasks": return try Wire.data(TasksResponse())
     case "/v1/efforts": return try Wire.data(EffortsResponse(efforts: []))
+    case "/v1/stats/history": return try Wire.data(StatsHistory())
     case "/v1/home": return try Wire.data(HomeResponse.empty)
     case "/v1/circles": return try Wire.data(CirclesResponse(circles: []))
     case "/v1/presence": return try Wire.data(PresenceResponse(agents: []))

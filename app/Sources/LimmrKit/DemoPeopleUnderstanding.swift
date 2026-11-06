@@ -35,3 +35,26 @@ public enum DemoPeopleUnderstanding {
     return CircleMap(nodes: nodes, edges: edges, pulses: [])
   }
 }
+
+extension DemoPeopleUnderstanding {
+  /// Exactly 400 invented people with overlaps, direct links, chat squares and a suggested edge.
+  public static func network400(_ base: CircleMap) -> CircleMap {
+    var map = self.map(base)
+    let circleIDs = map.nodes.filter { $0.kind == "circle" }.map(\.id).sorted()
+    let first = ["Avery", "Casey", "Taylor", "Quinn", "Jamie", "Reese", "Drew", "Sage"]
+    let last = ["Stone", "Brooks", "Vale", "Reed", "Lane", "Hart", "West", "Bell", "Fox", "Lake"]
+    while map.nodes.filter({ $0.kind == "person" }).count < 400 {
+      let i = map.nodes.filter { $0.kind == "person" }.count
+      let circle = circleIDs[i % circleIDs.count]
+      let node = CircleMapNode(id: "n1-peer-\(i)", kind: "person", title: first[i % first.count] + " " + last[(i / 8) % last.count],
+        weight: Double(i % 100) / 100, lastActiveAt: DemoData.date(i * 17), circles: [circle], primaryCircleId: circle)
+      map.nodes.append(node)
+      map.edges.append(CircleMapEdge(source: circle, target: node.id, state: "confirmed"))
+    }
+    map.nodes.append(CircleMapNode(id: "n1-studio@g.us", kind: "chat", title: "Studio planning"))
+    map.edges.append(CircleMapEdge(source: "person-04", target: "n1-studio@g.us", kind: "shared_chat"))
+    map.edges.append(CircleMapEdge(source: "person-04", target: "person-05", kind: "collaborates", state: "confirmed"))
+    map.edges.append(CircleMapEdge(source: "family", target: "person-04", state: "suggested"))
+    return map
+  }
+}

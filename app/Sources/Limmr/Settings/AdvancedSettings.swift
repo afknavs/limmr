@@ -6,7 +6,7 @@ struct AdvancedSettings: View {
   @State private var confirm: String?
   @State private var reset = false
   var body: some View {
-    Section {
+    VStack(alignment: .leading, spacing: 14) {
       Button("Set up Limmr…") {
         store.setupStep = 0
         store.showSetup = true
@@ -28,10 +28,10 @@ struct AdvancedSettings: View {
         .buttonStyle(NativeGlassButtonStyle())
       }
       .settingsMatch("Data folder", store: store)
-      LabeledContent("Background helper") {
-        Button("Stop…") { confirm = "Stop background helper" }
+      LabeledContent("Limmr’s engine") {
+        Button("Stop…") { confirm = "Stop Limmr’s engine" }
       }
-      .settingsMatch("Background helper", store: store)
+      .settingsMatch("Engine controls", store: store)
       LabeledContent("WhatsApp connection") {
         Button("Unlink…") { confirm = "Unlink WhatsApp" }
       }
@@ -44,9 +44,10 @@ struct AdvancedSettings: View {
         Button("Undo migration…") { confirm = "Undo migration" }
       }
       .settingsMatch("Previous setup", store: store)
+      if store.checks.contains(where: { $0.fixId == "migrate_whatsapp_mcp" }) {
+        Button("Move previous setup…") { Task { await store.fix("migrate_whatsapp_mcp") } }
+      }
       ActionFeedback(store: store)
-    } header: {
-      SettingsPaneTitle(title: "Advanced")
     }
     .buttonStyle(NativeGlassButtonStyle())
     .sheet(isPresented: $reset) { ResetCirclesSheet(store: store).dismissOnEscape() }
@@ -61,7 +62,7 @@ struct AdvancedSettings: View {
         confirm = nil
         Task {
           await store.perform {
-            if choice == "Stop background helper" {
+            if choice == "Stop Limmr’s engine" {
               try await store.system.stopEngine()
             } else if choice == "Unlink WhatsApp" {
               try await store.backend.post("/v1/unlink", ["confirm": true])

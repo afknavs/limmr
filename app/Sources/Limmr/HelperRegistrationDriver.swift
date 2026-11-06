@@ -14,11 +14,11 @@ enum HelperCodeSignature {
     var code: SecStaticCode?
     guard SecStaticCodeCreateWithPath(executable as CFURL, [], &code) == errSecSuccess, let code,
           SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSCheckAllArchitectures), nil) == errSecSuccess
-    else { throw HelperUpdateFailure(reason: "The engine helper is missing or its signature is invalid. Reinstall Limmr and try again.") }
+    else { throw HelperUpdateFailure(reason: "Limmr’s background engine is missing or its signature is invalid. Reinstall Limmr and try again.") }
     var info: CFDictionary?
     guard SecCodeCopySigningInformation(code, [], &info) == errSecSuccess,
           let hash = (info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data
-    else { throw HelperUpdateFailure(reason: "The helper code fingerprint could not be read from its signature.") }
+    else { throw HelperUpdateFailure(reason: "The background engine code fingerprint could not be read from its signature.") }
     var requirement: SecRequirement?
     let requirementText = "anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
     guard SecRequirementCreateWithString(requirementText as CFString, [], &requirement) == errSecSuccess else { throw BackendError.invalidResponse }
@@ -89,13 +89,21 @@ enum HelperCodeSignature {
         || FileManager.default.fileExists(atPath: home.appending(path: "control-token").path) ? .registered : .absent
     }
   }
+  func restart() async throws {
+    try await Self.restartJob(uid: getuid(), run: system.run)
+  }
+  static func restartJob(uid: UInt32, run: (String, [String]) async throws -> String) async throws {
+    _ = try await HelperUpdateFailure.step("Restarting Limmr’s background engine failed.") {
+      try await run("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/dev.limmr.engine"])
+    }
+  }
   func healthy() async -> Bool { await system.probe() }
   func readiness() async -> HelperReadiness {
     let health = await system.healthReadiness()
     if health != .unavailable { return health }
     guard let job = try? await job(), job.pid != nil else { return .unavailable }
-    // A long-running helper that misses one probe gets a few seconds, not an instant failure.
-    return .starting(progress: nil, grace: max(5, 30 - (job.age ?? 0)))
+    // Give an existing process a full observation window before offering restart.
+    return .starting(progress: nil)
   }
   func identity() async throws -> HelperIdentity {
     let helper = helper
@@ -139,7 +147,7 @@ enum HelperCodeSignature {
   }
 
   func backup(_ job: HelperJob) async throws -> HelperLaunchPlan {
-    guard let runningHash = job.codeHash else { throw HelperUpdateFailure(reason: "The previous helper has no readable running fingerprint.") }
+    guard let runningHash = job.codeHash else { throw HelperUpdateFailure(reason: "The previous background engine has no readable running fingerprint.") }
     // A previous launch/adoption retains the immutable image before a later install replaces
     // the bundle pathname. Legacy jobs may still have a usable executable at their original path.
     let retained = (try? FileManager.default.contentsOfDirectory(
@@ -147,7 +155,7 @@ enum HelperCodeSignature {
       options: .skipsHiddenFiles)) ?? []
     let sources = (job.executable.map { [$0] } ?? []) + retained.map { $0.appending(path: "limmr-engine") }
     guard let source = sources.first(where: { (try? HelperCodeSignature.identity($0).matches(runningHash)) == true }) else {
-      throw HelperUpdateFailure(reason: "No retained previous helper matches the running engine. Keep it running until a safe recovery copy is available.")
+      throw HelperUpdateFailure(reason: "No retained previous background engine matches the running engine. Keep it running until a safe recovery copy is available.")
     }
     let old = try HelperCodeSignature.identity(source)
     let staged = try await stage(source, identity: old)
@@ -168,7 +176,7 @@ enum HelperCodeSignature {
         try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: temporary.path)
         try fm.moveItem(at: temporary, to: destination)
       }
-      guard try HelperCodeSignature.identity(destination) == identity else { throw HelperUpdateFailure(reason: "The staged helper signature or file fingerprint does not match the bundled build.") }
+      guard try HelperCodeSignature.identity(destination) == identity else { throw HelperUpdateFailure(reason: "The staged background engine signature or file fingerprint does not match the bundled build.") }
       return destination
     }.value
   }
@@ -187,9 +195,9 @@ enum HelperCodeSignature {
       try process.run()
       let deadline = Date().addingTimeInterval(5)
       while process.isRunning && Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
-      if process.isRunning { kill(process.processIdentifier, SIGKILL); await process.waitForExit(); throw HelperUpdateFailure(reason: "The helper help check timed out after five seconds.") }
+      if process.isRunning { kill(process.processIdentifier, SIGKILL); await process.waitForExit(); throw HelperUpdateFailure(reason: "The background engine help check timed out after five seconds.") }
       guard process.terminationReason == .exit, process.terminationStatus == 0 else {
-        throw HelperUpdateFailure(reason: "The helper help check failed (exit status \(process.terminationStatus), \(process.terminationReason == .exit ? "exit" : "signal")).")
+        throw HelperUpdateFailure(reason: "The background engine help check failed (exit status \(process.terminationStatus), \(process.terminationReason == .exit ? "exit" : "signal")).")
       }
     }.value
   }
@@ -200,6 +208,7 @@ enum HelperCodeSignature {
     if arguments.isEmpty { arguments = [executable.path] } else { arguments[0] = executable.path }
     content["Label"] = "dev.limmr.engine"; content["ProgramArguments"] = arguments
     content.removeValue(forKey: "BundleProgram"); content.removeValue(forKey: "Program")
+    content["ThrottleInterval"] = 30
     content["RunAtLoad"] = true; content["KeepAlive"] = true; content["ProcessType"] = "Background"
     if previous == nil { content["EnvironmentVariables"] = ["LIMMR_HOME": home.path] }
     return try PropertyListSerialization.data(fromPropertyList: content, format: .xml, options: 0)

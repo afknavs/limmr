@@ -3,13 +3,13 @@ package hub
 import (
 	"context"
 	"crypto/subtle"
+	"fmt"
 	"limmr/internal/attachments"
 	"limmr/internal/dbutil"
 	"limmr/internal/model"
 	"limmr/internal/triggers"
 	"limmr/internal/wa"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -138,7 +138,7 @@ func (s *Service) UpdateAgent(a model.Agent) error {
 	if !a.Permissions.Valid() || strings.TrimSpace(a.Name) == "" || utf8.RuneCountInString(a.Name) > 100 {
 		return model.ErrInvalid
 	}
-	result, e := s.Repo.DB.Exec("UPDATE objects SET data=json_set(data,'$.name',?,'$.enabled',json(?),'$.permissions',json(?),'$.preset',?) WHERE bucket='agents' AND id=?", a.Name, dbutil.JSON(a.Enabled), dbutil.JSON(a.Permissions), a.Preset, a.ID)
+	result, e := s.Repo.DB.Exec("UPDATE objects SET data=json_set(data,'$.name',?,'$.enabled',json(?),'$.permissions',json(?),'$.preset',?,'$.runs_on_peer',?) WHERE bucket='agents' AND id=?", a.Name, dbutil.JSON(a.Enabled), dbutil.JSON(a.Permissions), a.Preset, a.RunsOnPeer, a.ID)
 	if e != nil {
 		return e
 	}
@@ -458,8 +458,15 @@ func (s *Service) Decide(ctx context.Context, id string, approve bool, text *str
 		return a, e
 	}
 	a.MessageID = reserved
+	ctx = model.WithUploadProgress(ctx, func(p model.UploadProgress) error { a.Upload = &p; return s.Repo.Put("approvals", a.ID, a) })
 	messageID, e := s.Messenger.Send(ctx, a)
-	if e != nil {
+	if e == ErrSendQueued {
+		a.State = "queued_peer"
+		a.Status = "queued"
+	} else if e == ErrSendUncertain {
+		a.State = "uncertain"
+		a.Status = "uncertain"
+	} else if e != nil {
 		a.State = "failed"
 		a.Status = "failed"
 		a.Reason = "Delivery failed; review before requesting again."
@@ -521,13 +528,29 @@ func (s *Service) Subscribe() (chan model.Activity, func()) {
 
 type ActivityFilter struct {
 	Agent, Kind, Chat string
+	HideEmpty         bool
 	Before            int64
 	Limit             int
 }
 
 func (s *Service) Activity(a *model.Agent, f ActivityFilter) ([]model.Activity, error) {
 	allowed := s.ChatAccess(a)
-	rows, e := s.Repo.DB.Query("SELECT id,data FROM activity WHERE (?=0 OR id<?) ORDER BY id DESC", f.Before, f.Before)
+	query := "SELECT id,data FROM activity WHERE 1=1"
+	args := []any{}
+	if f.Before > 0 {
+		query += " AND id<?"
+		args = append(args, f.Before)
+	}
+	// Filter in SQLite before decoding JSON. Keep malformed historical rows on the
+	// decoder path so they remain safely skipped and reported, never panic in JSON1.
+	for _, filter := range []struct{ field, value string }{{"agent_id", f.Agent}, {"kind", f.Kind}} {
+		if filter.value != "" {
+			query += " AND CASE WHEN json_valid(data) THEN json_extract(data,'$." + filter.field + "') END=?"
+			args = append(args, filter.value)
+		}
+	}
+	query += " ORDER BY id DESC"
+	rows, e := s.Repo.DB.Query(query, args...)
 	if e != nil {
 		return nil, e
 	}
@@ -557,6 +580,9 @@ func (s *Service) Activity(a *model.Agent, f ActivityFilter) ([]model.Activity, 
 			continue
 		}
 		v.ID = id
+		if f.HideEmpty && (v.Kind == "read" || v.Kind == "search") && v.Count == 0 && len(v.MessageIDs) == 0 {
+			continue
+		}
 		if v.ChatJIDs == nil {
 			v.ChatJIDs = []string{}
 		}
@@ -596,10 +622,10 @@ func (s *Service) Retain() error {
 	return e
 }
 func (s *Service) Attachment(data []byte, name string) (model.Attachment, error) {
-	if len(data) == 0 || len(data) > 20<<20 {
-		return model.Attachment{}, model.ErrInvalid
+	if err := attachments.CheckSize(int64(len(data)), attachments.MIME(data, name)); err != nil {
+		return model.Attachment{}, fmt.Errorf("%s: %w", err, model.ErrInvalid)
 	}
-	at := model.Attachment{ID: dbutil.ID(), Name: attachments.Name(name), MIME: http.DetectContentType(data), CreatedAt: s.Now().UTC(), Size: int64(len(data)), SHA256: dbutil.Digest(string(data))}
+	at := model.Attachment{ID: dbutil.ID(), Name: attachments.Name(name), MIME: attachments.MIME(data, name), CreatedAt: s.Now().UTC(), Size: int64(len(data)), SHA256: dbutil.Digest(string(data))}
 	if at.Name == "." || at.Name == "" {
 		at.Name = "attachment"
 	}
@@ -636,4 +662,19 @@ func ValidAgentName(name string) (string, error) {
 		return "", model.ErrInvalid
 	}
 	return name, nil
+}
+
+// NotifyTaskChanged reuses the owner activity stream after a committed workspace
+// mutation. The persisted task event is the audit record; this is only a refresh
+// cue, so automatic quiet/wake does not need polling or duplicate activity rows.
+func (s *Service) NotifyTaskChanged() {
+	s.shared().activityMu.Lock()
+	defer s.shared().activityMu.Unlock()
+	event := model.Activity{At: s.Now().UTC(), Tool: "task_changed", Kind: "summary", ChatJIDs: []string{}, MessageIDs: []string{}}
+	for ch := range s.shared().watchers {
+		select {
+		case ch <- event:
+		default:
+		}
+	}
 }

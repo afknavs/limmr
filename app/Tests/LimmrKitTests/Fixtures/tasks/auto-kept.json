@@ -28,12 +28,13 @@
     {
       "at": "2026-10-17T12:00:00Z",
       "kind": "created",
-      "text": "Task created"
+      "text": "Task created · Codex"
     }
   ],
   "id": "tsk_demo_cv",
   "items": [],
   "kind": "long",
+  "last_active_at": "2026-10-17T12:00:00Z",
   "latest": [
     {
       "chat": "Riley Park",
@@ -55,7 +56,12 @@
   "lifespan_days": 14,
   "needs_you": false,
   "origin": "agent",
-  "people": [],
+  "people": [
+    {
+      "id": "person-10",
+      "name": "Riley Park"
+    }
+  ],
   "progress": {
     "done": 0,
     "total": 0

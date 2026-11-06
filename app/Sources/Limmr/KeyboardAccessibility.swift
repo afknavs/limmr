@@ -15,6 +15,10 @@ extension AppStore {
   var canGoBack: Bool { !circlePath.isEmpty || !activityPath.isEmpty || pendingActivityRoute != nil }
 
   func openActivityRoute(_ route: ActivityRoute) {
+    if page == .tasks {
+      activityPath.append(route)
+      return
+    }
     if page == .activity, activityNavigationReady {
       pendingActivityRoute = nil
       activityReturnPage = nil
@@ -22,27 +26,34 @@ extension AppStore {
     } else {
       let origin = page
       let path = circlePath
+      let peopleOrigin = peopleReturnPage
       selectPage(.activity)
       activityReturnPath = path
+      activityReturnPeoplePage = peopleOrigin
       pendingActivityRoute = route
       activityReturnPage = origin == .activity ? nil : origin
     }
   }
 
   var activityBackTitle: String {
-    switch activityReturnPage {
+    if page == .tasks { return "Tasks" }
+    if activityReturnPage == .circles { return peopleTitle(activityReturnPath.last) }
+    return switch activityReturnPage {
     case .overview: "Home"
     case .circles: "People"
+    case .tasks: "Tasks"
     default: "Activity"
     }
   }
 
   /// Back from a task or effort: to the page it was opened from, else the Activity list.
   func leaveActivityRoute() {
+    if page == .tasks { if !activityPath.isEmpty { activityPath.removeLast() }; return }
     if let origin = activityReturnPage {
       let path = activityReturnPath
+      let peopleOrigin = activityReturnPeoplePage
       selectPage(origin)
-      if origin == .circles { circlePath = path }
+      if origin == .circles { circlePath = path; peopleReturnPage = peopleOrigin }
     } else { clearActivityRoute() }
   }
 
@@ -62,10 +73,52 @@ extension AppStore {
     activityPath = []
     activityReturnPage = nil
     activityReturnPath = []
+    activityReturnPeoplePage = nil
   }
   func leavePeopleRoute() {
     if !circlePath.isEmpty { circlePath.removeLast() }
-    else { selectPage(.circles) }
+    if circlePath.isEmpty { selectPage(peopleReturnPage ?? .circles) }
+  }
+  func openPeopleRoute(_ destination: CircleDestination) {
+    if page != .circles {
+      let origin = page
+      selectPage(.circles)
+      peopleReturnPage = origin
+    }
+    // A circle opened anywhere but the sidebar keeps the sidebar on its origin.
+    if circlePath.isEmpty { sidebarOpenedCircle = nil }
+    circlePath.append(destination)
+  }
+  private func peopleTitle(_ destination: CircleDestination?) -> String {
+    switch destination {
+    case .circle(let id): circleName(id)
+    case .person(let id): personName(id)
+    case .group(let id): chatName(id)
+    case .chat(_, let name): name
+    case .brief(let id, _): circleName(id)
+    case nil: peopleReturnPage?.rawValue ?? "People"
+    }
+  }
+  var peopleBackTitle: String {
+    circlePath.count > 1 ? peopleTitle(circlePath.dropLast().last) : (peopleReturnPage?.rawValue ?? "People")
+  }
+  /// Sidebar follows the source, while the detail stack keeps its registered route type.
+  var sidebarDestination: String {
+    if let id = pendingSidebarCircle { return "circle:" + id }
+    let source = activityReturnPage ?? page
+    let path = activityReturnPage == .circles ? activityReturnPath : circlePath
+    if source == .circles {
+      if activityReturnPage == nil, circlePath.count == 1, let origin = peopleReturnPage {
+        return "page:" + origin.rawValue
+      }
+      if let circle = path.reversed().compactMap({ route -> String? in
+        if case .circle(let id) = route { return id }; return nil
+      }).first, circle == sidebarOpenedCircle, path.first == .circle(circle) {
+        return "circle:" + circle
+      }
+      return "page:" + (peopleReturnPage ?? activityReturnPeoplePage ?? .circles).rawValue
+    }
+    return "page:" + source.rawValue
   }
   func route(_ command: AppCommand) {
     switch command {
@@ -87,7 +140,7 @@ extension AppStore {
     case .settings: showSettings = true
     case .back:
       if page == .circles { leavePeopleRoute() }
-      else if page == .activity { leaveActivityRoute() }
+      else if page == .activity || page == .tasks { leaveActivityRoute() }
     case .moveRow(let step): rowStep = step; rowRequest += 1
     case .openRow: rowOpenRequest += 1
     case .escape:
@@ -101,10 +154,8 @@ struct LimmrCommands: Commands {
   let store: AppStore
   @Environment(\.openSettings) private var openSettings
   var body: some Commands {
-    CommandGroup(replacing: .appSettings) {
-      Button("Settings…") { openSettings() }.keyboardShortcut(",")
-    }
     CommandGroup(after: .textEditing) {
+      Button("Search Home") { store.selectPage(.overview); store.route(.search) }.keyboardShortcut("k")
       Button("Find on This Page") { store.route(.search) }.keyboardShortcut("f")
         .disabled(store.showSetup)
     }

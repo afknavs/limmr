@@ -3,7 +3,21 @@ import LimmrKit
 import SwiftUI
 
 @MainActor enum SnapshotRunner {
-  static let pages = [
+  static let pages = N2PeopleSnapshots.pages + [
+    "n2-shell-home", "n2-shell-gallery", "n2-shell-list", "n2-shell-sidebar", "n2-shell-circle", "n2-shell-home-circles",
+    "n1-realdata-home", "n1-realdata-sidebar-unlinked", "n1-realdata-sidebar-linked",
+    "n1-realdata-integrations-unlinked", "n1-realdata-integrations-linked",
+    "n1-realdata-purpose", "n1-realdata-circle-empty", "n1-realdata-map-dense",
+    "n1-speed-log", "n1-speed-purpose",
+    "preview-home", "preview-tasks", "preview-list", "preview-people", "preview-activity", "preview-task", "preview-circle", "preview-integrations",
+    "n1-look-home", "n1-look-gallery", "n1-look-list", "n1-look-task", "n1-look-circle", "n1-look-integrations",
+    "n1-map", "n1-map-400", "n1-map-person", "n1-map-start", "n1-map-end",
+    "n1-tasks-home", "n1-tasks-all", "n1-tasks-circle", "n1-tasks-cover",
+    "n1-file-pdf", "n1-file-image",
+    "tasks-previews-workspace", "tasks-previews-narrow", "tasks-previews-home", "tasks-previews-cover", "tasks-previews-navigation",
+    "status-healthy", "status-busy", "status-stopped", "status-relink", "status-restarting", "status-phone-offline", "status-remote", "status-sync",
+    "settings-connections", "settings-privacy", "settings-ai-apps", "settings-connections-advanced",
+    "lane3-home", "lane3-map", "lane3-profile", "lane3-updated", "lane3-picker", "lane3-circle",
     "z2-profile-full", "z2-profile-minimal", "z2-profile-hidden", "z2-profile-menu", "z2-profile-edit",
     "z2-task-latest", "z2-task-surfaced", "z2-task-history", "z2-effort-status", "z2-sync-unpaired", "z2-sync-paired", "z2-accessory",
     "y7-dot-never", "y7-dot-healthy", "y7-dot-error", "y7-dot-review",
@@ -26,7 +40,7 @@ import SwiftUI
     "u5-home", "u5-home-quiet", "home-structure", "home-structure-review", "u4-home", "u4-dashboard", "u4-circles", "u4-replies", "u4-activity", "u4-activity-expanded",
     "u4-activity-log", "u4-icon-picker", "u4-settings-search",
     "people-dense", "people-dense-hover", "people-circle-hover", "people-counts", "person-inferred",
-    "engine-updating", "agent-renaming", "agent-rename-error", "agent-renamed",
+    "engine-busy", "engine-stalled", "engine-restarting", "engine-updating", "agent-renaming", "agent-rename-error", "agent-renamed",
     "activity-sends", "activity-reads", "home-dashboard", "home-waiting-0", "home-waiting-1",
     "home-waiting-4", "n1-home", "about-you", "setup-about-you", "person-you",
     "settings-advanced-reset", "people-current", "remote-approval-work", "setup-who", "home-setup",
@@ -46,6 +60,7 @@ import SwiftUI
     "s2-sidebar", "s2-settings", "s2-about-settings", "s2-about-people", "s2-hidden-people", "s2-hidden-groups",
     "remote",
   ]
+  static func usesFixtureClock(page: String) -> Bool { !page.hasPrefix("preview-") }
   static func run(arguments: [String]) async {
     func argument(_ name: String) -> String? {
       guard let i = arguments.firstIndex(of: name), arguments.indices.contains(i + 1) else {
@@ -72,7 +87,29 @@ import SwiftUI
     let waitingCount =
       page.hasPrefix("home-waiting-") ? Int(page.split(separator: "-").last ?? "") : nil
     let backend: (any Backend)?
-    if page.hasPrefix("y7-dot-") {
+    if page.hasPrefix("preview-") {
+      // Read-only preview of a separate engine (for example a copy of real data on a spare port).
+      guard let engine = argument("--preview-engine"), let url = URL(string: engine), url.host == "127.0.0.1" else {
+        fputs("preview pages need --preview-engine http://127.0.0.1:<port>\n", stderr); exit(2)
+      }
+      backend = APIClient(credentialFile: RuntimePaths().home.appending(path: "control-token"), baseURL: url)
+    } else if page.hasPrefix("n2-shell-") {
+      backend = try! N2ShellSnapshotBackend.make()
+    } else if page.hasPrefix("n2-") {
+      backend = N2PeopleSnapshotBackend(page: page, portraits: N1MapPortraits.make())
+    } else if page.hasPrefix("n1-realdata-") {
+      backend = N1RealDataSnapshotBackend(linked: page.hasSuffix("-linked"))
+    } else if page.hasPrefix("n1-look-") {
+      backend = try! N1LookSnapshotBackend.make()
+    } else if page.hasPrefix("n1-map") {
+      backend = N1MapSnapshotBackend(dense: page == "n1-map-400", portraits: N1MapPortraits.make())
+    } else if page.hasPrefix("n1-tasks-") {
+      backend = N1TasksSnapshotBackend(page: page)
+    } else if page.hasPrefix("tasks-previews-") {
+      backend = try! Oct29PreviewFixtures.make()
+    } else if page.hasPrefix("lane3-") {
+      backend = Lane3SnapshotBackend()
+    } else if page.hasPrefix("y7-dot-") {
       backend = DemoBackend(dotState: String(page.dropFirst("y7-dot-".count)))
     } else if page == "a6-unnamed-activity" {
       backend = DemoBackend(unnamedEffortsOnly: true)
@@ -102,13 +139,146 @@ import SwiftUI
       backend = EmptyBackend()
     } else { backend = nil }
     let store = AppStore(
-      demo: !page.hasPrefix("empty-") && !page.hasPrefix("o1-empty-") && page != "setup-helper-error", snapshot: true, backend: backend)
+      demo: !page.hasPrefix("empty-") && !page.hasPrefix("o1-empty-") && page != "setup-helper-error", snapshot: true, fixedClock: usesFixtureClock(page: page), backend: backend)
+    if page.hasPrefix("n1-realdata-") { store.fixtureNow = Timestamp.date(N1RealDataFixture.now)! }
     await store.refresh()
+    if page.hasPrefix("n1-map") || page == "n1-realdata-map-dense" || page == "preview-people" {
+      // Offline fixtures only: wait for real map preparation and avatar responses,
+      // rather than capturing a loading frame after the standard fixed delay.
+      _ = await NetworkMapLayoutCache.projection(store.circleMap)
+      for node in store.circleMap.nodes where node.kind == "person" { await store.loadAvatar(node.id) }
+    }
     if page.hasPrefix("h2-") { await store.refreshHomeEfforts() }
     let dark = arguments.contains("--dark")
     NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     var content: AnyView
     switch page {
+    case let page where page.hasPrefix("n2-shell-"):
+      store.setupStatus = nil
+      if page == "n2-shell-gallery" || page == "n2-shell-list" { store.selectSidebar("page:Tasks") }
+      if page == "n2-shell-circle" || page == "n2-shell-sidebar" {
+        let id = page == "n2-shell-sidebar" ? "family" : "university"
+        await store.loadCircle(id)
+        store.selectSidebar("circle:" + id)
+      }
+      content = AnyView(RootView(store: store)
+        .environment(\.snapshotTaskLayout, page == "n2-shell-list" ? "list" : "gallery")
+        .environment(\.snapshotTaskReveal, page == "n2-shell-gallery" ? "tsk_workshop" : nil))
+    case let page where page.hasPrefix("n2-"):
+      content = await N2PeopleSnapshots.content(page: page, store: store)
+    case let page where page.hasPrefix("n1-realdata-"):
+      store.setupStatus = nil
+      if page.contains("integrations") {
+        store.settingsTab = .integrations
+        content = AnyView(SettingsView(store: store))
+      } else if page.hasSuffix("map-dense") {
+        content = AnyView(VStack(alignment: .leading, spacing: 12) {
+          Text("People").font(.largeTitle.bold())
+          Text("120 people · 80 at Northbridge University").font(.callout).foregroundStyle(.secondary)
+          NetworkMapView(store: store, map: store.circleMap)
+        }.padding(20).background { AppBackground() })
+      } else {
+        if page.hasSuffix("purpose") { store.selectPage(.activity) }
+        if page.hasSuffix("circle-empty") {
+          await store.loadCircle("you"); await store.refreshAllTasks()
+          store.selectPage(.circles); store.circlePath = [.circle("you")]
+        }
+        content = AnyView(RootView(store: store))
+      }
+    case "n1-speed-log", "n1-speed-purpose":
+      store.activityFilter = "all"
+      for i in 0..<12 {
+        var empty = DemoData.activity[0]; empty.id = Int64(8000 + i)
+        empty.kind = "read"; empty.tool = "list_messages"; empty.count = 0; empty.messageIds = []
+        store.activity.append(empty)
+      }
+      precondition(store.activity.filter(ActivityPresentation.isEmptyRead).count >= 12)
+      precondition(!ActivityPresentation.detailed(store.activity).contains(where: ActivityPresentation.isEmptyRead))
+      print("N1: source includes 12 empty reads; detailed projection omits them and retains meaningful actions.")
+      content = AnyView(ActivityView(store: store, detailedLog: page == "n1-speed-log").background { AppBackground() })
+    case "preview-home", "preview-tasks", "preview-list", "preview-people", "preview-activity", "preview-task", "preview-circle", "preview-integrations":
+      store.setupStatus = nil
+      let selected = argument("--select")
+      if page == "preview-integrations" {
+        store.settingsTab = .integrations
+        content = AnyView(SettingsView(store: store))
+      } else {
+        if page == "preview-tasks" || page == "preview-list" { store.selectPage(.tasks); await store.refreshAllTasks() }
+        if page == "preview-people" { store.selectPage(.circles) }
+        if page == "preview-activity" { store.selectPage(.activity) }
+        if page == "preview-task", let selected { await store.refreshAllTasks(); store.openTask(selected) }
+        if page == "preview-circle", let selected { await store.loadCircle(selected); await store.refreshAllTasks(); store.selectPage(.circles); store.circlePath = [.circle(selected)] }
+        content = AnyView(RootView(store: store).environment(\.snapshotTaskLayout, page == "preview-list" ? "list" : "gallery"))
+      }
+    case "n1-look-home", "n1-look-gallery", "n1-look-list", "n1-look-task", "n1-look-circle", "n1-look-integrations":
+      store.setupStatus = nil
+      if page == "n1-look-integrations" {
+        store.settingsTab = .integrations
+        content = AnyView(SettingsView(store: store))
+      } else {
+        if page == "n1-look-gallery" || page == "n1-look-list" { store.selectPage(.tasks); await store.refreshAllTasks() }
+        if page == "n1-look-task" { store.openTask("tsk_workshop") }
+        if page == "n1-look-circle" { await store.loadCircle("university"); await store.refreshAllTasks(); store.selectPage(.circles); store.circlePath = [.circle("university")] }
+        content = AnyView(RootView(store: store).environment(\.snapshotTaskLayout, page == "n1-look-list" ? "list" : "gallery").environment(\.snapshotTaskReveal, page == "n1-look-gallery" ? "tsk_workshop" : nil))
+      }
+    case "n1-map", "n1-map-400":
+      content = AnyView(VStack(alignment: .leading, spacing: 16) {
+        Text("People").font(AppType.pageTitle)
+        Text("Your circles and connections").font(.callout).foregroundStyle(AccessibleSecondary())
+        NetworkMapView(store: store, map: store.circleMap)
+        Text("\(store.circleMap.nodes.filter { $0.kind == "person" }.count) people · Drag to explore · Pinch to zoom").font(.caption).foregroundStyle(AccessibleSecondary())
+      }.padding(24).background { AppBackground() })
+    case "n1-map-person", "n1-map-start", "n1-map-end":
+      store.selectedPerson = "person-04"; await store.loadPerson()
+      content = AnyView(CirclePersonPage(store: store, id: "person-04")
+        .environment(\.snapshotNetworkExpanded, page == "n1-map-end"))
+    case "n1-tasks-home", "n1-tasks-cover":
+      store.setupStatus = nil
+      content = AnyView(RootView(store: store))
+    case "n1-tasks-all":
+      store.selectPage(.tasks); await store.refreshAllTasks()
+      content = AnyView(RootView(store: store))
+    case "n1-tasks-circle":
+      await store.loadCircle("university"); await store.refreshAllTasks()
+      store.selectPage(.circles); store.circlePath = [.circle("university")]
+      content = AnyView(RootView(store: store))
+    case "tasks-previews-narrow":
+      store.openTask("tsk_workshop")
+      content = AnyView(RootView(store: store))
+    case "tasks-previews-workspace":
+      content = AnyView(TaskPage(store: store, id: "tsk_workshop"))
+    case "tasks-previews-home", "tasks-previews-navigation":
+      store.setupStatus = nil
+      content = AnyView(RootView(store: store))
+    case "tasks-previews-cover":
+      content = AnyView(snapshotStage { TaskCoverPicker(store: store, taskID: "tsk_workshop") })
+    case "lane3-home", "lane3-map", "lane3-profile", "lane3-updated", "lane3-picker", "lane3-circle":
+      store.showSetup = false
+      for circle in store.circles { await store.loadCircle(circle.id) }
+      store.selectedPerson = "person-04"
+      await store.loadPerson()
+      if page == "lane3-map" {
+        store.selectPage(.circles); store.mapSelection.person = "person-04"
+        content = AnyView(RootView(store: store))
+      } else if page == "lane3-updated" {
+        content = AnyView(ScrollView {
+          VStack(alignment: .leading, spacing: 20) {
+            Text(store.personName("person-04")).font(AppType.pageTitle)
+            PersonLately(store: store, id: "person-04", profile: store.profile)
+          }.frame(maxWidth: 760).padding(24).frame(maxWidth: .infinity)
+        }.background { AppBackground() }.environment(\.snapshotProfileUpdated, true))
+      } else if page == "lane3-profile" {
+        content = AnyView(CirclePersonPage(store: store, id: "person-04"))
+      } else if page == "lane3-picker", let circle = store.circles.first {
+        content = AnyView(snapshotStage { CirclePicturePicker(store: store, circle: circle) })
+      } else if page == "lane3-circle" {
+        content = AnyView(CirclePage(store: store, id: "atlas"))
+      } else {
+        store.selectPage(.overview); await store.refreshHomeEfforts()
+        content = AnyView(ScrollView {
+          CircleUpdatesView(store: store).frame(maxWidth: 760).padding(24).frame(maxWidth: .infinity)
+        }.background { AppBackground() })
+      }
     case "z2-profile-full", "z2-profile-minimal", "z2-profile-hidden", "z2-profile-menu", "z2-profile-edit":
       store.selectPage(.circles)
       store.selectedPerson = "person-04"
@@ -182,7 +352,7 @@ import SwiftUI
     case "q4-task-study", "q4-task-short", "q4-task-waiting":
       let index = page == "q4-task-short" ? 1 : page == "q4-task-waiting" ? 2 : 0
       content = AnyView(ScrollView {
-        TaskWorkspaceView(store: store, id: DemoTasks.tasks[index].id, initial: DemoTasks.tasks[index])
+        TaskWorkspaceView(store: store, id: DemoTasks.tasks[index].id, initial: DemoTasks.tasks[index]).padding(24)
       }.background { AppBackground() })
     case "q4-activity":
       content = AnyView(ActivityView(store: store).background { AppBackground() })
@@ -266,6 +436,11 @@ import SwiftUI
       store.selectPage(.circles)
       store.circlePath = [.brief("atlas", 2)]
       content = AnyView(RootView(store: store))
+    case "n1-file-pdf", "n1-file-image":
+      content = AnyView(snapshotStage {
+        FileSendReviewCard(store: store, item: DemoData.fileSuggestion(image: page == "n1-file-image"))
+          .frame(width: 620).padding(28).background { AppBackground() }
+      })
     case "approval":
       content = AnyView(snapshotStage {
         ScrollView { ForEach(store.pending) { ApprovalCard(store: store, approval: $0) } }
@@ -280,6 +455,7 @@ import SwiftUI
       content = AnyView(ActivityDetail(store: store).frame(maxWidth: 680).padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity).background { AppBackground() })
     case "settings-people":
+      store.privacyPeople = true
       store.settingsTab = .people
       content = AnyView(SettingsView(store: store))
     case "empty-integrations":
@@ -374,6 +550,36 @@ import SwiftUI
       store.setupStatus = nil
       content = AnyView(RootView(store: store))
 
+    case "status-healthy", "status-busy", "status-stopped", "status-relink", "status-restarting", "status-phone-offline", "status-remote", "status-sync":
+      store.setupStatus = nil
+      store.checks = []
+      store.remote?.enabled = false
+      store.connectionSync = .demo("never")
+      switch page {
+      case "status-busy": store.snapshotConnectionState = .busy
+      case "status-stopped": store.snapshotConnectionState = .notRunning
+      case "status-relink": store.status?.linked = false; store.status?.connected = false; store.snapshotConnectionState = .loggedOut
+      case "status-restarting": store.snapshotConnectionState = .restarting
+      case "status-phone-offline": store.snapshotConnectionState = .phoneUnreachable
+      case "status-remote":
+        store.remote?.enabled = true
+        store.checks = [.init(id: "remote", title: "Remote access", state: "fail", detail: "Unavailable", fixId: "restart_remote")]
+      case "status-sync": store.connectionSync = .demo("error")
+      default: store.snapshotConnectionState = .connected
+      }
+      content = AnyView(RootView(store: store))
+    case "settings-connections", "settings-connections-advanced", "settings-privacy", "settings-ai-apps":
+      store.settingsTab = page == "settings-privacy" ? .privacy : page == "settings-ai-apps" ? .integrations : .connections
+      store.connectionAdvanced = page == "settings-connections-advanced"
+      content = AnyView(SettingsView(store: store))
+    case "engine-busy":
+      content = AnyView(EngineStartupView(phase: .busy) {})
+    case "engine-stalled":
+      content = AnyView(EngineStartupView(phase: .stalled,
+        failureMessage: EngineReadinessStalled().localizedDescription) {})
+    case "engine-restarting":
+      content = AnyView(EngineStartupView(phase: .restarting,
+        progressMessage: "Waiting for Limmr’s background engine to respond…") {})
     case "engine-updating":
       content = AnyView(EngineStartupView(phase: .updating) {})
     case "agent-renaming", "agent-rename-error", "agent-renamed":
@@ -470,7 +676,7 @@ import SwiftUI
       "settings-hidden",
       "settings-remote", "settings-health", "settings-advanced":
       switch page {
-      case "settings-briefs": store.settingsTab = .briefs
+      case "settings-briefs": store.settingsTab = .briefs; store.privacyBriefs = true
       case "integration-everything", "integration-work", "integration-ended":
         store.settingsTab = .integrations
         store.selectedAgent = "agent-3"
@@ -484,15 +690,16 @@ import SwiftUI
         await store.refresh()
         await store.loadPermissions()
       case "settings-sources": store.settingsTab = .sources
-      case "y7-dot-never", "y7-dot-healthy", "y7-dot-error", "y7-dot-review", "settings-integrations": store.settingsTab = .integrations
+      case "y7-dot-never", "y7-dot-healthy", "y7-dot-error", "y7-dot-review": store.settingsTab = .connections
+      case "settings-integrations": store.settingsTab = .integrations
       case "integration-detail", "settings-integrations-access":
         store.settingsTab = .integrations
         store.selectedAgent = "agent-2"
         await store.loadPermissions()
-      case "settings-hidden": store.settingsTab = .hiddenChats
-      case "settings-remote": store.settingsTab = .remote
-      case "settings-health": store.settingsTab = .health
-      case "settings-advanced": store.settingsTab = .advanced
+      case "settings-hidden": store.settingsTab = .hiddenChats; store.privacyHidden = true
+      case "settings-remote": store.settingsTab = .remote; store.connectionRemote = true
+      case "settings-health": store.settingsTab = .health; store.connectionDetails = true
+      case "settings-advanced": store.settingsTab = .advanced; store.connectionAdvanced = true
       default: store.settingsTab = .general
       }
       content = AnyView(SettingsView(store: store))
@@ -557,7 +764,7 @@ import SwiftUI
         \.snapshotExpandedOptions, page == "permissions"
       ).environment(
         \.snapshotHomeSection,
-        page == "y2-home-suggestions" ? "tasks" : page == "y2-home-circles" ? "circles" : page == "u4-replies"
+        page == "n2-shell-home-circles" ? "n2-circles" : page == "y2-home-suggestions" ? "tasks" : page == "y2-home-circles" ? "circles" : page == "u4-replies"
           ? "needs_reply"
           : page == "u4-circles"
             ? "circles"
@@ -581,11 +788,16 @@ import SwiftUI
       .environment(\.snapshotFocusedControl, argument("--focus-control"))
       .environment(\.snapshotIncreasedContrast, arguments.contains("--increase-contrast"))
       .environment(\.snapshotReducedMotion, arguments.contains("--reduce-motion"))
-      .environment(\.controlActiveState, .key).tint(.blue))
+      .environment(\.snapshotReduceTransparency, arguments.contains("--reduce-transparency"))
+      .environment(\.controlActiveState, .key).tint((page.hasPrefix("n2-") || page.hasPrefix("n1-look-") || page.hasPrefix("n1-realdata-")) ? Color.accentColor : .blue))
     let size = NSSize(width: dimensions[0], height: dimensions[1])
     // Standalone People captures need the same surface as navigation destinations.
     if page.hasPrefix("y45-") { content = AnyView(content.pageSurface()) }
-    let host = NSHostingView(rootView: content)
+    // Native List and toolbar preferences need a hosting controller, just as WindowGroup uses.
+    // Keep historical capture paths untouched; N1 captures include the native window chrome.
+    let n1Native = page.hasPrefix("n2-") || page.hasPrefix("n1-look-") || page.hasPrefix("preview-") || (page.hasPrefix("n1-realdata-") && !page.hasSuffix("map-dense"))
+    let nativeController = n1Native ? NSHostingController(rootView: content) : nil
+    let host = (nativeController?.view as? NSHostingView<AnyView>) ?? NSHostingView(rootView: content)
     // Snapshot dimensions are a contract, independent of a pane's ideal content size.
     host.sizingOptions = []
     host.appearance = NSAppearance(named: arguments.contains("--increase-contrast") ? (dark ? .accessibilityHighContrastDarkAqua : .accessibilityHighContrastAqua) : (dark ? .darkAqua : .aqua))
@@ -593,7 +805,7 @@ import SwiftUI
     host.frame = NSRect(origin: .zero, size: size)
     // S2 also captures native Settings chrome, offscreen, to verify the top-left controls.
     let settingsChrome = page == "s2-settings"
-    let titledChrome = settingsChrome || arguments.contains("--titled-window")
+    let titledChrome = n1Native || settingsChrome || arguments.contains("--titled-window")
     let window = NSWindow(
       contentRect: host.frame,
       styleMask: titledChrome ? [.titled, .closable, .miniaturizable, .resizable] : [.borderless],
@@ -601,14 +813,16 @@ import SwiftUI
     if settingsChrome { window.title = "Settings" }
     if titledChrome && !settingsChrome {
       window.styleMask.insert(.fullSizeContentView)
-      window.title = "Limmr"
-      window.titleVisibility = .hidden
+      window.title = page.contains("integrations") ? "Integrations" : "Limmr"
+      window.titleVisibility = n1Native ? .visible : .hidden
       window.toolbarStyle = .unified
-      window.toolbar = NSToolbar(identifier: "Y1MainToolbar")
+      if !n1Native || page == "n1-look-integrations" || page == "preview-integrations" || page.hasPrefix("n1-realdata-integrations-") { window.toolbar = NSToolbar(identifier: "Y1MainToolbar") }
       MainWindowSurface.apply(to: window)
     }
     window.appearance = host.appearance
-    if titledChrome {
+    if let nativeController {
+      window.contentViewController = nativeController
+    } else if titledChrome {
       // A plain content container keeps NSHostingView from taking over native window sizing.
       host.sizingOptions = []
       let container = NSView(frame: NSRect(origin: .zero, size: size))
@@ -636,6 +850,39 @@ import SwiftUI
       }
       host.layoutSubtreeIfNeeded()
     }
+    if page == "n2-shell-circle" || page == "n2-shell-sidebar" {
+      let selected = page == "n2-shell-sidebar" ? "family" : "university"
+      await settleNavigation()
+      guard store.circlePath == [.circle(selected)], store.sidebarDestination == "circle:" + selected else {
+        fputs("N2 sidebar circle did not open/highlight.\n", stderr); exit(1)
+      }
+      // Exercise every main/circle row against the mounted native stack, including
+      // initial empty-path writes and Back. AI row targets are covered in tests.
+      for destination in Page.allCases {
+        store.selectSidebar("page:" + destination.rawValue); await settleNavigation()
+        guard store.sidebarDestination == "page:" + destination.rawValue else { exit(1) }
+      }
+      for circle in store.circles {
+        store.selectSidebar("circle:" + circle.id); await settleNavigation()
+        guard store.circlePath == [.circle(circle.id)], store.sidebarDestination == "circle:" + circle.id else { exit(1) }
+        store.route(.back); await settleNavigation()
+        guard store.circlePath.isEmpty else { exit(1) }
+      }
+      store.selectSidebar("circle:" + selected); await settleNavigation()
+      print("N2 mounted sidebar rows and circle Back passed")
+    }
+    if page == "n2-circle-open" {
+      // Same action as the existing circle row, exercised on the mounted stack.
+      store.circlePath.append(.circle("university"))
+      await settleNavigation()
+      guard store.navigationPath.wrappedValue == [.people(.circle("university"))] else { fputs("N2 mounted navigation cleared circle route: path count=\(store.circlePath.count), page=\(store.page.rawValue).\n", stderr); exit(1) }
+      store.leavePeopleRoute(); await settleNavigation()
+      guard store.circlePath.isEmpty && store.page == .circles else { exit(1) }
+      store.selectPeopleMapNode(.init(id: "university", kind: "circle", title: "University"))
+      await settleNavigation()
+      guard store.navigationPath.wrappedValue == [.people(.circle("university"))] else { fputs("N2 mounted navigation cleared circle route: path count=\(store.circlePath.count), page=\(store.page.rawValue).\n", stderr); exit(1) }
+      print("N2: mounted circle-row action, Back to People, map-label action passed.")
+    }
     if page == "y2-heatmap-day" {
       let day = String(DemoData.now.prefix(10))
       store.activityAgent = "old-agent"; store.activityFilter = "sends"
@@ -648,6 +895,25 @@ import SwiftUI
         !ActivityDayFilter.matches("2001-01-01T12:00:00Z", day: day, timeZone: TimeZone(secondsFromGMT: 0)!)
       else { fputs("Y2 day navigation/filter failed.\n", stderr); exit(1) }
       print("Y2: heatmap action opened Activity for the selected day, reset agent/type filters and retained day filtering.")
+    }
+    if page == "tasks-previews-navigation" {
+      for _ in 0..<25 {
+        store.selectPage(.circles); store.circlePath = [.person("person-04")]
+        await settleNavigation()
+        await store.refresh() // Same data replacement as an automatic summary update.
+        await settleNavigation()
+        guard store.navigationPath.wrappedValue == [.people(.person("person-04"))] else { exit(1) }
+        store.openTask("tsk_workshop")
+        await settleNavigation()
+        guard store.navigationPath.wrappedValue == [.activity(.task("tsk_workshop"))] else { exit(1) }
+        store.route(.back)
+        await settleNavigation()
+        guard store.navigationPath.wrappedValue == [.people(.person("person-04"))] else { exit(1) }
+        store.selectPage(.overview); await settleNavigation()
+      }
+      store.selectPage(.circles); store.circlePath = [.person("person-04")]
+      await settleNavigation()
+      print("Oct29: 25 mounted profile / automatic refresh / task / Back / sidebar cycles passed.")
     }
     if page == "y1-task-open" || page == "y1-navigation-stress" {
       for _ in 0..<(page == "y1-navigation-stress" ? 20 : 1) {
@@ -727,6 +993,10 @@ import SwiftUI
     } catch {
       fputs("Could not write snapshot.\n", stderr)
       exit(1)
+    }
+    if n1Native {
+      do { try N1NativeSnapshot.write(window: window, to: path, size: size) }
+      catch { fputs("Native window capture failed: \(error.localizedDescription)\n", stderr); exit(1) }
     }
     if let raw = argument("--perf-seconds"), let seconds = Double(raw), seconds > 0, seconds <= 120,
       let output = argument("--perf-json")

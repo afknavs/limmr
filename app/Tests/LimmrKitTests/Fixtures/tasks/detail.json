@@ -29,7 +29,15 @@
       "text": "Prepare revision notes"
     }
   ],
-  "circle_ids": [],
+  "circle_ids": [
+    "friends"
+  ],
+  "circle_suggestions": [
+    {
+      "circle_id": "friends",
+      "reason": "A linked chat is in this circle"
+    }
+  ],
   "created_at": "2026-10-17T12:00:00Z",
   "created_by": {
     "agent_id": "agent-2",
@@ -39,13 +47,28 @@
   "history": [
     {
       "at": "2026-10-17T12:00:00Z",
+      "kind": "due",
+      "text": "Check-in fired — ready for review"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
       "kind": "item_added",
-      "text": "Workspace item added"
+      "text": "Workspace item added · you"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "summary_changed",
+      "text": "Summary updated · you"
+    },
+    {
+      "at": "2026-10-17T12:00:00Z",
+      "kind": "check_in_scheduled",
+      "text": "Check-in scheduled"
     },
     {
       "at": "2026-10-17T12:00:00Z",
       "kind": "created",
-      "text": "Task created"
+      "text": "Task created · Codex"
     }
   ],
   "id": "tsk_demo_study",
@@ -61,6 +84,7 @@
     }
   ],
   "kind": "long",
+  "last_active_at": "2026-10-17T12:00:00Z",
   "latest": [
     {
       "chat": "Maya Rao",

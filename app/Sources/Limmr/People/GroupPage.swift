@@ -17,7 +17,7 @@ struct PeopleGroupsList: View {
   }
   var body: some View {
     LazyVStack(alignment: .leading, spacing: 0) {
-      if let error { Text(error).foregroundStyle(AccessibleSecondary()); Button("Try again") { Task { await load() } }.limmrButton() }
+      if let error { Text(error).foregroundStyle(AccessibleSecondary()); Button("Try again") { Task { await load() } }.peopleQuietButton() }
       ForEach(matches.filter { $0.parentJid == nil && current($0) }) { group in row(group) }
       let older = matches.filter { $0.parentJid == nil && !current($0) }
       if !older.isEmpty {
@@ -42,12 +42,12 @@ struct PeopleGroupsList: View {
           if let last = group.lastActivity { Text(store.relativeTime(last)).font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
           Image(systemName: "chevron.right").font(.caption2).foregroundStyle(AccessibleTertiary())
         }.modifier(QuietRow()).contentShape(Rectangle())
-      }.limmrButton(.row(radius: 8), id: "people-group")
+      }.peopleQuietButton()
       if group.isCommunity == true {
         ForEach(matches.filter { $0.parentJid == group.jid }) { child in
           Button { store.circlePath.append(.group(child.jid)) } label: {
             Label(child.name, systemImage: "person.3").font(.callout).padding(.vertical, 10).padding(.leading, 48)
-          }.limmrButton()
+          }.peopleQuietButton()
         }
       }
       Divider().padding(.leading, 48)
@@ -67,7 +67,7 @@ struct GroupPage: View {
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 24) {
-        Button("Back", systemImage: "chevron.left") { store.leavePeopleRoute() }.limmrButton()
+        Button(store.peopleBackTitle, systemImage: "chevron.left") { store.leavePeopleRoute() }.peopleQuietButton()
         if let detail {
           HStack(spacing: 16) {
             PersonAvatar(store: store, id: jid, name: detail.group.name, size: 72, icon: detail.group.icon)
@@ -75,7 +75,7 @@ struct GroupPage: View {
               Text(detail.group.name).font(AppType.pageTitle)
               Text("\(detail.group.memberCount) members").font(.callout).foregroundStyle(AccessibleSecondary())
               HStack { ForEach(store.circles.filter { (detail.group.circleIds ?? []).contains($0.id) }) { circle in
-                Button(circle.name) { store.circlePath.append(.circle(circle.id)) }.limmrButton().font(AppType.caption)
+                Button(circle.name) { store.circlePath.append(.circle(circle.id)) }.peopleQuietButton().font(AppType.caption)
               } }
             }
             Spacer()
@@ -106,7 +106,7 @@ struct GroupPage: View {
                   Spacer()
                   if member.admin { Text("Admin").font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
                 }.contentShape(Rectangle())
-              }.limmrButton()
+              }.peopleQuietButton()
             }
           }
           VStack(alignment: .leading, spacing: 12) {
@@ -117,7 +117,7 @@ struct GroupPage: View {
               } else {
                 Button { store.openTask(id) } label: {
                   Text("Open task").frame(maxWidth: .infinity, alignment: .leading).padding(12).contentShape(Rectangle())
-                }.limmrButton(.row(radius: 8, bordered: false)).accessibilityLabel("Open task workspace")
+                }.peopleQuietButton().accessibilityLabel("Open task workspace")
               }
             }
             if (detail.group.taskIds ?? []).isEmpty { Text("No open tasks in this group.").font(.callout).foregroundStyle(AccessibleSecondary()) }
@@ -135,7 +135,7 @@ struct GroupPage: View {
             if (detail.recent ?? []).isEmpty { Text("No messages stored here yet.").foregroundStyle(AccessibleSecondary()) }
           }
         } else if error == nil { ProgressView("Loading group…") }
-        if let error { Text(error).foregroundStyle(AccessibleSecondary()); Button("Try again") { Task { await load() } }.limmrButton() }
+        if let error { Text(error).foregroundStyle(AccessibleSecondary()); Button("Try again") { Task { await load() } }.peopleQuietButton() }
         ActionFeedback(store: store, action: "group-access")
       }.frame(maxWidth: 760).padding(24).frame(maxWidth: .infinity)
     }.navigationBarBackButtonHidden(true).background { AppBackground() }.task(id: jid) { await load() }

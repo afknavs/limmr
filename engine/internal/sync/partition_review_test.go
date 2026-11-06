@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// The holder keeps running through any partition; the other engine never takes
-// over on silence, so a split can never produce two automation holders.
+// A partition expires holder authority; silence never authorizes the peer.
 func TestPairedLeaseHasOneHolderAcrossPartition(t *testing.T) {
 	for _, elapsed := range []time.Duration{0, 31 * time.Minute, 72 * time.Hour} {
 		t.Run(elapsed.String(), func(t *testing.T) {
@@ -20,10 +19,14 @@ func TestPairedLeaseHasOneHolderAcrossPartition(t *testing.T) {
 				must(t, e.clock())
 				must(t, e.tasks.Tick(ctx))
 			}
-			if !a.s.MayRunAutomations(ctx) || b.s.MayRunAutomations(ctx) {
-				t.Fatal("partition changed the holder")
+			if a.s.MayRunAutomations(ctx) != (elapsed < syncer.LeaseDuration) || b.s.MayRunAutomations(ctx) {
+				t.Fatal("partition expiry or non-holder fence failed")
 			}
-			slotCounts(t, a, 1, 0)
+			want := 0
+			if elapsed < syncer.LeaseDuration {
+				want = 1
+			}
+			slotCounts(t, a, want, 0)
 			slotCounts(t, b, 0, 0)
 			// A paused transport changes nothing either.
 			var peer syncer.Peer
@@ -37,7 +40,7 @@ func TestPairedLeaseHasOneHolderAcrossPartition(t *testing.T) {
 			put(t, b, "settings", "sync_peer", peer)
 			exchange(t, a, b)
 			for _, e := range []*engine{a, b} {
-				slotCounts(t, e, 1, 0)
+				slotCounts(t, e, want, 0)
 			}
 		})
 	}

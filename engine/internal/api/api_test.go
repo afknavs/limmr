@@ -88,7 +88,7 @@ func TestEveryControlRouteIsDocumented(t *testing.T) {
 		source = append(source, extra...)
 	}
 	routes := regexp.MustCompile(`add\("([A-Z]+ /v1/[^\"]+)"`).FindAllStringSubmatch(string(source), -1)
-	if len(routes) != 152 {
+	if len(routes) != 159 {
 		t.Fatalf("control route count changed: %d", len(routes))
 	}
 	for _, route := range routes {

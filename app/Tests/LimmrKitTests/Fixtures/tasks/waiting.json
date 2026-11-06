@@ -6,7 +6,15 @@
     }
   ],
   "checklist": [],
-  "circle_ids": [],
+  "circle_ids": [
+    "friends"
+  ],
+  "circle_suggestions": [
+    {
+      "circle_id": "friends",
+      "reason": "A linked chat is in this circle"
+    }
+  ],
   "created_at": "2026-10-17T12:00:00Z",
   "created_by": {
     "agent_id": "agent-2",
@@ -22,7 +30,7 @@
     {
       "at": "2026-10-17T12:00:00Z",
       "kind": "status_changed",
-      "text": "Status changed to waiting"
+      "text": "Status changed to waiting · Codex"
     },
     {
       "at": "2026-10-17T12:00:00Z",
@@ -32,12 +40,13 @@
     {
       "at": "2026-10-17T12:00:00Z",
       "kind": "created",
-      "text": "Task created"
+      "text": "Task created · Codex"
     }
   ],
   "id": "tsk_demo_waiting",
   "items": [],
   "kind": "long",
+  "last_active_at": "2026-10-17T12:00:00Z",
   "latest": [
     {
       "chat": "Maya Rao",

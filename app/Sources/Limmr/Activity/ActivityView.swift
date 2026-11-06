@@ -38,21 +38,14 @@ struct ActivityView: View {
   @State private var reviewingChange: CircleAutoChange?
   @State private var showAllChanges = false
   private var rows: [Activity] {
-    let all = store.activity + (store.dashboard?.recentSends ?? [])
-    return Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last }).values
-      .filter { ActivityDayFilter.matches($0.at, day: store.activityDay) }
-      .filter { store.activityAgent == "all" || $0.agentId == store.activityAgent }
-      .filter {
-        store.activityFilter == "all"
-          || (store.activityFilter == "reads"
-            ? ActivityPresentation.isMessageRead($0) : ActivityPresentation.isSend($0))
-      }
-      .sorted(by: Activity.newestFirst)
+    ActivityPresentation.detailed(store.activity + (store.dashboard?.recentSends ?? []),
+      day: store.activityDay, agent: store.activityAgent, filter: store.activityFilter)
   }
+
   private var active: [Effort] { efforts.filter { $0.status != "done" && $0.status != "dormant" } }
   private var quiet: [Effort] { efforts.filter { $0.status == "dormant" } }
   private var finished: [Effort] {
-    let now = store.demo ? Timestamp.date(DemoData.now)! : Date()
+    let now = store.presentationNow
     return efforts.filter {
       $0.status == "done"
         && (!query.isEmpty
@@ -60,21 +53,9 @@ struct ActivityView: View {
     }
   }
   var body: some View {
-    NavigationStack(path: $store.activityPath) {
-      content
-        .pageSurface()
-        .navigationDestination(for: ActivityRoute.self) { route in
-          Group {
-            switch route {
-            case .task(let id): TaskPage(store: store, id: id)
-            case .effort(let id): EffortPage(store: store, id: id)
-            }
-          }
-          .pageSurface()
-        }
-    }
-      .task(id: store.pendingActivityRoute) { await store.activityDidAppear() }
-      .onDisappear { store.activityNavigationReady = false }
+    let _ = SpeedTrace.body("Activity")
+    content
+      .pageSurface()
       .environment(\.keyboardRowNavigation, true)
       .onChange(of: rowFocused) { _, id in if let id { selection.id = id } }
       .onChange(of: rowIDs) { _, ids in if selection.current(in: ids) == nil { selection.id = nil } }
@@ -95,7 +76,7 @@ struct ActivityView: View {
   private var content: some View {
     ScrollViewReader { proxy in
     ScrollView {
-      VStack(alignment: .leading, spacing: 24) {
+      LazyVStack(alignment: .leading, spacing: 24) {
         HStack {
           Text("Activity").font(AppType.pageTitle)
           Spacer()
@@ -105,6 +86,12 @@ struct ActivityView: View {
             Text("By purpose").tag(false)
             Text("Detailed log").tag(true)
           }.pickerStyle(.menu).fixedSize()
+        }
+        if let history = store.history {
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Last 42 weeks").font(AppType.blockHeading)
+            ActivityHeatmap(history: history, agents: store.agents, openDay: store.openActivityDay)
+          }
         }
         if let day = store.activityDay {
           HStack {
@@ -144,7 +131,7 @@ struct ActivityView: View {
           if !tasks.isEmpty {
             Text("Tasks").font(AppType.blockHeading).foregroundStyle(AccessibleSecondary())
             ForEach(tasks.filter { $0.status != "suggested" }) { task in
-              SurfacedTaskRow(store: store, task: task, changed: updateTask)
+              SurfacedTaskRow(store: store, task: task, compact: true, changed: updateTask)
                 .focused($rowFocused, equals: "task:" + task.id)
                 .keyboardRow("task:" + task.id, selection: selection.id, radius: 8)
             }
@@ -152,7 +139,7 @@ struct ActivityView: View {
           if !TaskPresentation.suggested(tasks).isEmpty {
             Text("Suggested").font(AppType.blockHeading).foregroundStyle(AccessibleSecondary())
             ForEach(TaskPresentation.suggested(tasks)) { task in
-              SurfacedTaskRow(store: store, task: task, changed: updateTask)
+              SurfacedTaskRow(store: store, task: task, compact: true, changed: updateTask)
                 .focused($rowFocused, equals: "task:" + task.id)
                 .keyboardRow("task:" + task.id, selection: selection.id, radius: 8)
             }
@@ -222,11 +209,13 @@ struct ActivityView: View {
     }
     .onChange(of: selection.id) { _, id in if let id { proxy.scrollTo(id, anchor: .center) } }
     }
-    .task(id: "\(store.backendGeneration):\(store.effortRevision):\(query):\(store.home.circleUpdates.map(\.lastAt).max() ?? "")") {
-      await load()
+    .task(id: "\(detailedLog):\(store.activityDay ?? ""):\(store.backendGeneration):\(store.effortRevision):\(query):\(store.home.circleUpdates.map(\.lastAt).max() ?? "")") {
+      if detailedLog || store.activityDay != nil {
+        await store.refreshDetailedActivity()
+      } else { await load() }
     }
     .task(id: store.activityAgent) {
-      if !store.snapshot {
+      if !store.snapshot, detailedLog || store.activityDay != nil {
         await store.filterActivity(agent: store.activityAgent, kind: "all", chat: "all")
       }
     }
@@ -277,7 +266,8 @@ struct ActivityView: View {
     }
   }
   private var detailedView: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    let visibleRows = rows
+    return LazyVStack(alignment: .leading, spacing: 16) {
       HStack {
         Picker("Integration", selection: $store.activityAgent) {
           Text("All integrations").tag("all")
@@ -291,7 +281,7 @@ struct ActivityView: View {
       }
       ActionFeedback(store: store)
       Text("Each action, newest first").font(AppType.caption).foregroundStyle(AccessibleSecondary())
-      ForEach(rows) { row in
+      ForEach(visibleRows) { row in
         DisclosureGroup(isExpanded: Binding(get: { expandedLogs.contains(row.id) }, set: { if $0 { expandedLogs.insert(row.id) } else { expandedLogs.remove(row.id) } })) {
           ActivityRow(store: store, row: row)
           Button("Inspect messages") {
@@ -300,17 +290,21 @@ struct ActivityView: View {
           }.limmrButton()
           if store.selectedActivity == row.id { ActivityDetail(store: store).frame(minHeight: 240) }
         } label: {
-          Text("\(store.time(row.at)) · \(store.agentName(row.agentId)) · \(row.verb)").font(
+          Text("\(store.time(row.at)) · \(store.agentName(row.agentId)) · \(row.verb)" + (row.chatJids.isEmpty ? "" : " · " + row.chatJids.map(store.chatName).joined(separator: ", "))).font(
             .callout)
         }
         .focused($rowFocused, equals: "log:\(row.id)")
         .keyboardRow("log:\(row.id)", selection: selection.id, horizontal: 8, vertical: 6)
         Divider()
       }
-      if rows.isEmpty && store.isLoading("/v1/activity") {
+      if visibleRows.isEmpty && store.isLoading("/v1/activity") {
         QuietLoadingCards()
-      } else if rows.isEmpty && store.hasLoaded("/v1/activity") {
+      } else if visibleRows.isEmpty && store.hasLoaded("/v1/activity") {
         QuietBlockState(title: "A quiet activity log", detail: "Actions appear here when your integrations work. Try another filter to see earlier activity.")
+      }
+      if let before = store.activityBefore {
+        Color.clear.frame(height: 1).id("activity-tail-\(before)")
+          .onAppear { Task { await store.loadMoreActivity() } }
       }
       Button("Load earlier activity") { Task { await store.loadMoreActivity() } }
         .buttonStyle(NativeGlassButtonStyle()).disabled(
@@ -344,6 +338,15 @@ struct ActivityRow: View {
         } else if row.tool != "circle_structure_placed", let note = row.note {
           Text(note).font(.callout).foregroundStyle(AccessibleSecondary()).lineLimit(2)
         }
+        if let id = row.taskId {
+          Button("Open task") { store.openTask(id) }.buttonStyle(.link)
+        }
+        ForEach(row.chatJids, id: \.self) { jid in
+          Button(store.chatName(jid), systemImage: "bubble.left") {
+            store.selectPage(.circles)
+            store.circlePath = jid.hasSuffix("@g.us") ? [.group(jid)] : [.chat(jid, store.chatName(jid))]
+          }.buttonStyle(.link)
+        }
         if let reason = row.instructionReason {
           Text(reason).font(.callout).foregroundStyle(AccessibleSecondary())
         }
@@ -360,7 +363,7 @@ struct ActivityRow: View {
     let chats = row.chatJids.map(store.chatName).joined(separator: ", ")
     if row.kind == "sent" { return "\(agent) → \(chats.isEmpty ? "Chat" : chats)" }
     if sending { return "\(agent) · \(row.verb)" + (chats.isEmpty ? "" : " · " + chats) }
-    return "\(agent) · \(row.verb)"
+    return "\(agent) · \(row.verb)" + (chats.isEmpty ? "" : " · " + chats)
   }
 }
 

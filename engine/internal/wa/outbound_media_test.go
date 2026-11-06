@@ -38,6 +38,7 @@ func TestOutboundMediaWithFakeUploader(t *testing.T) {
 		{"gif", []byte("GIF89asynthetic"), "image", whatsmeow.MediaImage},
 		{"webp", []byte("RIFF\x00\x00\x00\x00WEBPVP8 synthetic"), "image", whatsmeow.MediaImage},
 		{"video", []byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"), "video", whatsmeow.MediaVideo},
+		{"m4a", []byte("\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00M4A mp42"), "audio", whatsmeow.MediaAudio},
 		{"audio", []byte("OggS\x00OpusHeadsynthetic"), "audio", whatsmeow.MediaAudio},
 		{"document", []byte("%PDF-1.7\nsynthetic"), "document", whatsmeow.MediaDocument},
 	} {
@@ -92,5 +93,24 @@ func TestAudioTextIsPreservedAndUploadErrorsAreRedacted(t *testing.T) {
 	client.fail = true
 	if _, err = uploadMediaMessage(context.Background(), client, []byte("x"), a, nil); err == nil || err.Error() != "upload failed" {
 		t.Fatal("unredacted upload error")
+	}
+}
+
+func TestDocumentMIMEAndUploadProgress(t *testing.T) {
+	client := &fakeMediaUpload{}
+	var phases []model.UploadProgress
+	ctx := model.WithUploadProgress(context.Background(), func(p model.UploadProgress) error { phases = append(phases, p); return nil })
+	data := []byte("PK\x03\x04\x14\x00\x00\x00synthetic office archive")
+	a := model.Approval{Text: "Design notes", Attachment: &model.Attachment{Name: "Design notes.docx"}}
+	msg, e := uploadMediaMessage(ctx, client, data, a, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	doc := msg.GetDocumentMessage()
+	if doc.GetFileName() != a.Attachment.Name || doc.GetMimetype() != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || doc.GetCaption() != a.Text {
+		t.Fatalf("document metadata: %v", doc)
+	}
+	if len(phases) != 2 || phases[0].Phase != "uploading" || phases[1].Bytes != int64(len(data)) || phases[1].Phase != "uploaded" {
+		t.Fatalf("progress: %+v", phases)
 	}
 }

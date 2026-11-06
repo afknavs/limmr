@@ -3,7 +3,7 @@ import LimmrKit
 import Testing
 @testable import Limmr
 
-@Suite("A5 quiet unlinked history") struct A5LoadingTests {
+@Suite("A5 retained unlinked history") struct A5LoadingTests {
   @MainActor @Test func unchangedHistoryReturnsAfterRelinking() async {
     let backend = A5HistoryBackend()
     let store = AppStore(demo: true, snapshot: true, backend: backend)
@@ -12,7 +12,7 @@ import Testing
     #expect(days?.isEmpty == false)
     await backend.setLinked(false)
     await store.refresh()
-    #expect(store.history == nil)
+    #expect(store.history?.days == days) // N2: unlinking preserves retained activity.
     #expect(store.refreshError == nil)
     await backend.setLinked(true)
     await store.refresh()

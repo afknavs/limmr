@@ -11,13 +11,22 @@ struct HomeView: View {
   @Environment(\.snapshotOpenWatch) private var snapshotWatch
   @Environment(\.snapshotHomeSection) private var snapshotSection
   @State private var showAllAsks = false
+  private var mainSections: [String] {
+    var sections = HomePresentation.mainSections(store.home)
+    // Keep the last card's Undo notice reachable after the section becomes empty.
+    if store.taskQuietNotice != nil && !sections.contains("tasks") {
+      sections.insert("tasks", at: min(sections.count, (sections.firstIndex(of: "dashboard") ?? 0) + 1))
+    }
+    return sections
+  }
   private var greeting: String {
-    HomePresentation.greeting(at: store.demo ? Timestamp.date(DemoData.now)! : Date())
+    HomePresentation.greeting(at: store.presentationNow)
   }
   var body: some View {
+    let _ = SpeedTrace.body("Home")
     Group {
-      if store.status?.linked == false || (store.status == nil && !store.isLoading("/v1/status")) {
-        VStack(spacing: 24) {
+      if store.status?.linked == false && store.chats.isEmpty && store.people.isEmpty && store.homeActivityHistory == nil && store.home.tasks.isEmpty {
+        VStack(spacing: 20) {
           Image(systemName: "bubble.left.and.text.bubble.right").font(.largeTitle).foregroundStyle(
             .secondary)
           Text("Link WhatsApp to get started").font(.title2.weight(.semibold))
@@ -26,46 +35,43 @@ struct HomeView: View {
             store.showSetup = true
           }.buttonStyle(.borderedProminent)
           Button("Explore with sample data") { Task { await store.useSampleData(true) } }
-            .limmrButton()
-          if let error = store.refreshError {
-            Text(error).font(.callout).foregroundStyle(AccessibleSecondary())
-            Button("Try again") { Task { await store.reconnect() } }
-          }
+            .buttonStyle(.bordered)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ScrollViewReader { proxy in
           GeometryReader { geometry in
-            let wide = HomePresentation.usesRecentColumn(windowWidth: windowWidth, contentWidth: geometry.size.width)
-            let mainWidth = geometry.size.width - (wide ? 328 : 0) - 48
-            HStack(alignment: .top, spacing: 24) {
-              ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                  if let setup = store.setupStatus {
-                    SetupHomeCard(store: store, setup: setup)
-                  }
-                  ForEach(
-                    HomePresentation.mainSections(store.home).filter {
-                      $0 != "changes" && $0 != "integrations" && (snapshotSection == nil || $0 == snapshotSection)
-                    }, id: \.self
-                  ) { section in
-                    block(section, mainWidth: mainWidth).id(section)
-                  }
-                  if !wide { RecentWidget(store: store) }
-                  if !wide, HomePresentation.hasChanges(store.home),
-                    snapshotSection == nil || snapshotSection == "changes" { block("changes") }
-                  if !wide, snapshotSection == nil || snapshotSection == "integrations" { block("integrations") }
+            let wide = windowWidth >= 1200 && geometry.size.width >= 900
+            ScrollView {
+              VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top, spacing: 20) {
+                  LazyVStack(alignment: .leading, spacing: 20) {
+                    N1Overview(store: store) { row in openOverview(row, proxy: proxy) }
+                    if let history = store.homeActivityHistory {
+                      N2HomeActivity(history: history, now: store.presentationNow, openDay: store.openActivityDay)
+                    }
+                    if let setup = store.setupStatus { SetupHomeCard(store: store, setup: setup) }
+                    if !TaskListPresentation.active(store.home.tasks).isEmpty || store.taskQuietNotice != nil { TasksTile(store: store) }
+                    N1CirclesGrid(store: store).id("n2-circles")
+                    if !wide { N1HomeRail(store: store) }
+                    if !store.pending.isEmpty {
+                      VStack(alignment: .leading, spacing: 12) {
+                        Text("Approvals").font(LimmrTheme.TypeScale.section)
+                        ForEach(store.pending) { item in ApprovalCard(store: store, approval: item).id(item.id) }
+                      }.id("approvals")
+                    }
+                    if !store.home.queued.isEmpty { block("queued").id("queued") }
+                    if !store.home.needsReply.isEmpty { block("needs_reply") }
+                    if !store.home.waiting.isEmpty { block("triggers") }
+                    if !store.home.proposals.isEmpty { block("proposals") }
+                  }.frame(maxWidth: .infinity, alignment: .leading)
+                  if wide { N1HomeRail(store: store).frame(width: 240) }
                 }
-                .padding(24).frame(maxWidth: .infinity)
-              }
-              if wide {
-                RecentWidget(store: store, includesCaptions: true).frame(width: 280).padding(.top, 32).padding(
-                  .trailing, 24)
-              }
+              }.padding(20).frame(maxWidth: 1320, alignment: .leading).frame(maxWidth: .infinity)
             }
           }
           .onChange(of: store.searchRequest) { _, _ in proxy.scrollTo("greeting", anchor: .top) }
           .onChange(of: store.selectedApproval) { _, id in
-            if id != nil { withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("queued", anchor: .top) } }
+            if id != nil { withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(id, anchor: .center) } }
           }
           .task {
             if let snapshotSection {
@@ -90,45 +96,53 @@ struct HomeView: View {
         }
       }
     }
+    .navigationTitle("Home")
+    .modifier(HomeToolbarSearch(store: store))
     .onAppear { HomeQuietSnapshot.prepare(store: store) }
     .onChange(of: store.escapeRequest) { _, _ in showAllAsks = false }
     .sheet(isPresented: $showAllAsks) { ReplyAsksSheet(store: store).dismissOnEscape() }
     .sheet(isPresented: $store.showProposalReview) { ProposalReview(store: store).dismissOnEscape() }
   }
+  private func openOverview(_ row: OverviewRow, proxy: ScrollViewProxy) {
+    switch row.kind {
+    case "task": store.openTask(row.target)
+    case "person": store.openPeopleRoute(.person(row.target))
+    case "approval": store.selectedApproval = row.target; proxy.scrollTo(row.target, anchor: .center)
+    case "queued": store.selectedApproval = row.target; proxy.scrollTo(row.target, anchor: .center)
+    default: break
+    }
+  }
   private var greetingHeader: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text(greeting).font(AppType.pageTitle)
-      if let error = store.refreshError {
-        Text(error).font(.callout).foregroundStyle(AccessibleSecondary())
-        Button("Try again") { Task { await store.reconnect() } }
-      }
+      Text(greeting).font(.largeTitle.bold())
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
   @ViewBuilder private func block(_ section: String, mainWidth: Double = 600) -> some View {
     switch section {
     case "greeting": greetingHeader
-    case "search": HomeSearchView(store: store).frame(width: HomePresentation.searchWidth(mainWidth: mainWidth))
+
     case "dashboard":
       DashboardView(store: store, contentWidth: mainWidth - 32, fullWidth: true)
       if store.home.waiting.isEmpty && !store.home.needsReply.isEmpty {
         DisclosureGroup("Needs a reply (\(store.home.needsReply.count))") { NeedsReplyCard(store: store).padding(.top, 8) }
-          .font(.callout).foregroundStyle(AccessibleSecondary())
+          .font(.callout).foregroundStyle(.secondary)
       }
     case "triggers":
       DisclosureGroup("Waiting for a trigger") { TriggerWaitingCard(store: store).padding(.top, 8) }
-        .font(.callout).foregroundStyle(AccessibleSecondary())
+        .font(.callout).foregroundStyle(.secondary)
     case "tasks": TasksTile(store: store)
     case "queued":
       VStack(alignment: .leading, spacing: 8) {
         CountLabel(value: store.home.queued.count, title: "Queued to send")
         ForEach(store.home.queued) { item in
-          QueuedDraftRow(store: store, item: item)
+          QueuedDraftRow(store: store, item: item).id(item.id)
           if item.id != store.home.queued.last?.id { Divider() }
         }
       }
     case "circles":
-      CircleUpdatesView(store: store, contentWidth: mainWidth)
+      CircleUpdatesView(store: store, contentWidth: min(mainWidth, 620))
+        .frame(maxWidth: 620, alignment: .leading)
     case "needs_reply":
       VStack(alignment: .leading, spacing: 8) {
         BlockHeading(title: "Needs a reply")
@@ -136,7 +150,7 @@ struct HomeView: View {
         if store.home.needsReply.count > 3 {
           Button("\(store.home.needsReply.count - 3) more") { showAllAsks = true }.buttonStyle(
             .plain
-          ).font(AppType.caption)
+          ).font(.caption)
         }
       }
     case "changes":
@@ -147,12 +161,12 @@ struct HomeView: View {
       } label: {
         HStack(spacing: 4) {
           Text(HomePresentation.changesLine(
-            store.home, now: store.demo ? Timestamp.date(DemoData.now)! : Date()))
+            store.home, now: store.presentationNow))
             .lineLimit(1)
           Text("· Review in Activity").fixedSize()
           Spacer(minLength: 0)
         }
-      }.limmrButton().font(AppType.caption).foregroundStyle(AccessibleSecondary())
+      }.buttonStyle(.bordered).font(.caption).foregroundStyle(.secondary)
     case "proposals":
       VStack(alignment: .leading, spacing: 16) {
         BlockHeading(title: "New circles suggested")
@@ -170,8 +184,8 @@ struct HomeView: View {
         Button("Manage") {
           store.settingsTab = .integrations
           openSettings()
-        }.limmrButton()
-      }.font(AppType.caption).foregroundStyle(AccessibleSecondary()) }
+        }.buttonStyle(.bordered)
+      }.font(.caption).foregroundStyle(.secondary) }
     default: EmptyView()
     }
   }
@@ -185,7 +199,7 @@ struct HomeView: View {
 struct BlockHeading: View {
   let title: String
   var body: some View {
-    Text(title).font(AppType.blockHeading).foregroundStyle(AccessibleSecondary())
+    Text(title).font(.title3.weight(.semibold)).foregroundStyle(.secondary)
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
@@ -213,17 +227,17 @@ struct ReplyAskRow: View {
               store.personName(id).split(separator: " ").prefix(2).compactMap(\.first)))
         }
         VStack(alignment: .leading, spacing: 4) {
-          Text("\(ask.from ?? ask.chat ?? "Someone") · \(ask.circle)").font(AppType.rowTitle)
-          Text("“\(ask.text)”").font(.callout).foregroundStyle(AccessibleSecondary()).lineLimit(2)
+          Text("\(ask.from ?? ask.chat ?? "Someone") · \(ask.circle)").font(.headline)
+          Text("“\(ask.text)”").font(.callout).foregroundStyle(.secondary).lineLimit(2)
           Text(ask.at.map { "Waiting \(store.relativeTime($0))" } ?? "Waiting time unavailable")
-            .font(AppType.caption).foregroundStyle(AccessibleSecondary())
+            .font(.caption).foregroundStyle(.secondary)
         }
         Spacer(minLength: 0)
-        Button("Mark done") { Task { await store.completeAsk(ask) } }.limmrButton()
+        Button("Mark done") { Task { await store.completeAsk(ask) } }.buttonStyle(.bordered)
       }
       HStack(spacing: 16) {
         if let url = HomePresentation.whatsappURL(jid: ask.chatJid) {
-          Button("Open in WhatsApp") { openURL(url) }.limmrButton()
+          Button("Open in WhatsApp") { openURL(url) }.buttonStyle(.bordered)
         }
         Menu(store.requestedReplyDrafts.contains(ask.id) ? "Draft requested" : "Ask an AI to draft")
         {
@@ -232,7 +246,7 @@ struct ReplyAskRow: View {
           }
         }.menuStyle(.borderlessButton).fixedSize().disabled(
           store.agents.filter(\.enabled).isEmpty || store.requestedReplyDrafts.contains(ask.id))
-      }.font(AppType.caption).foregroundStyle(AccessibleSecondary())
+      }.font(.caption).foregroundStyle(.secondary)
       ActionFeedback(store: store, action: "ask-\(ask.id)")
     }.modifier(QuietRow()).onHover { hover = $0 }
       .accessibilityAction(named: "Done") { Task { await store.completeAsk(ask) } }
@@ -241,7 +255,7 @@ struct ReplyAskRow: View {
 extension AppStore {
   func relativeTime(_ value: String) -> String {
     guard let date = Timestamp.date(value) else { return "Recently" }
-    let elapsed = max(0, (demo ? Timestamp.date(DemoData.now)! : Date()).timeIntervalSince(date))
+    let elapsed = max(0, (presentationNow).timeIntervalSince(date))
     if elapsed < 60 { return "now" }
     if elapsed < 3600 { return "\(Int(elapsed / 60)) min" }
     if elapsed < 86400 { return "\(Int(elapsed / 3600)) hr" }
@@ -256,11 +270,11 @@ struct CircleProposalCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       VStack(alignment: .leading, spacing: 16) {
-        Label(proposal.circle.name, systemImage: proposal.circle.symbol).font(AppType.rowTitle)
-        Text(proposal.why).font(.callout).foregroundStyle(AccessibleSecondary())
+        Label(proposal.circle.name, systemImage: proposal.circle.displaySymbol).font(.headline)
+        Text(proposal.why).font(.callout).foregroundStyle(.secondary)
         Text("\(proposal.circle.chats.count) chats · \(store.proposalActivity(proposal))").font(
           .caption
-        ).foregroundStyle(AccessibleSecondary())
+        ).foregroundStyle(.secondary)
         if editing { TextField("Circle name", text: $name).textFieldStyle(.roundedBorder) }
         HStack(spacing: 16) {
           Button("Keep") {
@@ -270,9 +284,9 @@ struct CircleProposalCard: View {
           Button(editing ? "Cancel edit" : "Edit") {
             name = proposal.circle.name
             editing.toggle()
-          }.limmrButton()
+          }.buttonStyle(.bordered)
           Button("Dismiss") { Task { await store.circleAction(proposal.id, method: "DELETE") } }
-            .limmrButton().foregroundStyle(AccessibleSecondary())
+            .buttonStyle(.bordered).foregroundStyle(.secondary)
         }
         ActionFeedback(store: store, action: "circle-\(proposal.id)")
       }
@@ -299,9 +313,10 @@ extension AppStore {
   }
 
   func lastSeen(_ agent: Agent) -> String {
+    if let state = AIIdentity.syncState(agent, sync: connectionSync) { return state }
     guard agent.enabled else { return "Paused" }
     guard let at = agent.lastSeenAt.flatMap(Timestamp.date) else { return "Hasn’t connected yet" }
-    let now = demo ? Timestamp.date(DemoData.now)! : Date()
+    let now = presentationNow
     let seconds = max(0, now.timeIntervalSince(at))
     if seconds < 300 { return "Active now" }
     if seconds < 3600 { return "\(Int(seconds / 60))m ago" }
