@@ -80,7 +80,16 @@ public final class APIClient: Backend, Sendable {
            let progress = try? Wire.decode(EngineStartingResponse.self, from: data), progress.status == "starting" {
             throw BackendError.starting(progress: progress.progressKey)
         }
-        guard (200..<300).contains(http.statusCode) else { throw BackendError.http(http.statusCode) }
+        guard (200..<300).contains(http.statusCode) else {
+            // History undo errors are actionable inline; preserve the API's words.
+            if path.contains("/changes/"), path.hasSuffix("/undo"),
+               let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = envelope["error"] as? [String: Any],
+               let message = error["message"] as? String, !message.isEmpty {
+                throw BackendError.unavailable(message)
+            }
+            throw BackendError.http(http.statusCode)
+        }
         return data
     }
     public func events(_ path: String) -> AsyncThrowingStream<SSEEvent, Error> {

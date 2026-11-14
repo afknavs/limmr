@@ -211,6 +211,7 @@ public enum HomePresentation {
   }
   public static func circles(_ items: [CircleToday]) -> [CircleToday] {
     items.filter {
+      guard $0.circle.archived != true else { return false }
       let pinned = $0.pinned || $0.circle.pinned
       return pinned || ($0.circle.kind != "self" && ($0.openAsks > 0 || $0.newMessages > 0))
     }
@@ -258,7 +259,7 @@ public enum HomePresentation {
 }
 public enum PeoplePresentation {
   public static func circles(_ circles: [Circle], query: String) -> [Circle] {
-    circles.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
+    circles.filter { $0.isLive && (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) }
   }
   /// "Classmate · University, Flatmate · Flatmates". A role that only repeats the person's name
   /// ("Mum" in Family) shows as the circle alone.

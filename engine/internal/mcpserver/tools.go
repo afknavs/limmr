@@ -541,6 +541,7 @@ func (s *Service) callLegacy(ctx context.Context, a model.Agent, name string, ar
 			return nil, e
 		}
 		act.Kind = "send_requested"
+		act.FirstContactInfo = d.FirstContactInfo
 		act.OwnerInstruction = d.OwnerInstruction
 		act.QueueForApproval = d.QueueForApproval
 		act.ChatJIDs = []string{d.ChatJID}

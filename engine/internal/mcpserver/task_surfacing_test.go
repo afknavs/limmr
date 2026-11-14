@@ -30,9 +30,9 @@ func TestTaskSurfacingMCPHomeAndUpdates(t *testing.T) {
 	testkit.Must(t, err)
 	mc := &mcpserver.Service{Hub: h, People: p, Watches: ws}
 	svc := mc.TaskService()
-	// Four suggestions; Home must include only three, following open tasks.
+	// Suggestions stay available to MCP, while Home contains only tasks.
 	for i := 0; i < 4; i++ {
-		_, err = svc.Suggest(nil, tasks.Create{Title: "Exam material", Kind: "long", Chats: []tasks.Entity{{ID: testkit.Phone}}}, tasks.Suggestion{Signals: []string{"Exam material needs a plan"}, Confidence: 0.75, DetectedAt: testkit.Epoch, EffortIDs: []string{}})
+		_, err = svc.Suggest(nil, tasks.Create{Title: "Exam material", DifferentBecause: "Separate example for pagination", Kind: "long", Chats: []tasks.Entity{{ID: testkit.Phone}}}, tasks.Suggestion{Signals: []string{"Exam material needs a plan"}, Confidence: 0.75, DetectedAt: testkit.Epoch, EffortIDs: []string{}})
 		testkit.Must(t, err)
 	}
 	open, err := svc.Create(&a, tasks.Create{Title: "Current study plan", Kind: "long", Chats: []tasks.Entity{{ID: testkit.Phone}}})
@@ -78,14 +78,25 @@ func TestTaskSurfacingMCPHomeAndUpdates(t *testing.T) {
 		t.Fatalf("Home status %d: %s", rr.Code, rr.Body.String())
 	}
 	var home struct {
-		Tasks []tasks.TaskSummary `json:"tasks"`
+		Tasks       []tasks.TaskSummary `json:"tasks"`
+		RecentLines []tasks.RecentLine  `json:"recent_lines"`
 	}
 	testkit.Must(t, json.Unmarshal(rr.Body.Bytes(), &home))
-	if len(home.Tasks) != 4 || home.Tasks[0].ID != open.ID {
+	if len(home.Tasks) != 1 || home.Tasks[0].ID != open.ID {
 		t.Fatal("Home order/limit incorrect")
+	}
+	for _, line := range home.RecentLines {
+		for _, suggestion := range xs {
+			if line.TargetID == suggestion.ID {
+				t.Fatal("Home recent activity contains suggestion")
+			}
+		}
 	}
 	for _, action := range []string{"keep", "dismiss"} {
 		args := map[string]any{"action": action, "id": xs[0].ID}
+		if action == "keep" {
+			args["owner_request"] = map[string]any{"text": "Please track this work"}
+		}
 		if action == "dismiss" {
 			args["id"] = xs[1].ID
 			args["reason"] = "An invented example"
@@ -99,19 +110,19 @@ func TestTaskSurfacingMCPHomeAndUpdates(t *testing.T) {
 	}
 	// Match live ingestion: current chat metadata accompanies the message.
 	testkit.Must(t, h.Messages.PutChat(model.Chat{JID: testkit.Group, Name: "Design Club", LastMessageTime: &testkit.Epoch}))
-	// An undersized project is a task, with the why signal preserved.
+	// Finite work warns and creates nothing; the caller explicitly starts a task.
 	testkit.Must(t, h.Messages.PutMessage(model.Message{ID: "current", ChatJID: testkit.Group, Content: "Prepare the application", Timestamp: testkit.Epoch}))
-	out, err = mc.Call(context.Background(), a.ID, "circles", map[string]any{"action": "propose", "name": "Application review", "kind": "project", "chats": []any{testkit.Group}, "people": []any{model.PersonID(testkit.Phone)}, "why": "Design Club is preparing an application"})
-	testkit.Must(t, err)
-	id := out.(map[string]string)["converted_to_task"]
-	if !strings.HasPrefix(id, "tsk_") {
-		t.Fatal("project not converted")
+	_, err = mc.Call(context.Background(), a.ID, "circles", map[string]any{"action": "propose", "name": "Application review", "kind": "project", "chats": []any{testkit.Group}, "people": []any{model.PersonID(testkit.Phone)}, "why": "Design Club is preparing an application"})
+	if err == nil || !strings.Contains(err.Error(), "task_override_reason") {
+		t.Fatal("missing finite-work warning", err)
 	}
-	task, err := svc.Get(&a, id)
+	out, err = mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Review the application", "goal": "Submit the reviewed application", "kind": "long", "chats": []any{map[string]any{"id": testkit.Group}}})
 	testkit.Must(t, err)
-	if task.Status != "suggested" || task.Suggestion.Signals[0] != "Design Club is preparing an application" {
-		t.Fatal("proposal signal missing")
+	task := out.(tasks.Task)
+	if task.Status != "active" || task.Origin != "agent" {
+		t.Fatal("explicit task creation missing")
 	}
+
 }
 
 func TestChecklistAliases(t *testing.T) {
@@ -120,7 +131,7 @@ func TestChecklistAliases(t *testing.T) {
 	a, _, err := h.CreateAgent("Example AI", "custom", "local")
 	testkit.Must(t, err)
 	mc := &mcpserver.Service{Hub: h, People: p}
-	created, err := mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "title": "Exam preparation", "kind": "long"})
+	created, err := mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Exam preparation", "goal": "Be ready for the exam", "kind": "long"})
 	testkit.Must(t, err)
 	id := created.(tasks.Task).ID
 	listed, err := mc.TaskService().List(nil, "open", 100)
@@ -132,7 +143,7 @@ func TestChecklistAliases(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{map[string]any{"action": "create", "title": "Exam preparation", "kind": "long", "lifespan_days": float64(7)}, "lifespan_days"},
+		{map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Exam preparation", "goal": "Be ready for the exam", "kind": "long", "lifespan_days": float64(7)}, "lifespan_days"},
 		{map[string]any{"action": "update", "id": id, "checklist": []any{}}, "checklist"},
 	} {
 		_, err = mc.Call(context.Background(), a.ID, "task", tc.args)

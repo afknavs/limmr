@@ -14,9 +14,9 @@ extension AppStore {
   func personIsCurrent(_ person: Person) -> Bool {
     person.id == "me" || chats.contains { person.jids.contains($0.jid) && chatIsCurrent($0) }
   }
-  func orderedPeople(query: String) -> [Person] {
+  func orderedPeople(query: String, includeUnselected: Bool = false) -> [Person] {
     PeoplePresentation.people(query.isEmpty ? people : (peopleSearchResults ?? people), circles: circles, query: query).filter {
-      mapSelection.person == nil || mapSelection.person == $0.id
+      includeUnselected || mapSelection.person == nil || mapSelection.person == $0.id
     }.sorted {
       if $0.id == "me" { return $1.id != "me" }; if $1.id == "me" { return false }
       let a = personLastChat($0)

@@ -78,7 +78,7 @@ func (s *Service) projectWith(a *model.Agent, c model.Circle, allowed func(strin
 		c.People = people
 		return c, nil
 	}
-	if !s.Hub.CircleAccess(a, c) {
+	if c.Archived || !s.Hub.CircleAccess(a, c) {
 		return model.Circle{}, model.ErrNotFound
 	}
 	chats := []model.CircleChat{}
@@ -133,7 +133,7 @@ func (s *Service) Circle(a *model.Agent, id string) (model.Circle, error) {
 	return s.project(a, c)
 }
 func (s *Service) List(a *model.Agent) ([]model.Circle, error) {
-	xs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	xs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return nil, e
 	}
@@ -270,6 +270,9 @@ func (s *Service) Create(a *model.Agent, c model.Circle, why string) (model.Circ
 	defer s.shared().mu.Unlock()
 	if len(why) > 2000 {
 		return c, model.ErrInvalid
+	}
+	if model.LooksLikeTask(c.Kind, c.Name, c.Goal) && (len(strings.Fields(c.TaskOverrideReason)) < 3 || len(c.TaskOverrideReason) > 1000) {
+		return c, guardError{"This looks like work that ends. Use task create, or repeat with task_override_reason explaining the lasting life area.", model.ErrConflict}
 	}
 	c.ID = dbutil.ID()
 	c.Confirmed = false

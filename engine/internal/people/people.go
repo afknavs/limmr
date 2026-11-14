@@ -179,7 +179,17 @@ func (s *Service) peopleSelected(a *model.Agent, query string, all bool, selecte
 		}
 		ps = chosen
 	}
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	rawCircles, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs := []model.Circle{}
+	retired := map[string]bool{}
+	for _, c := range rawCircles {
+		if c.Live() {
+			cs = append(cs, c)
+		} else {
+			retired[c.ID] = true
+			retired[strings.ToLower(c.Name)] = true
+		}
+	}
 	if e != nil {
 		return nil, e
 	}
@@ -249,6 +259,9 @@ func (s *Service) peopleSelected(a *model.Agent, query string, all bool, selecte
 	}
 	out := []model.Person{}
 	for _, p := range ps {
+		if retired[p.Circle] || retired[strings.ToLower(p.Circle)] {
+			p.Circle = ""
+		}
 		if p.Label == "" && !model.Named(model.Person{Name: p.Name}) && model.Named(model.Person{Name: p.PushName}) {
 			p.Name = p.PushName
 		}
@@ -533,7 +546,22 @@ func (s *Service) Group(a *model.Agent, id string) (any, error) {
 		if m.Group == id {
 			for _, p := range ps {
 				if p.ID == m.Person {
-					members = append(members, map[string]any{"person": p, "admin": m.Admin})
+					member := map[string]any{"person": p, "admin": m.Admin}
+					if a != nil {
+						info, err := s.Hub.ContactMember(*a, p.ID)
+						if err != nil && err != model.ErrNotFound {
+							return nil, err
+						}
+						if err == nil {
+							identity := *info.FirstContactPerson
+							identity.Role = "member"
+							if m.Admin {
+								identity.Role = "admin"
+							}
+							member["contact"] = identity
+						}
+					}
+					members = append(members, member)
 				}
 			}
 		}

@@ -7,6 +7,7 @@ import SwiftUI
   @Environment(\.openWindow) private var openWindow
 
   init() {
+    PaperFonts.register()
     let arguments = ProcessInfo.processInfo.arguments
     let updateHelper = arguments.dropFirst().first?.hasPrefix("--limmr-") == true
     let audit = arguments.contains("--decode-audit")
@@ -47,7 +48,9 @@ import SwiftUI
 
   var body: some Scene {
     WindowGroup("Limmr", id: "main") {
-      if !store.snapshot {
+      if store.snapshot && ProcessInfo.processInfo.arguments.contains("--window-chrome") {
+        SnapshotWindowSceneView()
+      } else if !store.snapshot {
         RootView(store: store)
           .frame(minWidth: WindowMetrics.minimumWidth, minHeight: WindowMetrics.minimumHeight)
           .onAppear {
@@ -80,7 +83,7 @@ import SwiftUI
     .windowResizability(.contentMinSize)
     .windowToolbarStyle(.unified(showsTitle: true))
     // Snapshots render into their own offscreen window; an empty main window would flash on screen.
-    .defaultLaunchBehavior(store.snapshot ? .suppressed : .automatic)
+    .defaultLaunchBehavior(store.snapshot && !ProcessInfo.processInfo.arguments.contains("--window-chrome") ? .suppressed : .automatic)
     .commands {
       LimmrCommands(store: store)
       CommandGroup(replacing: .help) { SetupGuideLink() }

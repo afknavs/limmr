@@ -31,8 +31,9 @@ import Testing
   @Test func demoActionsReadBackKeepDismissAndUndo() async throws {
     let backend = DemoBackend(); let client = TaskClient(backend: backend)
     let home: HomeResponse = try await backend.get("/v1/home")
-    #expect(home.tasks.suffix(2).allSatisfy { $0.status == "suggested" })
-    #expect(TaskPresentation.suggested(home.tasks).count == 2)
+    #expect(TaskPresentation.suggested(home.tasks).isEmpty)
+    let suggestions: TasksResponse = try await backend.get("/v1/tasks?status=suggested")
+    #expect(suggestions.tasks.count == 2)
     let kept = try await client.surface("tsk_cv", action: .keep)
     #expect(kept.status == "active" && kept.origin == "limmr")
     let dismissed = try await client.surface("tsk_print", action: .dismiss)

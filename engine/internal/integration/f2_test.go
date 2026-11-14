@@ -181,7 +181,7 @@ func TestF2CircleProtocolRules(t *testing.T) {
 			c.Goal = "Build a reading room"
 			c.Chats = c.Chats[:1]
 			c.People = nil
-		}, "Maya Rao is building the reading room", true, false},
+		}, "Maya Rao is building the reading room", true, true},
 		{"single DM with two people", func(c *model.Circle) { c.Chats = c.Chats[:1] }, "Maya Rao", false, false},
 		{"no evidence", func(*model.Circle) {}, "The owner probably needs this", true, false},
 		{"opaque name", func(c *model.Circle) { c.Name = "PSY C 2026-27 community" }, "Design Club", true, false},

@@ -15,73 +15,7 @@ extension AppStore {
 
 struct AllTasksView: View {
   @Bindable var store: AppStore
-  @State private var query = ""
-  @SceneStorage("n1.tasks.layout") private var layout = "gallery"
-  @Environment(\.snapshotTaskLayout) private var snapshotLayout
-  @State private var selectedCircle = "all"
-  @FocusState private var searchFocused: Bool
-  private var matching: [TaskSummary] {
-    TaskListPresentation.search(store.allTasks, title: query).filter {
-      selectedCircle == "all" || (selectedCircle == "none" ? $0.circleIds.isEmpty : $0.circleIds.contains(selectedCircle))
-    }
-  }
-  var body: some View {
-    let _ = SpeedTrace.body("Tasks")
-    ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
-        if let error = store.allTasksError {
-          Text(error)
-          Button("Try again") { Task { await store.refreshAllTasks() } }
-        }
-        if (snapshotLayout ?? layout) == "list" { N1TaskTables(store: store, tasks: matching) }
-        else {
-          let active = TaskListPresentation.active(matching)
-          if !active.isEmpty {
-            N1TaskGallery(store: store, tasks: active)
-          }
-          let quiet = TaskListPresentation.quiet(matching)
-          if !quiet.isEmpty {
-            DisclosureGroup("Quiet (\(quiet.count))") {
-              ForEach(quiet) { task in N1TaskRow(store: store, task: task) }
-            }
-          }
-          let history = TaskListPresentation.history(matching)
-          if !history.isEmpty {
-            DisclosureGroup("History (\(history.count))") {
-              ForEach(history) { task in N1TaskRow(store: store, task: task) }
-            }
-          }
-        }
-        if matching.isEmpty {
-          ContentUnavailableView(query.isEmpty ? "No tasks" : "No matching tasks", systemImage: "checklist",
-            description: Text("Tasks you or an AI start appear here."))
-        }
-      }.padding(20).frame(maxWidth: 1320, alignment: .leading).frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .navigationTitle("Tasks")
-    .searchable(text: $query, placement: .toolbarPrincipal, prompt: "Search task titles")
-    .searchFocused($searchFocused)
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) {
-        Picker("Task layout", selection: Binding(get: { snapshotLayout ?? layout }, set: { layout = $0 })) {
-          Text("Gallery").tag("gallery")
-          Text("List").tag("list")
-        }.pickerStyle(.segmented).frame(width: 160)
-      }
-      ToolbarItem(placement: .primaryAction) {
-        Menu {
-          Picker("Circle", selection: $selectedCircle) {
-            Text("All circles").tag("all")
-            ForEach(store.circles) { circle in Text(circle.name).tag(circle.id) }
-            Text("No circle").tag("none")
-          }
-        } label: { Label(selectedCircle == "all" ? "All circles" : selectedCircle == "none" ? "No circle" : store.circleName(selectedCircle), systemImage: "line.3.horizontal.decrease") }
-      }
-    }
-    .task { await store.refreshAllTasks() }
-    .onChange(of: store.searchRequest) { _, _ in searchFocused = true }
-    .onChange(of: store.escapeRequest) { _, _ in query = ""; searchFocused = false }
-  }
+  var body: some View { PaperTasksPage(store: store) }
 }
 private struct SnapshotTaskLayoutKey: EnvironmentKey { static let defaultValue: String? = nil }
 extension EnvironmentValues {
@@ -177,5 +111,30 @@ struct N1TaskTables: View {
       guard let selection, values.contains(where: { $0.id == selection }) else { return .ignored }
       store.openTask(selection); return .handled
     }
+  }
+}
+
+/// Suggestions are available for owner review without joining the open task list.
+struct SuggestedTasksRow: View {
+  @Bindable var store: AppStore
+  let tasks: [TaskSummary]
+  var body: some View {
+    if !tasks.isEmpty {
+      DisclosureGroup("Suggested (\(tasks.count))") {
+        ForEach(tasks) { task in
+          VStack(alignment: .leading, spacing: 4) {
+            HStack {
+              N1TaskRow(store: store, task: task)
+              Button("Keep") { resolve(task.id, .keep) }
+              Button("Dismiss") { resolve(task.id, .dismiss) }
+            }.disabled(store.taskActions.contains(task.id))
+            if let error = store.taskActionErrors[task.id] { Text(error).font(.caption).foregroundStyle(.secondary) }
+          }
+        }
+      }
+    }
+  }
+  private func resolve(_ id: String, _ action: TaskSurfacingAction) {
+    Task { _ = await store.surfaceTask(id, action: action); await store.refreshAllTasks() }
   }
 }

@@ -1,0 +1,95 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.tools{display:flex;align-items:center;gap:12px;height:28px;margin-bottom:12px}
+.wrap{display:grid;grid-template-columns:1fr 256px;gap:16px;height:462px;margin-bottom:14px}
+.map{position:relative}
+.map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.map .av,.mono{position:absolute;transform:translate(-50%,-50%)}
+.map .av{box-shadow:0 0 0 2px var(--panel)}
+.you{position:absolute;transform:translate(-50%,-20px);text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:12px}.you .av{position:static;transform:none;box-shadow:0 0 0 3px var(--panel)}.you b{font-weight:600;background:var(--panel);padding:0 4px;border-radius:4px}
+.mono{font-style:normal;border-radius:50%;background:var(--surface2);color:var(--ink2);font-size:9px;font-weight:600;display:grid;place-items:center}
+.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 4px var(--ink)!important}
+.bdg{position:absolute;width:9px;height:9px;border-radius:2.500px;background:var(--brand);box-shadow:0 0 0 2px var(--panel);transform:translate(-50%,-50%)}
+.lbl{background:var(--panel);padding:0 6px;border-radius:6px;position:absolute;transform:translate(-50%,0);text-align:center;font-size:14px;font-weight:600;white-space:nowrap;display:flex;flex-direction:column;align-items:center}
+.lbl span{font-weight:400;font-size:12px;color:var(--ink3)}
+.legend{position:absolute;left:0;bottom:0;font-size:12px;color:var(--ink3);display:flex;gap:16px;align-items:center}
+.legend span{display:flex;align-items:center;gap:6px}
+.pane{padding:16px;display:flex;flex-direction:column;gap:12px}
+.pane h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.pane .st{display:flex;gap:24px}
+.pane .ask{padding:12px;border-radius:12px;background:var(--need-bg);display:flex;flex-direction:column;gap:8px}.pane .ask b{font-size:14px;line-height:1.3;font-weight:600}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pl{display:grid;grid-template-columns:repeat(3,1fr);gap:0 20px}
+.p{display:flex;align-items:center;gap:12px;height:48px;border-top:1px solid var(--line)}
+.p b{font-weight:600;font-size:14px;display:block}.p em{margin-left:auto;font-style:normal;color:var(--ink3);font-size:12px}
+</style>
+<body><main>
+<div class="top"><h1>People</h1><span class="sub">220 people · 4 circles · 3 new this week</span><span class="sp"></span><div class="search" id="s"></div></div>
+<div class="tools"><span class="seg"><span class="on">Everyone</span><span>Close</span><span>This week</span></span><span class="sp"></span><span class="meta">18 people are not in a circle yet</span><span class="btn">Sort them</span></div>
+<div class="wrap"><div class="map" id="map"><svg id="sv"></svg></div><div class="card pane" id="pane"></div></div>
+<div class="bar"><span class="seg"><span>Circles</span><span class="on">People</span><span>Groups</span></span><span class="sp"></span><span class="btn" id="b1"></span><span class="btn" id="b2"></span></div>
+<div class="pl" id="pl"></div>
+</main>
+<script>shell('people');s.innerHTML=ic('search')+'Find someone<kbd>⌘F</kbd>';b1.innerHTML=ic('sort',13)+'Recent';b2.innerHTML=ic('filter',13)+'All circles';
+const V='d',W=712,H=462; // 'd' = Islands, the approved style. ('a' = one continuous web, kept for reference.)
+let seed=23;const R=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const f1=n=>n.toFixed(1),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+let h='',d='',leg='';
+const ln=(a,b,op,w=.9)=>`<path d="M${f1(a.x)} ${f1(a.y)}L${f1(b.x)} ${f1(b.y)}" style="stroke:var(--ink)" stroke-opacity="${op}" stroke-width="${w}" fill="none"/>`;
+const cv=(a,b,bend,op,w=.9)=>{const mx=(a.x+b.x)/2+(b.y-a.y)*bend,my=(a.y+b.y)/2-(b.x-a.x)*bend;return `<path d="M${f1(a.x)} ${f1(a.y)}Q${f1(mx)} ${f1(my)} ${f1(b.x)} ${f1(b.y)}" style="stroke:var(--ink)" stroke-opacity="${op}" stroke-width="${w}" fill="none"/>`};
+const dot=(p,r,op,bg='--panel',col='--ink')=>`<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${f1(r+1.5)}" style="fill:var(${bg})"/><circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${f1(r)}" style="fill:var(${col})" fill-opacity="${op}"/>`;
+const face=(i,sz,p,extra='')=>av(i,sz).replace('style="',`style="left:${f1(p.x)}px;top:${f1(p.y)}px;${extra}`);
+const bdg=(p,o,bg='--panel')=>`<i class="bdg" style="left:${f1(p.x+o)}px;top:${f1(p.y-o)}px;box-shadow:0 0 0 2px var(${bg})"></i>`;
+const lbl=(n,c,x,y,st='')=>`<div class="lbl" style="left:${f1(x)}px;top:${f1(y)}px;${st}">${n}<span>${c} people</span></div>`;
+const you=p=>`<div class="you" style="left:${p.x}px;top:${p.y}px">${av(0,40)}<b>You</b></div>`;
+const selS=bg=>`box-shadow:0 0 0 2px var(${bg}),0 0 0 4px var(--ink);`;
+function relax(m,it,gap){for(let k=0;k<it;k++)for(let p=0;p<m.length;p++)for(let q=p+1;q<m.length;q++){const A=m[p],B=m[q],dx=B.x-A.x,dy=B.y-A.y,dd=Math.hypot(dx,dy)||.01,min=A.rad+B.rad+gap(A,B);if(dd<min){const f=(min-dd)/dd,wa=A.sz?.25:1,wb=B.sz?.25:1,t=wa+wb;A.x-=dx*f*wa/t;A.y-=dy*f*wa/t;B.x+=dx*f*wb/t;B.y+=dy*f*wb/t}}return m}
+function grow(c,n,dd,sizeOf,gap){const m=[];for(let i=0;i<n;i++){const a=i*2.39996+R()*.6,r=dd*.56*Math.sqrt(i+.35)+(R()-.5)*dd*.45,sz=sizeOf(i);m.push({c,i,x:c.x+Math.cos(a)*r,y:c.y+Math.sin(a)*r,sz,rad:sz?sz/2:2+R()*R()*2.4,rec:R()})}return relax(m,260,gap)}
+function delaunay(P){const n=P.length,pts=P.map(p=>[p.x,p.y]);let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const [x,y] of pts){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}
+ const D=Math.max(x1-x0,y1-y0)*20,mx=(x0+x1)/2,my=(y0+y1)/2;pts.push([mx-D,my-D],[mx+D,my-D],[mx,my+D]);let tris=[[n,n+1,n+2]];
+ const circ=t=>{const [ax,ay]=pts[t[0]],[bx,by]=pts[t[1]],[cx,cy]=pts[t[2]],dd=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by)),ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/dd,uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/dd;return [ux,uy,(ax-ux)**2+(ay-uy)**2]};
+ for(let i=0;i<n;i++){const [x,y]=pts[i],bad=[],keep=[];for(const t of tris){const c=t.c||(t.c=circ(t));((x-c[0])**2+(y-c[1])**2<c[2]?bad:keep).push(t)}
+  const ed={};for(const t of bad)for(const [p,q] of [[t[0],t[1]],[t[1],t[2]],[t[2],t[0]]]){const k=p<q?p+'_'+q:q+'_'+p;ed[k]=(ed[k]||0)+1}
+  tris=keep;for(const k in ed)if(ed[k]==1){const [p,q]=k.split('_').map(Number);tris.push([p,q,i])}}
+ const E=new Set();for(const t of tris){if(t[0]>=n||t[1]>=n||t[2]>=n)continue;for(const [p,q] of [[t[0],t[1]],[t[1],t[2]],[t[2],t[0]]])E.add(p<q?p+'_'+q:q+'_'+p)}
+ return [...E].map(k=>k.split('_').map(Number))}
+const nearest=(p,list,k)=>[...list].sort((a,b)=>dist(a,p)-dist(b,p)).slice(0,k);
+
+{ // Islands
+ const isl=V=='d',bg=isl?'--surface':'--panel';
+ const cl=[{n:'University',c:148,x:574,y:160,lx:590,ly:300,ph:20},{n:'Design Collective',c:58,x:392,y:318,lx:392,ly:404,ph:40},{n:'Family',c:6,x:124,y:100,lx:124,ly:158,ph:60},{n:'Close people',c:8,x:168,y:304,lx:168,ly:372,ph:80}];
+ const YOU={x:292,y:206,rad:22,sz:40,you:1},gap=(A,B)=>A.sz&&B.sz?6:A.sz||B.sz?5:9.5;
+ for(const c of cl)c.m=grow(c,c.c,c.c>20?18:44,c.c>20?(i=>i==0?34:i<6?26:0):(i=>i==0?34:26),gap);
+ const isha={x:468,y:250,sz:30,rad:15,isha:1},br=[isha,{x:492,y:276,rad:3.4,rec:.9},{x:446,y:232,rad:3,rec:.6}];
+ const N=cl.flatMap(c=>c.m),loose=[];let tries=0;
+ while(loose.length<18&&tries++<6000){const p={x:14+R()*(W-28),y:14+R()*(H-64),rad:2.2,rec:.3,loose:1};
+  if(dist(p,YOU)<56||N.some(q=>dist(q,p)<(isl?44:34))||br.some(q=>dist(q,p)<34)||loose.some(q=>dist(q,p)<58)||cl.some(c=>Math.abs(p.x-c.lx)<76&&p.y>c.ly-8&&p.y<c.ly+42))continue;loose.push(p)}
+ if(!isl){const all=[...N,...br,YOU,...loose];
+  for(const [i,j] of delaunay(all)){const A=all[i],B=all[j],L=dist(A,B);if(L>128)continue;const st=(A.isha||B.isha)&&L<70;
+   h+=ln(A,B,st?.5:Math.max(.05,L<26?.16:.16-(L-26)*.0014),st?1.1:.9)}
+  leg='<span>A line = you share a group chat</span><span>knots = your circles</span>'}
+ else{for(const c of cl)h+=cv(YOU,c.m[0],.14,.16);
+  h+=`<defs><filter id="goo" filterUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><feGaussianBlur in="SourceGraphic" stdDeviation="9"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 24 -11"/></filter></defs><g filter="url(#goo)">${[...N,...br].map(p=>`<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="${f1(p.rad+13)}" style="fill:var(--surface)"/>`).join('')}</g>`;
+  for(const c of cl){const lim=c.c>20?33:90;for(const [i,j] of delaunay(c.m)){const L=dist(c.m[i],c.m[j]);if(L<lim)h+=ln(c.m[i],c.m[j],.15)}}
+  for(const b of br)for(const c of [cl[0],cl[1]])for(const q of nearest(b,c.m,b.isha?3:2))h+=ln(b,q,b.isha?.5:.15,b.isha?1.1:.9);
+  h+=ln(br[1],isha,.15)+cv(YOU,isha,-.1,.5,1.1);
+  leg='<span>A line = you share a group chat</span><span>islands = your circles</span>'}
+ const nw=new Set([cl[0].m[41],cl[0].m[97],cl[1].m[33]]);
+ for(const P of [...N,...br.slice(1),...loose]){if(P.sz)continue;h+=nw.has(P)?dot(P,P.rad+.6,1,P.loose?'--panel':bg,'--info'):dot(P,P.rad,(.2+P.rec*P.rec*.6).toFixed(2),P.loose?'--panel':bg)}
+ for(const P of N)if(P.sz)d+=face(P.c.ph+P.i*3,P.sz,P,`box-shadow:0 0 0 2px var(${bg});`);
+ d+=face(5,30,isha,selS(bg))+bdg(isha,11,bg)+bdg(cl[0].m[2],10,bg)+bdg(cl[1].m[0],13,bg);
+ for(const c of cl)d+=lbl(c.n,c.c,c.lx,c.ly);d+=you(YOU)}
+
+
+sv.innerHTML=h;
+d+=`<div class="legend">${leg}<span><i class="dot need"></i>needs you</span><span><i class="dot live"></i>new</span></div>`;
+map.insertAdjacentHTML('beforeend',d);
+pane.innerHTML=`<div class="row" style="gap:12px">${av(5,48)}<div><h3>Isha Sen</h3><div class="meta">Research partner</div></div></div>
+<div class="row" style="flex-wrap:wrap;gap:6px"><span class="chip">${ic('cap',12)}University</span><span class="chip">${ic('bag',12)}Design Collective</span></div>
+<div class="st"><div><div class="num">34 m</div><div class="lab">last spoke</div></div><div><div class="num">128</div><div class="lab">messages this month</div></div></div>
+<div class="ask"><b><i class="dot need" style="margin-right:8px"></i>Six survey questions revised — approve to send</b><div class="row"><span class="meta">Research proposal</span><span class="sp"></span><span class="btn pri">Review</span></div></div>
+<div class="meta" style="line-height:1.45">In both circles through the survey project and the Collective’s open studio.</div>
+<span class="sp"></span><div class="row"><span class="btn" style="flex:1;justify-content:center">Open chat</span><span class="btn" style="flex:1;justify-content:center">Profile</span></div>`;
+const ppl=[['Maya Rao','Design Collective','12 m',2],['Isha Sen','University · Design Collective','34 m',5],['Theo Park','University','2 h',6],['Nina Das','Design Collective','3 h',7],['Ravi Bell','Close people','Yesterday',13],['Ada Bell','Family','Yesterday',8],['Jonah Mehta','University','Yesterday',9],['Lena Ortiz','Close people','2 d',14],['Sam Okafor','University','3 d',4]];
+pl.innerHTML=ppl.map(p=>`<div class="p">${av(p[3],30)}<span><b>${p[0]}</b><span class="meta">${p[1]}</span></span><em>${p[2]}</em></div>`).join('');
+</script></body>

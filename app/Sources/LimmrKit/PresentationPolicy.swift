@@ -2,8 +2,8 @@ import Foundation
 
 /// Shared by the live window, snapshots and regression tests.
 public enum WindowMetrics {
-  public static let minimumWidth: Double = 760
-  public static let minimumHeight: Double = 520
+  public static let minimumWidth: Double = 900
+  public static let minimumHeight: Double = 600
   public static let defaultWidth: Double = 1100
   public static let defaultHeight: Double = 740
   public static let contentWidth: Double = 880

@@ -164,6 +164,7 @@ private actor ContactsFixtureBackend: Backend {
     #expect(NSImage(data: data) != nil)
     let summary: PersonSummaryResponse = try await backend.get("/v1/people/person-04/summary")
     #expect(summary.summary?.text.isEmpty == false)
+    _ = try await backend.request("/v1/people/person-04/photo", method: "PUT", body: DemoPhotos.group)
     let avatar = try await backend.request("/v1/people/person-04/avatar", method: "GET", body: nil)
     #expect(NSImage(data: avatar) != nil)
     let encoded = try await backend.request("/v1/people/person%2D04/avatar", method: "GET", body: nil)

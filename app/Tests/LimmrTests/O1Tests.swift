@@ -68,6 +68,13 @@ import Testing
                          detail: "No recent phone connection evidence.", fixId: nil)]
     #expect(store.engineSurfaceState == .connected)
     store.status?.connected = false
+    store.status?.linkPhase = "disconnected"
+    store.status?.linkPhaseAt = store.presentationNow.addingTimeInterval(-89).ISO8601Format()
+    #expect(store.engineSurfaceState == .reconnecting)
+    store.checks[0].detail = "Phone unreachable"
+    #expect(store.engineSurfaceState == .reconnecting)
+    store.status?.linkPhaseAt = store.presentationNow.addingTimeInterval(-91).ISO8601Format()
+    store.checks[0].detail = "No recent phone connection evidence."
     #expect(store.engineSurfaceState == .offline)
     store.checks[0].detail = "Phone unreachable"
     #expect(store.engineSurfaceState == .phoneUnreachable)

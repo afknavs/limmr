@@ -89,7 +89,16 @@ func coverScore(t Task, it Item) int {
 			return -1
 		}
 	}
-	score := 1
+	matches := 0
+	for w := range coverWords(t.Title + " " + t.Goal) {
+		if coverWords(text)[w] {
+			matches++
+		}
+	}
+	if matches == 0 {
+		return -1
+	}
+	score := matches * 20
 	if it.Height > it.Width {
 		score += 2
 	}
@@ -120,38 +129,58 @@ func (s *Service) fullCoverSize(it Item) (int, int) {
 	return cfg.Width, cfg.Height
 }
 func (s *Service) chooseCover(t *Task) {
-	t.Cover = nil
 	if t.CoverRemoved {
+		t.Cover = nil
+		return
+	}
+	// Adopt legacy selections once. An unavailable/deleted pinned file falls back
+	// to the same default; it never makes a newer chat image the new cover.
+	if t.CoverItemID == "" && t.Cover != nil {
+		t.CoverItemID = t.Cover.ID
+	}
+	if t.CoverItemID != "" {
+		t.Cover = nil
+		for _, it := range t.Items {
+			if it.ID == t.CoverItemID {
+				copy := it
+				copy.Caption = ""
+				copy.OCRText = ""
+				copy.Description = ""
+				t.Cover = &copy
+				break
+			}
+		}
 		return
 	}
 	best := -1
 	for _, it := range t.Items {
-		picked := t.CoverItemID != "" && it.ID == t.CoverItemID
-		if t.CoverItemID != "" && !picked {
+		if it.MediaType != "image" {
 			continue
 		}
 		score := coverScore(*t, it)
-		if picked {
-			score = 100
-		}
 		if score < 0 {
 			continue
 		}
-		// Preview dimensions and thumbnails are never evidence of a usable original.
-		width, height := s.fullCoverSize(it)
-		if width < coverWidth || height < coverHeight {
+		w, h := s.fullCoverSize(it)
+		if w < coverWidth || h < coverHeight {
 			continue
 		}
-		if score > best || score == best && t.Cover != nil && it.AddedAt.After(t.Cover.AddedAt) {
+		// Stable tie break by item ID, never the latest chat timestamp.
+		if score > best || score == best && t.Cover != nil && it.ID < t.Cover.ID {
 			best = score
 			copy := it
-			copy.Width = width
-			copy.Height = height
-			copy.OCRText = ""
+			copy.Width = w
+			copy.Height = h
 			copy.Caption = ""
+			copy.OCRText = ""
 			copy.Description = ""
 			t.Cover = &copy
 		}
+	}
+	if t.Cover != nil {
+		t.CoverItemID = t.Cover.ID
+	} else {
+		t.CoverItemID = defaultCoverID(t.ID)
 	}
 }
 
@@ -190,6 +219,7 @@ func (s *Service) OwnerNote(a *model.Agent, id, noteID, text string, remove bool
 		return Task{}, model.ErrInvalid
 	}
 	return s.mutate(nil, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = true
 		now := s.now()
 		found := false
 		if noteID == "" {

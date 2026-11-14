@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"database/sql"
 	"encoding/json"
 	"limmr/internal/dbutil"
 	"limmr/internal/model"
@@ -9,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
+	"strings"
 )
 
 // This projection deliberately contains no captions, OCR, summaries or bodies.
@@ -25,128 +24,41 @@ type CoverCandidate struct {
 }
 
 func (s *Service) coverCandidate(a *model.Agent, t Task) *CoverCandidate {
-	return s.selectCoverCandidate(a, t, true)
-}
-
-// drawable=false identifies the single best source for the background fetcher.
-func (s *Service) selectCoverCandidate(a *model.Agent, t Task, drawable bool) *CoverCandidate {
 	if t.CoverRemoved {
 		return nil
 	}
-	// Read only safe item metadata in array order. Do not decode task workspaces.
-	rows, err := s.Hub.Repo.DB.Query(`SELECT json_object('id',json_extract(i.value,'$.id'),'kind',json_extract(i.value,'$.kind'),'title',json_extract(i.value,'$.title'),'added_at',json_extract(i.value,'$.added_at'),'media_type',json_extract(i.value,'$.media_type'),'message_ref',json_extract(i.value,'$.message_ref'),'attachment_id',json_extract(i.value,'$.attachment_id'),'url',json_extract(i.value,'$.url')) FROM tasks t,json_each(t.data,'$.items') i WHERE t.id=? AND (json_extract(i.value,'$.media_type')='image' OR json_extract(i.value,'$.kind')='link' OR json_extract(i.value,'$.id')=?) ORDER BY CAST(i.key AS INTEGER)`, t.ID, t.CoverItemID)
-	if err != nil {
-		return nil
+	picked := t.CoverItemID
+	if picked == "" && t.Cover != nil {
+		picked = t.Cover.ID
 	}
-	items := []Item{}
-	for rows.Next() {
-		var raw string
-		var it Item
-		if rows.Scan(&raw) == nil && json.Unmarshal([]byte(raw), &it) == nil {
-			items = append(items, it)
-		}
+	fallback := func() *CoverCandidate {
+		return &CoverCandidate{ItemID: defaultCoverID(t.ID), Title: "Task cover", ThumbnailURL: "/v1/tasks/" + url.PathEscape(t.ID) + "/cover/thumbnail?default=" + defaultCoverID(t.ID)}
 	}
-	rows.Close()
-	finish := func(c *CoverCandidate) *CoverCandidate {
-		var revision int64
-		_ = s.Hub.Messages.DB.QueryRow("SELECT value FROM p1_revision WHERE id=1").Scan(&revision)
-		c.ThumbnailURL = "/v1/tasks/" + url.PathEscape(t.ID) + "/cover/thumbnail?revision=" + dbutil.Digest(c.ItemID+c.ChatJID+c.MediaID+t.UpdatedAt.Format(time.RFC3339Nano)+strconv.FormatInt(revision, 10))
-		return c
+	if picked == "" || strings.HasPrefix(picked, "default:") {
+		return fallback()
 	}
-	fromItem := func(it Item) *CoverCandidate {
-		c := &CoverCandidate{ItemID: it.ID, Title: it.Title, attachmentID: it.AttachmentID}
-		if ref := it.MessageRef; ref != nil {
-			if s.Hub.HiddenChat(ref.ChatJID) || !s.Hub.CanChat(a, ref.ChatJID) {
-				return nil
-			}
-			var exists int
-			if s.Hub.Messages.DB.QueryRow("SELECT 1 FROM messages WHERE chat_jid=? AND id=? AND deleted_at IS NULL", ref.ChatJID, ref.MessageID).Scan(&exists) != nil {
-				return nil
-			}
-			c.ChatJID = ref.ChatJID
-			c.MediaID = ref.MessageID
-		}
-		if it.Kind == "link" {
-			c.LinkURL = normalizeURL(it.URL)
-		}
-		return finish(c)
+	var raw string
+	var it Item
+	err := s.Hub.Repo.DB.QueryRow(`SELECT json_object('id',json_extract(value,'$.id'),'title',json_extract(value,'$.title'),'media_type',json_extract(value,'$.media_type'),'attachment_id',json_extract(value,'$.attachment_id'),'message_ref',json_extract(value,'$.message_ref')) FROM tasks,json_each(tasks.data,'$.items') WHERE tasks.id=? AND json_extract(value,'$.id')=?`, t.ID, picked).Scan(&raw)
+	if err != nil || json.Unmarshal([]byte(raw), &it) != nil || it.MediaType != "image" {
+		return fallback()
 	}
-	// Owner choice wins even when the original is not on disk yet.
-	for _, it := range items {
-		if it.ID == t.CoverItemID && t.CoverItemID != "" {
-			if c := fromItem(it); c != nil {
-				return c
-			}
+	c := &CoverCandidate{ItemID: it.ID, Title: it.Title, attachmentID: it.AttachmentID}
+	if ref := it.MessageRef; ref != nil {
+		if s.Hub.HiddenChat(ref.ChatJID) || !s.Hub.CanChat(a, ref.ChatJID) {
+			return fallback()
 		}
+		var exists int
+		if s.Hub.Messages.DB.QueryRow("SELECT 1 FROM messages WHERE chat_jid=? AND id=? AND deleted_at IS NULL", ref.ChatJID, ref.MessageID).Scan(&exists) != nil {
+			return fallback()
+		}
+		c.ChatJID = ref.ChatJID
+		c.MediaID = ref.MessageID
 	}
-	var workspace *CoverCandidate
-	var workspaceAt time.Time
-	workspaceFile := false
-	for _, it := range items {
-		if it.MediaType == "image" {
-			if c := fromItem(it); c != nil {
-				hasFile := s.coverHasFile(c)
-				if drawable && !hasFile && !s.coverHasPixels(c) {
-					continue
-				}
-				if workspace == nil || drawable && hasFile && !workspaceFile || (!drawable || hasFile == workspaceFile) && it.AddedAt.After(workspaceAt) {
-					workspace, workspaceAt, workspaceFile = c, it.AddedAt, hasFile
-				}
-			}
-		}
-	}
-	if workspace != nil {
-		return workspace
-	}
-
-	// Each linked chat uses its indexed timeline. Compare only metadata, never text.
-	var newest time.Time
-	var media *CoverCandidate
-	for _, chat := range t.Chats {
-		if s.Hub.HiddenChat(chat.ID) || !s.Hub.CanChat(a, chat.ID) {
-			continue
-		}
-		rows, err := s.Hub.Messages.DB.Query("SELECT id,COALESCE(filename,''),timestamp,length(preview_thumbnail) FROM messages WHERE chat_jid=? AND media_type='image' AND deleted_at IS NULL ORDER BY julianday(timestamp) DESC,id DESC LIMIT 50", chat.ID)
-		if err != nil {
-			continue
-		}
-		var chatMedia *CoverCandidate
-		var chatAt time.Time
-		for rows.Next() {
-			var id, title string
-			var at time.Time
-			var thumbnailSize sql.NullInt64
-			if rows.Scan(&id, &title, &at, &thumbnailSize) != nil {
-				continue
-			}
-			c := &CoverCandidate{MediaID: id, ChatJID: chat.ID, Title: title}
-			hasFile := s.coverHasFile(c)
-			if drawable && thumbnailSize.Int64 == 0 && !hasFile {
-				continue
-			}
-			if chatMedia == nil || hasFile {
-				chatAt, chatMedia = at, c
-			}
-			if !drawable || hasFile {
-				break
-			}
-		}
-		rows.Close()
-		if chatMedia != nil && (media == nil || chatAt.After(newest) || chatAt.Equal(newest) && chatMedia.MediaID > media.MediaID) {
-			newest, media = chatAt, chatMedia
-		}
-	}
-	if media != nil {
-		return finish(media)
-	}
-	for _, it := range items {
-		if it.Kind == "link" {
-			if c := fromItem(it); c != nil && c.LinkURL != "" {
-				return c
-			}
-		}
-	}
-	return nil
+	var revision int64
+	_ = s.Hub.Messages.DB.QueryRow("SELECT value FROM p1_revision WHERE id=1").Scan(&revision)
+	c.ThumbnailURL = "/v1/tasks/" + url.PathEscape(t.ID) + "/cover/thumbnail?revision=" + dbutil.Digest(c.ItemID+c.ChatJID+c.MediaID+strconv.FormatInt(revision, 10))
+	return c
 }
 
 // CoverPreview rechecks current task/source visibility even if the app has pixels.
@@ -166,6 +78,10 @@ func (s *Service) CoverPreview(a *model.Agent, id string) (map[string]any, error
 	c := s.coverCandidate(a, t)
 	if c == nil {
 		return nil, model.ErrNotFound
+	}
+	if strings.HasPrefix(c.ItemID, "default:") {
+		path, err := s.defaultCover(t.ID)
+		return map[string]any{"path": path, "thumbnail": []byte(nil)}, err
 	}
 	path, thumb := s.coverPixels(c)
 	cached, err := s.coverThumbnail(path, thumb)

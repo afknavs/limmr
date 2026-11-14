@@ -73,7 +73,7 @@ func (s *Service) ReviewProposals(ids []string, accept bool) ([]model.Circle, er
 
 // SortedChats returns membership in confirmed circles only (including excluded ones).
 func (s *Service) SortedChats() (map[string]bool, error) {
-	xs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	xs, e := hub.LiveCircles(s.Hub.Repo)
 	out := map[string]bool{}
 	for _, c := range xs {
 		if c.Confirmed {

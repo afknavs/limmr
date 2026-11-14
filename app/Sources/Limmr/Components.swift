@@ -3,10 +3,10 @@ import LimmrKit
 
 /// One hierarchy for the main window and Settings. Native control text keeps its system sizing.
 enum AppType {
-  static let pageTitle = Font.system(size: 26, weight: .bold)
-  static let blockHeading = Font.system(size: 13, weight: .semibold)
-  static let rowTitle = Font.system(size: 13, weight: .medium)
-  static let caption = Font.system(size: 11)
+  static let pageTitle = LimmrTheme.font(24, .semibold)
+  static let blockHeading = LimmrTheme.font(14, .semibold)
+  static let rowTitle = LimmrTheme.font(14, .medium)
+  static let caption = LimmrTheme.font(12)
 }
 
 struct CountLabel: View {
@@ -41,7 +41,7 @@ struct AppBackground: View {
   var surface = false
   @Environment(\.colorScheme) private var scheme
   var body: some View {
-    Color(white: scheme == .dark ? (surface ? 0.15 : 0.105) : (surface ? 1 : 0.95))
+    surface ? LimmrTheme.surface : LimmrTheme.panel
   }
 }
 struct Panel<Content: View>: View {
@@ -212,4 +212,9 @@ extension EnvironmentValues {
     get { self[SnapshotHomeSectionKey.self] }
     set { self[SnapshotHomeSectionKey.self] = newValue }
   }
+}
+
+private struct LimmrWindowHeightKey: EnvironmentKey { static let defaultValue: Double = 800 }
+extension EnvironmentValues {
+  var limmrWindowHeight: Double { get { self[LimmrWindowHeightKey.self] } set { self[LimmrWindowHeightKey.self] = newValue } }
 }

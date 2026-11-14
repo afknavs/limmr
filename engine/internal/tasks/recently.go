@@ -245,7 +245,7 @@ func (s *Service) recently(a *model.Agent, circle string, lines *[]RecentLine) (
 	return out, nil
 }
 func (s *Service) recordsForRecently(a *model.Agent, circle string) (map[string]Task, error) {
-	rows, err := s.Hub.Repo.DB.Query("SELECT data FROM task_cards")
+	rows, err := s.Hub.Repo.DB.Query("SELECT data FROM task_cards WHERE COALESCE(json_extract(data,'$.ended_as_suggestion'),0)=0")
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (s *Service) recordsForRecently(a *model.Agent, circle string) (map[string]
 	}
 	out := map[string]Task{}
 	for _, v := range all {
-		if (circle == "" || model.Contains(v.CircleIDs, circle)) && s.visible(a, v) {
+		if v.Status != "suggested" && (circle == "" || model.Contains(v.CircleIDs, circle)) && s.visible(a, v) {
 			out[v.ID] = v
 		}
 	}

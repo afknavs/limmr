@@ -29,6 +29,10 @@ func Decode(v any, out any) error {
 }
 func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task, error) {
 	type patch struct {
+		Subject         json.RawMessage `json:"subject"`
+		SubjectEvidence []Ref           `json:"subject_evidence"`
+		OwnerCorrection bool            `json:"owner_correction"`
+
 		CircleIDs      *[]string       `json:"circle_ids"`
 		CoverItemID    *string         `json:"cover_item_id"`
 		CoverRemoved   *bool           `json:"cover_removed"`
@@ -60,6 +64,15 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 	var p patch
 	if err := Decode(fields, &p); err != nil {
 		return Task{}, err
+	}
+	if p.Title != nil && !validTitle(*p.Title) {
+		return Task{}, model.ErrInvalid
+	}
+	if p.Goal != nil && strings.TrimSpace(*p.Goal) == "" {
+		return Task{}, model.ErrInvalid
+	}
+	if a != nil && p.OwnerCorrection {
+		return Task{}, model.ErrForbidden
 	}
 	// This Mac claims one attempt before generation; persisted in the task so reopening
 	// a window or restarting the app cannot repeatedly invoke the model for the same input.
@@ -123,7 +136,7 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		ids := []string{}
 		for _, id := range *p.CircleIDs {
 			var circle model.Circle
-			if err := s.Hub.Repo.Get("circles", id, &circle); err != nil || circle.Archived {
+			if err := s.Hub.Repo.Get("circles", id, &circle); err != nil || !circle.Live() {
 				return Task{}, model.ErrInvalid
 			}
 			if !model.Contains(ids, id) {
@@ -133,7 +146,34 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 
 		p.CircleIDs = &ids
 	}
+	var subject *Entity
+	if p.Subject != nil {
+		if json.Unmarshal(p.Subject, &subject) != nil {
+			return Task{}, model.ErrInvalid
+		}
+		candidate, err := s.Get(a, id)
+		if err != nil {
+			return Task{}, err
+		}
+		candidate.Subject = subject
+		candidate.SubjectEvidence = p.SubjectEvidence
+		if err = s.validateSubject(a, candidate); err != nil {
+			return Task{}, err
+		}
+	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
+		if ended(r.Task) && (p.Waiting != nil || p.Status != nil && !model.Contains([]string{"done", "dropped"}, *p.Status)) {
+			return model.ErrConflict
+		}
+		if p.Subject != nil {
+			if r.SubjectEdited && !p.OwnerCorrection {
+				return model.ErrConflict
+			}
+			r.Subject = subject
+			r.SubjectEvidence = p.SubjectEvidence
+			r.SubjectEdited = p.OwnerCorrection || a == nil
+		}
 		if p.CircleIDs != nil {
 			r.CircleIDs = *p.CircleIDs
 			r.CircleSuggestions = nil
@@ -152,6 +192,7 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 			if !found {
 				return model.ErrInvalid
 			}
+			r.Cover = nil
 			r.CoverItemID = *p.CoverItemID
 			r.CoverRemoved = false
 		}
@@ -212,6 +253,7 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		}
 		if p.LifespanDays != nil {
 			r.LifespanDays = *p.LifespanDays
+			r.LifespanSet = true
 		}
 		if p.Summary != nil {
 			r.Summary = *p.Summary
@@ -257,16 +299,20 @@ func (s *Service) Update(a *model.Agent, id string, fields map[string]any) (Task
 		}
 		// Human-readable completion explanations live in the summary; close_reason remains its contract enum.
 		if p.Reason != nil {
-			if r.Status != "done" && r.Status != "dropped" || !length(*p.Reason, 1500) {
+			if p.Status == nil || !length(*p.Reason, 1500) {
 				return model.ErrInvalid
 			}
-			r.Summary = Summary{Text: *p.Reason, UpdatedAt: s.now(), UpdatedBy: "you"}
-			if a != nil {
-				r.Summary.UpdatedBy = a.ID
+			r.statusReason = strings.TrimSpace(*p.Reason)
+			if r.Status == "done" || r.Status == "dropped" {
+				r.closureReason = r.statusReason
+				r.Summary = Summary{Text: *p.Reason, UpdatedAt: s.now(), UpdatedBy: "you"}
+				if a != nil {
+					r.Summary.UpdatedBy = a.ID
+				}
 			}
 		}
 		if p.CloseReason != nil {
-			if !model.Contains([]string{"done", "lifespan", "owner"}, *p.CloseReason) {
+			if !model.Contains([]string{"done", "lifespan", "owner", "failed", "obsolete"}, *p.CloseReason) {
 				return model.ErrInvalid
 			}
 			r.CloseReason = *p.CloseReason
@@ -302,6 +348,7 @@ func (s *Service) Attach(a *model.Agent, id string, it Item) (Task, error) {
 		it.Source = "ai"
 	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
 		r.Items = appendItem(r.Items, it)
 		r.UpdatedAt = s.now()
 		return nil
@@ -309,6 +356,7 @@ func (s *Service) Attach(a *model.Agent, id string, it Item) (Task, error) {
 }
 func (s *Service) RemoveItem(a *model.Agent, id, item string) (Task, error) {
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
 		for i, it := range r.Items {
 			if it.ID == item {
 				r.Items = append(r.Items[:i], r.Items[i+1:]...)
@@ -324,6 +372,7 @@ func (s *Service) Checklist(a *model.Agent, id, op string, steps []Step) (Task, 
 		return Task{}, model.ErrInvalid
 	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
 		now := s.now()
 		if op == "reorder" {
 			if len(steps) != len(r.Checklist) {
@@ -402,6 +451,7 @@ func (s *Service) Draft(a *model.Agent, id, kind, text string) (Task, error) {
 		return Task{}, model.ErrInvalid
 	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
 		switch kind {
 		case "check_in":
 			if r.CheckIn == nil {
@@ -426,13 +476,25 @@ func (s *Service) NeedsYou(a *model.Agent, id, reason string) (Task, error) {
 		return Task{}, model.ErrInvalid
 	}
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
-		r.FlagReason = strings.TrimSpace(reason)
+		reason = strings.TrimSpace(reason)
+		// A repeat ask is a no-op: preserve the original seven-day expiry too.
+		if r.FlagReason == reason {
+			return nil
+		}
+		r.ownerActivity = a == nil
+		now := s.now()
+		if r.LaterAt != nil && now.After(*r.LaterAt) {
+			r.LaterUntil = nil
+		}
+		r.FlagReason = reason
+		r.NeedsYouAt = &now
 		r.UpdatedAt = s.now()
 		return s.refreshNeeds(tx, r)
 	})
 }
 func (s *Service) SkipNudge(a *model.Agent, id string) (Task, error) {
 	return s.mutate(a, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = a == nil
 		if r.Waiting == nil {
 			return model.ErrConflict
 		}
@@ -451,6 +513,7 @@ func (s *Service) SkipNudge(a *model.Agent, id string) (Task, error) {
 // UpdateStep is the control API's partial Step edit. Completion times are trusted engine times.
 func (s *Service) UpdateStep(id, step string, text *string, done *bool, order *int) (Task, error) {
 	return s.mutate(nil, id, func(r *record, tx *sql.Tx) error {
+		r.ownerActivity = true
 		idx := -1
 		for i, st := range r.Checklist {
 			if st.ID == step {

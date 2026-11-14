@@ -255,7 +255,11 @@ func (s *Service) BackfillChatPeople(ctx context.Context) error {
 			if !eligible(r.Task) {
 				return nil
 			}
-			r.People = ps
+			beforeCount := len(r.People)
+			addMembers(&r.Task, nil, ps, "backfill")
+			if len(r.People) == beforeCount {
+				return nil
+			}
 			r.UpdatedAt = s.now()
 			return s.event(tx, *r, "chat_people_backfill", "people_linked", "Linked people from the chat", nil)
 		})

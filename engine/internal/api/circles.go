@@ -35,11 +35,10 @@ func (s *Server) circleRoutes(add func(string, string, route)) {
 		if err != nil {
 			return nil, err
 		}
-		suggested, err := s.MCP.TaskService().List(nil, "suggested", 3)
-		if err != nil {
-			return nil, err
+		for i := range taskSummaries {
+			taskSummaries[i].FinishHint = nil
 		}
-		out["tasks"] = append(taskSummaries, suggested...)
+		out["tasks"] = taskSummaries
 		recently, recentLines, err := s.MCP.TaskService().RecentlyWithTargets(nil, "")
 		if err != nil {
 			return nil, err
@@ -62,6 +61,26 @@ func (s *Server) circleRoutes(add func(string, string, route)) {
 		out["efforts_ready"] = ready
 		return out, nil
 	}))
+	add("GET /v1/map/mesh", "admin", wrap(func(r *http.Request) (any, error) {
+		value, e := c.MapMesh()
+		if e != nil {
+			return nil, e
+		}
+		out := value.(circles.UnderstandingMap)
+		needs, e := s.MCP.TaskService().NeedsYouPeople()
+		if e != nil {
+			return nil, e
+		}
+		out.Nodes = append([]circles.MapNode{}, out.Nodes...)
+		for i := range out.Nodes {
+			if out.Nodes[i].Kind == "person" {
+				v := needs[out.Nodes[i].ID]
+				out.Nodes[i].NeedsYou = &v
+			}
+		}
+		return out, nil
+	}))
+	add("GET /v1/people/{id}/conversation-history", "admin", wrap(func(r *http.Request) (any, error) { return s.People.ConversationHistory(nil, r.PathValue("id")) }))
 	add("GET /v1/map", "admin", wrap(func(r *http.Request) (any, error) {
 		if focus := r.URL.Query().Get("focus"); focus != "" {
 			return c.MapFocus(focus)
@@ -95,7 +114,16 @@ func (s *Server) circleRoutes(add func(string, string, route)) {
 		}
 		return map[string]bool{"ok": true}, c.Reset()
 	}))
-	add("GET /v1/circles", "admin", wrap(func(r *http.Request) (any, error) { xs, e := c.List(nil); return map[string]any{"circles": xs}, e }))
+	add("GET /v1/circles", "admin", wrap(func(r *http.Request) (any, error) {
+		var xs []model.Circle
+		var e error
+		if r.URL.Query().Get("archived") == "1" {
+			xs, e = c.Archived()
+		} else {
+			xs, e = c.List(nil)
+		}
+		return map[string]any{"circles": xs}, e
+	}))
 	add("POST /v1/circles", "admin", wrap(func(r *http.Request) (any, error) {
 		var v model.Circle
 		if e := decode(r, &v); e != nil {
@@ -162,7 +190,7 @@ func (s *Server) circleRoutes(add func(string, string, route)) {
 		}
 	}
 	add("GET /v1/suggestions", "admin", wrap(func(r *http.Request) (any, error) {
-		xs, e := s.Hub.Suggestions()
+		xs, e := c.ReviewSuggestions()
 		return map[string]any{"suggestions": xs}, e
 	}))
 	add("POST /v1/suggestions/{id}/send", "admin", wrap(func(r *http.Request) (any, error) {

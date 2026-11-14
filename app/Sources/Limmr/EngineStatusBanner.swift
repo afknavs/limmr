@@ -3,10 +3,11 @@ import SwiftUI
 
 /// Presentation uses observed connection facts; missing phone evidence is not a failure.
 enum EngineSurfaceState: String, CaseIterable {
-  case starting, busy, stalled, restarting, notRunning, updating, offline, loggedOut, phoneUnreachable, connected
+  case reconnecting, starting, busy, stalled, restarting, notRunning, updating, offline, loggedOut, phoneUnreachable, connected
 
   var title: String {
     switch self {
+    case .reconnecting: "Reconnecting to WhatsApp…"
     case .busy: "Limmr’s engine is busy"
     case .stalled: "Limmr’s engine needs a restart"
     case .starting: "Starting Limmr’s engine"
@@ -21,6 +22,7 @@ enum EngineSurfaceState: String, CaseIterable {
   }
   var detail: String {
     switch self {
+    case .reconnecting: "Your saved chats are still here."
     case .busy: "Waiting for Limmr’s background engine to respond…"
     case .stalled: "Limmr’s background engine has stopped responding."
     case .starting, .restarting: "Your chats will appear when the connection is ready."
@@ -38,14 +40,22 @@ enum EngineSurfaceState: String, CaseIterable {
     case .notRunning: "Start Limmr"
     case .stalled: "Restart engine"
     case .phoneUnreachable: "Check again"
-    case .busy, .starting, .restarting, .updating, .connected: "Open Limmr"
+    case .reconnecting, .busy, .starting, .restarting, .updating, .connected: "Open Limmr"
     case .offline: "Reconnect"
     }
   }
-  var inProgress: Bool { [.busy, .starting, .restarting, .updating].contains(self) }
+  var inProgress: Bool { [.reconnecting, .busy, .starting, .restarting, .updating].contains(self) }
 }
 
 extension AppStore {
+  var isWhatsAppReconnecting: Bool {
+    if snapshot, snapshotConnectionState == .reconnecting { return true }
+    return ConnectionGrace.reconnecting(status, now: presentationNow, launchedAt: connectionLaunchedAt, dropAt: connectionDropAt)
+  }
+  var whatsappFooter: String {
+    if isWhatsAppReconnecting || [.starting, .restarting, .updating].contains(engineSurfaceState) { return "WhatsApp connecting…" }
+    return status?.connected == true ? "WhatsApp connected" : "WhatsApp offline"
+  }
   var engineSurfaceState: EngineSurfaceState {
     if snapshot, let snapshotConnectionState { return snapshotConnectionState }
     if !demo && !snapshot {
@@ -65,6 +75,7 @@ extension AppStore {
     }
     guard let status else { return .starting }
     guard status.linked else { return .loggedOut }
+    if isWhatsAppReconnecting { return .reconnecting }
     if checks.contains(where: {
       $0.id == "phone" && $0.state != "ok"
         && ($0.detail.localizedCaseInsensitiveContains("unreachable")

@@ -42,6 +42,9 @@ func (s *Service) presentAsks(c model.Circle, b *model.Brief) error {
 	}
 	out := []model.OpenAsk{}
 	for _, a := range b.OpenAsks {
+		if !s.Hub.Now().Before(a.At.Add(model.NeedsYouTTL)) {
+			continue
+		}
 		var version int
 		err := s.Hub.Repo.Get("done_asks", c.ID+":"+a.ID, &version)
 		if err != nil && err != model.ErrNotFound {

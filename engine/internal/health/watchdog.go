@@ -129,6 +129,9 @@ func (w Watchdog) Run(ctx context.Context) {
 		if reason == "" || now.Before(notBefore) {
 			continue
 		}
+		if err := writeStuckStacks(w.Home, now); err != nil && w.Logger != nil {
+			w.Logger.Printf("WARN engine watchdog: could not save goroutine stacks: %v", err)
+		}
 		h := restartHistory(w.Home, now)
 		h.Exits = append(h.Exits, now)
 		writeRestartHistory(w.Home, h)

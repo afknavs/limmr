@@ -213,7 +213,7 @@ public enum DemoData {
 public actor DemoBackend: Backend {
   private var dotSync = DotSyncStatus.demo("never")
   private var groups = DemoPeople.groups
-  private var customPhotos: [String: Data] = ["person-04": DemoPhotos.person, "person-05": DemoPhotos.person]
+  private var customPhotos: [String: Data] = [:]
   private var contactsState = ContactsDemoState()
   private var personSummaries: [String: PersonSummary] = ["person-04": .init(personId: "person-04", text: "You and Maya have been preparing the studio presentation and comparing material samples. She is gathering the updated syllabus for your study group; the next step is to review the slides together.", writtenBy: "This Mac", writtenAt: DemoData.now, basedOnUntil: DemoData.now)]
   private struct ContactsDemoState: Codable { var enabled = false; var lastImportedAt: String? = nil }
@@ -267,7 +267,7 @@ public actor DemoBackend: Backend {
   private var completedAsks: Set<String> = []
   private func suggestionResult(_ suggestion: CircleSuggestion, object: [String: Any]) -> String {
     if suggestion.taskId != nil { return object["text"] as? String ?? suggestion.body ?? suggestion.draftText ?? "" }
-    let home = DemoCircles.home(details: circleDetails, suggestions: [suggestion], proposals: [])
+    let home = DemoCircles.home(details: circleDetails.filter { $0.circle.archived != true }, suggestions: [suggestion], proposals: [])
     let item = home.queued[0]
     let index = object["variation"] as? Int ?? 0
     return object["text"] as? String ?? item.variations[index]
@@ -285,8 +285,15 @@ public actor DemoBackend: Backend {
   private var ownerProfile = OwnerProfile.sample
   private var n1ReadyShape = false
   public init(n1ReadyShape: Bool = false, waitingCount: Int? = nil, structurePlacements: Bool = false,
-    unnamedEffortsOnly: Bool = false, dotState: String = "never") {
+    unnamedEffortsOnly: Bool = false, dotState: String = "never", u2Archived: Bool = false) {
     dotSync = .demo(dotState)
+    if u2Archived {
+      var detail = DemoCircles.details[0]
+      detail.circle.id = "archived-reading"
+      detail.circle.name = "Old reading circle"
+      detail.circle.archived = true
+      circleDetails.append(detail)
+    }
     if unnamedEffortsOnly { efforts = efforts.filter { $0.title.isEmpty } }
     if structurePlacements {
       let placed: [Person] = (1...40).map { i in
@@ -406,7 +413,7 @@ public actor DemoBackend: Backend {
       method == "POST"
     {
       let ask = DemoCircles.home(
-        details: circleDetails, suggestions: circleSuggestions, proposals: []
+        details: circleDetails.filter { $0.circle.archived != true }, suggestions: circleSuggestions, proposals: []
       ).needsReply.first { $0.id == parts[4] }
       guard let ask, let agent = object["agent_id"] as? String,
         agents.contains(where: { $0.id == agent && $0.enabled })
@@ -637,6 +644,7 @@ public actor DemoBackend: Backend {
           efforts[i].createdBy = conditional ? "This Mac" : "you"
         }
         if let status = object["status"] as? String { efforts[i].status = status }
+        if let archived = object["archived"] as? Bool { circleDetails[i].circle.archived = archived }
         if let pinned = object["pinned"] as? Bool { efforts[i].pinned = pinned }
         if let hidden = object["hidden"] as? Bool { efforts[i].hidden = hidden }
         effortNamingRevisions[efforts[i].id, default: 1] += 1
@@ -651,10 +659,10 @@ public actor DemoBackend: Backend {
     if route == "/v1/efforts/seen", method == "POST" { return Data("{}".utf8) }
     if route == "/v1/home" {
       var home = DemoCircles.home(
-        details: circleDetails, suggestions: circleSuggestions, proposals: circleProposals)
-      // Y2: open work first, then a bounded suggestion slice.
+        details: circleDetails.filter { $0.circle.archived != true }, suggestions: circleSuggestions, proposals: circleProposals)
+      // Home contains only tasks; suggestions stay on the Tasks page.
       let summaries = tasks.map { $0.compact(now: Timestamp.date(DemoData.now)!) }
-      home.tasks = Array(TaskPresentation.open(summaries).prefix(6)) + Array(TaskPresentation.suggested(summaries).prefix(3))
+      home.tasks = Array(TaskPresentation.open(summaries).prefix(6))
       home.queued += circleSuggestions.filter { ["check_in", "nudge"].contains($0.kind) }
       home.effortsReady = true
       home.circleUpdates = efforts.filter { EffortPresentation.visible($0) && $0.status != "dormant" }.map {
@@ -713,10 +721,11 @@ public actor DemoBackend: Backend {
       }
     }
     if route == "/v1/circles" {
-      return try Wire.data(CirclesResponse(circles: circleDetails.map(\.circle)))
+      let archived = path.contains("archived=1")
+      return try Wire.data(CirclesResponse(circles: circleDetails.map(\.circle).filter { ($0.archived == true) == archived }))
     }
     if route == "/v1/map" {
-      var map = DemoCircles.understanding(circleDetails, proposals: circleProposals)
+      var map = DemoCircles.understanding(circleDetails.filter { $0.circle.archived != true }, proposals: circleProposals)
       let peopleIDs = Set(people.map(\.id))
       map.nodes.removeAll { $0.kind == "person" && !peopleIDs.contains($0.id) }
       let nodeIDs = Set(map.nodes.map(\.id))
@@ -864,6 +873,7 @@ public actor DemoBackend: Backend {
           CircleChat(chatJid: jid, roleInCircle: "Included chat", includedSince: DemoData.now))
       }
       if method == "PATCH" {
+        if let archived = object["archived"] as? Bool { circleDetails[i].circle.archived = archived }
         if let pinned = object["pinned"] as? Bool { circleDetails[i].circle.pinned = pinned }
         if let rule = object["send_rule"] as? String, let value = SendRule(rawValue: rule) {
           circleDetails[i].circle.sendRule = value
@@ -1248,7 +1258,40 @@ extension DemoBackend {
       throw BackendError.http(400)
     }
     guard let index = tasks.firstIndex(where: { $0.id == parts[2] }) else { throw BackendError.http(404) }
-    if parts.count == 3, method == "GET" { return try Wire.data(tasks[index]) }
+    if parts.count == 3, method == "GET" {
+      var value = tasks[index]
+      if let until = value.laterUntil.flatMap(Timestamp.date), now < until { value.needsYou = false; value.needsYouReason = nil }
+      return try Wire.data(value)
+    }
+    if parts.count == 4, parts[3] == "later" {
+      if method == "POST" {
+        let until = (object["until"] as? String).flatMap(Timestamp.date) ?? TaskLaterTime.defaultUntil(now: now)
+        guard until > now else { throw BackendError.http(400) }
+        tasks[index].laterAt = DemoData.now
+        tasks[index].laterUntil = ISO8601DateFormatter().string(from: until)
+        tasks[index].history.insert(.init(at: DemoData.now, kind: "later", text: "Left for later until " + TaskLaterTime.status(tasks[index].laterUntil!)), at: 0)
+      } else if method == "DELETE" {
+        tasks[index].laterUntil = nil
+        tasks[index].history.insert(.init(at: DemoData.now, kind: "brought_back", text: "Brought back"), at: 0)
+      } else { throw BackendError.http(405) }
+      var value = tasks[index]
+      if method == "POST" { value.needsYou = false; value.needsYouReason = nil }
+      return try Wire.data(value)
+    }
+    if parts.count == 4, parts[3] == "remove", method == "POST" {
+      let chats = Set(object["chats"] as? [String] ?? [])
+      let people = Set(object["people"] as? [String] ?? [])
+      guard !people.contains("me"), !chats.contains("me") else { throw BackendError.http(400) }
+      let names = tasks[index].chats.filter { chats.contains($0.id) }.map(\.name)
+        + tasks[index].people.filter { people.contains($0.id) }.map(\.name)
+      tasks[index].chats.removeAll { chats.contains($0.id) }
+      tasks[index].people.removeAll { people.contains($0.id) }
+      if !names.isEmpty {
+        tasks[index].history.insert(.init(at: DemoData.now, kind: "owner_remove", text: "Removed " + names.joined(separator: ", ") + " from this task"), at: 0)
+      }
+      tasks[index].updatedAt = DemoData.now
+      return try Wire.data(tasks[index])
+    }
     // Y2: local-only surfacing actions mirror the merged control API.
     if parts.count == 4, method == "POST", ["keep", "dismiss", "undo"].contains(parts[3]) {
       let action = parts[3]
@@ -1266,6 +1309,10 @@ extension DemoBackend {
     }
 
     if parts.count == 3, method == "PATCH" {
+      if ["done", "dropped"].contains(tasks[index].status),
+         object["waiting"] != nil || ["active", "waiting", "quiet"].contains(object["status"] as? String ?? "") {
+        throw BackendError.http(409)
+      }
       let data = try Wire.data(tasks[index])
       var merged = try JSONSerialization.jsonObject(with: data) as! [String: Any]
       for (key, value) in object { merged[key] = value }
@@ -1277,15 +1324,22 @@ extension DemoBackend {
       tasks[index].checklist[step].done = done
       tasks[index].checklist[step].doneAt = done ? DemoData.now : nil
       tasks[index].progress = .init(done: tasks[index].checklist.filter(\.done).count, total: tasks[index].checklist.count)
-      if tasks[index].kind == "short", tasks[index].progress.done == tasks[index].progress.total { tasks[index].status = "done" }
     } else if parts.count == 5, parts[3] == "nudge", parts[4] == "skip", method == "POST" {
       tasks[index].waiting?.nudgeState = "skipped"
       tasks[index].needsYou = false
       circleSuggestions.removeAll { $0.taskId == tasks[index].id && $0.kind == "nudge" }
     } else { throw BackendError.http(400) }
     tasks[index].updatedAt = DemoData.now
+    if ["active", "waiting"].contains(tasks[index].status),
+       tasks[index].endCondition == "checklist_done", tasks[index].progress.total > 0,
+       tasks[index].progress.done == tasks[index].progress.total {
+      tasks[index].status = "done"
+    }
     if ["done", "dropped"].contains(tasks[index].status) {
-      tasks[index].closedAt = DemoData.now; tasks[index].closeReason = tasks[index].status == "done" ? "done" : "owner"
+      tasks[index].closedAt = DemoData.now
+      if tasks[index].closeReason == nil {
+        tasks[index].closeReason = tasks[index].status == "done" ? "done" : "owner"
+      }
       tasks[index].needsYou = false
       circleSuggestions.removeAll { $0.taskId == tasks[index].id }
     }

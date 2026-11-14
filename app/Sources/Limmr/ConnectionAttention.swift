@@ -9,23 +9,25 @@ struct ConnectionAttention: Equatable {
   let repair: Repair
 
   static func resolve(state: EngineSurfaceState, checks: [HealthCheck], remoteEnabled: Bool,
-                      sync: DotSyncStatus?, refreshFailed: Bool = false) -> Self? {
+                      sync: DotSyncStatus?, refreshFailed: Bool = false, status: Status? = nil,
+                      now: Date = Date(), launchedAt: Date? = nil, dropAt: Date? = nil) -> Self? {
     switch state {
     case .busy, .stalled, .notRunning:
       return .init(title: state == .notRunning ? "Limmr’s engine stopped" : "Limmr’s engine is busy",
         detail: "Your saved information stays here while the engine reconnects.", button: "Restart engine", repair: .restart)
-    case .starting, .restarting, .updating:
-      return .init(title: state.title, detail: "Your saved information stays here. Limmr reconnects automatically.",
-        button: "Reconnecting…", repair: .wait)
+    case .reconnecting, .starting, .restarting, .updating:
+      return .init(title: "Reconnecting to WhatsApp…", detail: "Your saved chats are still here.", button: "", repair: .wait)
     case .loggedOut:
       return .init(title: "WhatsApp needs linking", detail: "Scan a new code with WhatsApp on your phone.", button: "Reconnect WhatsApp", repair: .link)
     case .phoneUnreachable:
+      if ConnectionGrace.reconnecting(status, now: now, launchedAt: launchedAt, dropAt: dropAt) { return .init(title: "Reconnecting to WhatsApp…", detail: "Your saved chats are still here.", button: "", repair: .wait) }
       return .init(title: "Your phone is offline", detail: "Open WhatsApp on your phone and check its internet connection.", button: "Reconnect WhatsApp", repair: .reconnect)
     case .offline:
+      if ConnectionGrace.reconnecting(status, now: now, launchedAt: launchedAt, dropAt: dropAt) { return .init(title: "Reconnecting to WhatsApp…", detail: "Your saved chats are still here.", button: "", repair: .wait) }
       return .init(title: "WhatsApp disconnected", detail: "Your saved chats are still here.", button: "Reconnect WhatsApp", repair: .reconnect)
     case .connected: break
     }
-    if remoteEnabled, let check = checks.first(where: { ["remote", "remote_listener"].contains($0.id) && $0.state != "ok" }) {
+    if remoteEnabled, !ConnectionGrace.engineWarming(status, now: now), !checks.contains(where: { ["remote", "remote_listener"].contains($0.id) && $0.state == "checking" }), let check = checks.first(where: { ["remote", "remote_listener"].contains($0.id) && $0.state != "ok" }) {
       return .init(title: "Remote access needs attention", detail: "AI apps outside this Mac can’t connect yet.",
         button: "Restart remote access", repair: .remote(check.fixId ?? "restart_remote"))
     }
@@ -43,7 +45,7 @@ struct ConnectionAttention: Equatable {
 extension AppStore {
   var connectionAttention: ConnectionAttention? {
     .resolve(state: engineSurfaceState, checks: checks, remoteEnabled: remote?.enabled == true,
-      sync: connectionSync, refreshFailed: refreshError != nil)
+      sync: connectionSync, refreshFailed: refreshError != nil, status: status, now: presentationNow, launchedAt: connectionLaunchedAt, dropAt: connectionDropAt)
   }
   func restartEngine() async {
     await perform { [self] in
@@ -80,7 +82,7 @@ struct ConnectionStatusCard: View {
   var stateOverride: EngineSurfaceState? = nil
   private var attention: ConnectionAttention? {
     guard let stateOverride else { return store.connectionAttention }
-    return .resolve(state: stateOverride, checks: store.checks, remoteEnabled: store.remote?.enabled == true, sync: store.connectionSync)
+    return .resolve(state: stateOverride, checks: store.checks, remoteEnabled: store.remote?.enabled == true, sync: store.connectionSync, status: store.status, now: store.presentationNow, launchedAt: store.connectionLaunchedAt, dropAt: store.connectionDropAt)
   }
   var body: some View {
     if let attention {
@@ -92,12 +94,12 @@ struct ConnectionStatusCard: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         Spacer(minLength: 0)
-        VStack(alignment: .trailing, spacing: 6) {
+        if attention.repair != .wait { VStack(alignment: .trailing, spacing: 6) {
           Button(attention.button) { Task { await store.repairConnection(attention.repair) } }
             .buttonStyle(NativeGlassButtonStyle(prominent: true)).disabled(attention.repair == .wait || store.busy)
           Button("Copy diagnostics") { Task { await store.copyDiagnostics() } }
             .buttonStyle(.plain).font(.caption).foregroundStyle(AccessibleSecondary())
-        }
+        } }
       }
       .padding(14).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
       .accessibilityElement(children: .contain)

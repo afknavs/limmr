@@ -5,6 +5,19 @@ struct CirclesView: View {
   @Bindable var store: AppStore
   @AppStorage("peopleTab") private var tab = "Circles"
   @State private var query = ""
+  @State private var onlySelected = false
+  @State private var circleFilter = "all"
+  @State private var peopleSort = "Recent"
+  @Environment(\.limmrWindowWidth) private var windowWidth
+  private var browsingPeople: [Person] {
+    let values = store.orderedPeople(query: query, includeUnselected: !onlySelected).filter { person in
+      circleFilter == "all" || (circleFilter == "none" ? store.paperCircles(person.id).isEmpty : store.paperCircles(person.id).contains { $0.id == circleFilter })
+    }
+    if peopleSort == "Closest" {
+      return values.sorted { a,b in (store.circleMap.nodes.first { $0.id == a.id }?.weight ?? 0) > (store.circleMap.nodes.first { $0.id == b.id }?.weight ?? 0) }
+    }
+    return values
+  }
   @State private var selection = KeyboardSelection()
   @State private var olderExpanded = false
   @FocusState private var searchFocused: Bool
@@ -16,7 +29,7 @@ struct CirclesView: View {
         store.mapSelection.circle == nil || store.mapSelection.circle == $0.id
       }.map { "circle:" + $0.id }
     }
-    let people = store.orderedPeople(query: query)
+    let people = browsingPeople
     return (people.filter { store.personIsCurrent($0) } + (olderExpanded ? people.filter { !store.personIsCurrent($0) } : [])).map { "person:" + $0.id }
   }
   private func move(_ step: Int) {
@@ -36,43 +49,31 @@ struct CirclesView: View {
     Group {
       ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: 24) {
-          VStack(alignment: .leading, spacing: 6) {
-            Text("People").font(AppType.pageTitle)
-            Text("Your people, in the circles you share.").font(.callout).foregroundStyle(
-              .secondary)
+        LazyVStack(alignment: .leading, spacing: 12) {
+          PaperPageHeader(title: "People", subtitle: "\(store.circleMap.nodes.filter { $0.kind == "person" && $0.id != "me" }.count) people · \(store.circles.filter { $0.kind != "self" }.count) \(store.circles.filter { $0.kind != "self" }.count == 1 ? "circle" : "circles") · \(PaperMesh.newPeople(store.circleMap,now:store.presentationNow).count) new this week") {
+            PaperSearch(store: store, query: $query, prompt: "Find someone").frame(width: windowWidth >= 1200 ? 300 : 220).onSubmit { if let match = browsingPeople.first { store.mapSelection = MapSelection(person:match.id) } }
           }
           if store.isLoading("/v1/circles") || store.isLoading("/v1/people") {
             QuietLoadingCards()
           }
-          PeopleWebHeader(store: store)
+          PaperPeopleNetwork(store: store, sortLoose: { circleFilter = "none"; tab = "People"; store.mapSelection = MapSelection() }, query: query)
           HStack(spacing: 16) {
-            Picker(
-              "People view",
-              selection: Binding(
-                get: { store.mapSelection.tab ?? snapshotTab ?? tab },
-                set: {
-                  tab = $0
-                  store.mapSelection = MapSelection()
-                })
-            ) {
-              Text("Circles").tag("Circles")
-              Text("People").tag("People")
-              Text("Groups").tag("Groups")
-            }.pickerStyle(.segmented).labelsHidden().frame(width: 240)
+            PaperSegments(values: ["Circles", "People", "Groups"], selection: Binding(
+              get: { store.mapSelection.tab ?? snapshotTab ?? tab },
+              set: { tab = $0; store.mapSelection = MapSelection() }))
+
             Spacer(minLength: 0)
-            HStack(spacing: 6) {
-              Image(systemName: "magnifyingglass").foregroundStyle(AccessibleSecondary())
-              TextField("Search", text: $query).textFieldStyle(.plain).accessibilityLabel(
-                "Search circles and people")
-                .focused($searchFocused)
-                .accessibilityHint("Use arrow keys to choose a row, then Return to open it")
-                .onSubmit { openSelection() }
-            }.padding(8).frame(maxWidth: 240).background(
-              .primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+            Menu {
+              Picker("Sort people", selection: $peopleSort) { Text("Recent").tag("Recent"); Text("Closest").tag("Closest") }
+              Toggle("Only the selected person", isOn: $onlySelected).disabled(store.mapSelection.person == nil)
+            } label: { Label(peopleSort, systemImage: "arrow.up.arrow.down") }.menuStyle(.borderlessButton).fixedSize()
+            Menu {
+              Picker("Circle filter", selection: $circleFilter) { Text("All circles").tag("all"); Text("Not in a circle").tag("none"); ForEach(store.circles) { Text($0.name).tag($0.id) } }
+            } label: { Label(circleFilter == "all" ? "All circles" : circleFilter == "none" ? "Not in a circle" : store.circleName(circleFilter), systemImage: "line.3.horizontal.decrease") }.menuStyle(.borderlessButton).fixedSize()
+
           }
           .id("people-list-start")
-          if store.mapSelection.tab != nil {
+          if store.mapSelection.circle != nil || onlySelected {
             Button("Clear map filter", systemImage: "xmark") { store.mapSelection = MapSelection() }
               .font(AppType.caption).limmrButton().foregroundStyle(AccessibleSecondary())
           }
@@ -135,9 +136,9 @@ struct CirclesView: View {
             PeopleGroupsList(store: store, query: query)
           } else {
             LazyVStack(spacing: 0) {
-              let matches = store.orderedPeople(query: query)
-              ForEach(matches.filter { store.personIsCurrent($0) }) { person in
-                personRow(person)
+              let matches = browsingPeople
+              LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: PaperLayout.peopleColumns(windowWidth)), spacing: 0) {
+                ForEach(matches.filter { store.personIsCurrent($0) }) { person in personRow(person) }
               }
               if store.peopleCursor?.isEmpty == false { Button("Load more people") { Task { await store.loadMorePeople() } } }
               let older = matches.filter { !store.personIsCurrent($0) }
@@ -156,7 +157,7 @@ struct CirclesView: View {
               }
             }
           }
-        }.frame(maxWidth: store.mapSelection.person == nil ? 760 : 1060).padding(24).frame(maxWidth: .infinity)
+        }.padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 20).frame(maxWidth: .infinity).paperReadingWidth()
       }
       .defaultScrollAnchor(snapshotOlder ? .bottom : .top, for: .initialOffset)
       .task(id: snapshotList) {
@@ -171,7 +172,6 @@ struct CirclesView: View {
 
     }
     .onChange(of: store.mapSelection) { _, selection in
-      query = ""
       if let chosenTab = selection.tab { tab = chosenTab }
     }
     .environment(\.keyboardRowNavigation, true)
@@ -193,37 +193,22 @@ struct CirclesView: View {
     }
   }
   private func personRow(_ person: Person) -> some View {
-    LazyVStack(spacing: 0) {
-      Button {
-        store.circlePath.append(.person(person.id))
-      } label: {
-        HStack(spacing: 16) {
-          PersonAvatar(store: store, id: person.id, name: person.name)
-          VStack(alignment: .leading, spacing: 4) {
-            HStack { Text(person.label?.isEmpty == false ? person.label! : person.name).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail); if person.id == "me" { Badge(text: "You") } }
-            Text(
-              PeoplePresentation.roles(
-                person.id, circles: store.circles, name: person.name)
-            ).font(
-              .caption
-            ).foregroundStyle(AccessibleSecondary()).lineLimit(2)
-          }
-          Spacer(minLength: 0)
-          if let at = store.chats.filter({ person.jids.contains($0.jid) }).compactMap(
-            \.lastMessageTime
-          ).max() {
-            Text(store.relativeTime(at)).font(AppType.caption).foregroundStyle(AccessibleSecondary())
-          }
-          Image(systemName: "chevron.right").font(.caption2).foregroundStyle(AccessibleTertiary())
-        }.contentShape(Rectangle()).modifier(QuietRow())
-      }.quietCard()
-        .focused($rowFocused, equals: "person:" + person.id)
-        .quietKeyboardRow("person:" + person.id, selection: selection.id)
-        .accessibilityLabel(person.label?.isEmpty == false ? person.label! : person.name)
-        .accessibilityValue(PeoplePresentation.roles(person.id, circles: store.circles, name: person.name))
-        .accessibilityHint("Open this person's profile")
-      Divider().padding(.leading, 54)
-    }
+    Button { store.mapSelection = MapSelection(person:person.id) } label: {
+      HStack(spacing:12) {
+        PersonAvatar(store:store,id:person.id,name:person.name,size:30)
+        VStack(alignment:.leading,spacing:3) {
+          Text(person.label?.isEmpty == false ? person.label! : person.name).font(LimmrTheme.font(14,.semibold)).lineLimit(2)
+          Text(store.paperCircles(person.id).map(\.name).joined(separator:" · ")).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2).lineLimit(1)
+        }
+        Spacer(minLength:0)
+        if let at = store.paperLastSpoke(person) { Text(store.relativeTime(at)).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink3) }
+      }.frame(minHeight:60).contentShape(Rectangle()).overlay(alignment:.top) { Rectangle().fill(LimmrTheme.hairline).frame(height:1) }
+    }.buttonStyle(.plain).focused($rowFocused,equals:"person:"+person.id)
+      .quietKeyboardRow("person:"+person.id,selection:selection.id)
+      .contextMenu { Button("Profile") { store.openPeopleRoute(.person(person.id)) } }
+      .accessibilityLabel(person.label?.isEmpty == false ? person.label! : person.name)
+      .accessibilityValue(store.paperCircles(person.id).map(\.name).joined(separator:" and ")+(store.paperPersonNeeds(person.id) ? ", needs you" : ""))
+      .accessibilityHint("Select on the map; Return opens the profile")
   }
 }
 private struct SnapshotPeopleTabKey: EnvironmentKey { static let defaultValue: String? = nil }

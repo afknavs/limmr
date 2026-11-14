@@ -9,6 +9,7 @@ struct SettingsSearchEntry: Identifiable {
   static let advancedLabels: Set<String> = ["Set up Limmr", "Explore with sample data", "Updates", "Data folder", "Engine controls", "WhatsApp connection", "Circles", "Previous setup", "Run all checks"]
   static let all: [Self] = [
     .init(label: "Launch Limmr at login", keywords: "startup automatic", tab: .general),
+    .init(label: "New chats an AI may start per day", keywords: "first contact strangers daily limit off", tab: .privacy),
     .init(label: "Current chats", keywords: "days recent older history", tab: .privacy),
     .init(label: "Keep activity for", keywords: "retention delete log days", tab: .general),
     .init(label: "Approval notifications", keywords: "alerts enable", tab: .general),

@@ -18,7 +18,6 @@ public enum DemoPeople {
       id: DemoData.personId(i), jids: [DemoData.personJid(i)], name: name, pushName: name,
       circle: "", role: "", howKnown: "", notes: "", updatedAt: DemoData.date(i + 1))
     if i == 3 { person.otherNames = ["Maya", "Mayu"] }
-    if i == 3 || i == 4 { person.photo = .init(source: "custom") }
     person.howKnown = i == 3 ? "Classmate and collaborator on Atlas" : ""
     person.details = PersonDetails(
       phones: [

@@ -10,6 +10,7 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
@@ -27,6 +28,7 @@
           "text": "Task suggested"
         }
       ],
+      "goal": "Prepare the fundraiser application",
       "id": "tsk_demo_application",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -49,19 +51,14 @@
       "updated_at": "2026-10-17T12:00:00Z"
     },
     {
-      "auto_kept_at": "2026-10-17T12:00:00Z",
       "circle_ids": [],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
         "name": "Codex"
       },
       "events": [
-        {
-          "at": "2026-10-17T12:00:00Z",
-          "kind": "auto_kept",
-          "text": "Started tracking automatically"
-        },
         {
           "at": "2026-10-17T12:00:00Z",
           "kind": "created",
@@ -73,6 +70,7 @@
           "text": "Task suggested"
         }
       ],
+      "goal": "Review the family CV",
       "id": "tsk_demo_cv",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -82,7 +80,7 @@
         "done": 0,
         "total": 0
       },
-      "status": "active",
+      "status": "suggested",
       "suggestion": {
         "confidence": 0.75,
         "detected_at": "2026-10-17T12:00:00Z",
@@ -92,7 +90,6 @@
         ]
       },
       "title": "Review the family CV",
-      "undo_change_id": "chg_demo_cv",
       "updated_at": "2026-10-17T12:00:00Z"
     },
     {
@@ -105,6 +102,7 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
@@ -122,6 +120,7 @@
           "text": "Task suggested"
         }
       ],
+      "goal": "Print the revision guide",
       "id": "tsk_demo_guide",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -147,6 +146,7 @@
       "circle_ids": [
         "university"
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
@@ -160,6 +160,26 @@
           "text": "Task created"
         }
       ],
+      "face_count": 5,
+      "faces": [
+        {
+          "id": "me",
+          "name": "Alex"
+        },
+        {
+          "id": "person-04",
+          "name": "Maya Rao"
+        },
+        {
+          "id": "person-06",
+          "name": "Sam Patel"
+        },
+        {
+          "id": "person-07",
+          "name": "Dr. Morgan"
+        }
+      ],
+      "goal": "Track festival review",
       "id": "tsk_demo_linked",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -183,6 +203,7 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
@@ -195,6 +216,7 @@
           "text": "Task created"
         }
       ],
+      "goal": "Book a dentist appointment",
       "id": "tsk_demo_short",
       "kind": "short",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -218,6 +240,7 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
@@ -245,6 +268,14 @@
           "text": "Summary updated"
         }
       ],
+      "face_count": 1,
+      "faces": [
+        {
+          "id": "person-04",
+          "name": "Maya Rao"
+        }
+      ],
+      "goal": "Make revision material and track learning",
       "id": "tsk_demo_study",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -270,6 +301,7 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "agent-2",
@@ -297,6 +329,14 @@
           "text": "Waiting changed"
         }
       ],
+      "face_count": 1,
+      "faces": [
+        {
+          "id": "person-04",
+          "name": "Maya Rao"
+        }
+      ],
+      "goal": "Wait for the project syllabus",
       "id": "tsk_demo_waiting",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",

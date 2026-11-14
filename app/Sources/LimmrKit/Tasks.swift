@@ -263,6 +263,8 @@ public struct TaskCoverCandidate: Codable, Sendable, Equatable {
 }
 
 public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
+  public var laterUntil: String? = nil
+  public var laterAt: String? = nil
   public var coverCandidate: TaskCoverCandidate? = nil
   public var createdAt: String? = nil
   public var lastActiveAt: String? = nil
@@ -287,6 +289,9 @@ public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
   public var needsYouReason: String? = nil
   public var lastUpdateAt: String? = nil
   public var effortId: String? = nil
+  /// First few people (or group chats) a card can draw as faces, and how many there are in all.
+  public var faces: [EffortEntity] = []
+  public var faceCount: Int = 0
   public init(id: String = "", title: String = "", kind: String = "long", status: String = "active", progress: TaskProgress = .init(), nextCheckInAt: String? = nil, waiting: TaskWaitingSummary? = nil, needsYou: Bool = false, needsYouReason: String? = nil, lastUpdateAt: String? = nil, effortId: String? = nil, origin: String = "owner", suggestion: TaskSuggestion? = nil, autoKeptAt: String? = nil, undoChangeId: String? = nil, createdBy: TaskAuthor = .init()) {
     self.id = id
     self.title = title
@@ -302,9 +307,13 @@ public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
     self.lastUpdateAt = lastUpdateAt
     self.effortId = effortId
   }
-  enum CodingKeys: String, CodingKey { case coverCandidate, closedAt, closeReason, circleSuggestions, cover, createdAt, lastActiveAt, circleIds, origin, suggestion, autoKeptAt, undoChangeId, createdBy, id, title, kind, status, progress, nextCheckInAt, waiting, needsYou, needsYouReason, lastUpdateAt, effortId }
+  enum CodingKeys: String, CodingKey { case faces, faceCount, laterUntil, laterAt, coverCandidate, closedAt, closeReason, circleSuggestions, cover, createdAt, lastActiveAt, circleIds, origin, suggestion, autoKeptAt, undoChangeId, createdBy, id, title, kind, status, progress, nextCheckInAt, waiting, needsYou, needsYouReason, lastUpdateAt, effortId }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    laterUntil = try c.decodeIfPresent(String.self, forKey: .laterUntil)
+    laterAt = try c.decodeIfPresent(String.self, forKey: .laterAt)
+    faces = try c.decodeIfPresent([EffortEntity].self, forKey: .faces) ?? []
+    faceCount = try c.decodeIfPresent(Int.self, forKey: .faceCount) ?? faces.count
     coverCandidate = try c.decodeIfPresent(TaskCoverCandidate.self, forKey: .coverCandidate)
     closedAt = try c.decodeIfPresent(String.self, forKey: .closedAt)
     closeReason = try c.decodeIfPresent(String.self, forKey: .closeReason)
@@ -333,10 +342,33 @@ public struct TaskSummary: Codable, Sendable, Equatable, Identifiable {
 }
 
 public struct TaskHistoryEvent: Codable, Sendable, Equatable {
-  public init(at: String, kind: String, text: String) { self.at = at; self.kind = kind; self.text = text }
+  public init(at: String, kind: String, text: String, changeId: String? = nil, undoUntil: String? = nil, reason: String? = nil, undone: Bool = false) {
+    self.at = at; self.kind = kind; self.text = text
+    self.changeId = changeId; self.undoUntil = undoUntil; self.reason = reason; self.undone = undone
+  }
   public var at: String
   public var kind: String
   public var text: String
+  public var changeId: String?
+  public var undoUntil: String?
+  public var reason: String?
+  public var undone: Bool
+  enum CodingKeys: String, CodingKey { case at, kind, text, changeId, undoUntil, reason, undone }
+  public init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    at = try c.decode(String.self, forKey: .at)
+    kind = try c.decode(String.self, forKey: .kind)
+    text = try c.decode(String.self, forKey: .text)
+    changeId = try c.decodeIfPresent(String.self, forKey: .changeId)
+    undoUntil = try c.decodeIfPresent(String.self, forKey: .undoUntil)
+    reason = try c.decodeIfPresent(String.self, forKey: .reason)
+    undone = try c.decodeIfPresent(Bool.self, forKey: .undone) ?? false
+  }
+  public func canUndo(now: Date) -> Bool {
+    guard !undone, changeId?.isEmpty == false,
+      let start = Timestamp.date(at), let end = undoUntil.flatMap(Timestamp.date) else { return false }
+    return now >= start && now < end
+  }
 }
 
 public struct TaskLatestMessage: Codable, Sendable, Equatable {
@@ -371,7 +403,22 @@ public struct TaskCircleSuggestion: Codable, Sendable, Equatable {
  public var reason: String
 }
 
+public struct TaskFollowReference: Codable, Sendable, Equatable {
+  public var id: String
+  public var title: String
+}
+
 public struct TrackedTask: Codable, Sendable, Equatable, Identifiable {
+  public var laterUntil: String? = nil
+  public var laterAt: String? = nil
+  public var endAt: String? = nil
+  public var endCondition: String? = nil
+  public var follows: String? = nil
+  public var followsContext: TaskFollowReference? = nil
+  public var mergedInto: String? = nil
+  public var subject: EffortEntity? = nil
+  public var subjectEvidence: [EffortMessageRef] = []
+  public var subjectEdited = false
   public var circleSuggestions: [TaskCircleSuggestion] = []
   public var ownerNotes: [OwnerTaskNote] = []
   public var cover: WorkspaceItem? = nil
@@ -436,9 +483,19 @@ public struct TrackedTask: Codable, Sendable, Equatable, Identifiable {
     self.needsYou = needsYou
     self.needsYouReason = needsYouReason
   }
-  enum CodingKeys: String, CodingKey { case circleSuggestions, ownerNotes, cover, coverItemId, coverRemoved, lastActiveAt, latest, summaryAttempt, history, origin, suggestion, autoKeptAt, undoChangeId, id, title, goal, kind, status, effortId, chats, people, circleIds, createdBy, createdAt, updatedAt, closedAt, closeReason, summary, items, checklist, progress, checkIn, waiting, lifespanDays, updatesSent, needsYou, needsYouReason }
+  enum CodingKeys: String, CodingKey { case laterUntil, laterAt, endAt, endCondition, follows, followsContext, mergedInto, subject, subjectEvidence, subjectEdited, circleSuggestions, ownerNotes, cover, coverItemId, coverRemoved, lastActiveAt, latest, summaryAttempt, history, origin, suggestion, autoKeptAt, undoChangeId, id, title, goal, kind, status, effortId, chats, people, circleIds, createdBy, createdAt, updatedAt, closedAt, closeReason, summary, items, checklist, progress, checkIn, waiting, lifespanDays, updatesSent, needsYou, needsYouReason }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
+    laterUntil = try c.decodeIfPresent(String.self, forKey: .laterUntil)
+    laterAt = try c.decodeIfPresent(String.self, forKey: .laterAt)
+    endAt = try c.decodeIfPresent(String.self, forKey: .endAt)
+    endCondition = try c.decodeIfPresent(String.self, forKey: .endCondition)
+    follows = try c.decodeIfPresent(String.self, forKey: .follows)
+    followsContext = try c.decodeIfPresent(TaskFollowReference.self, forKey: .followsContext)
+    mergedInto = try c.decodeIfPresent(String.self, forKey: .mergedInto)
+    subject = try c.decodeIfPresent(EffortEntity.self, forKey: .subject)
+    subjectEvidence = try c.decodeIfPresent([EffortMessageRef].self, forKey: .subjectEvidence) ?? []
+    subjectEdited = try c.decodeIfPresent(Bool.self, forKey: .subjectEdited) ?? false
     circleSuggestions = try c.decodeIfPresent([TaskCircleSuggestion].self, forKey: .circleSuggestions) ?? []
     ownerNotes = try c.decodeIfPresent([OwnerTaskNote].self, forKey: .ownerNotes) ?? []
     cover = try c.decodeIfPresent(WorkspaceItem.self, forKey: .cover)
@@ -556,9 +613,13 @@ public extension TrackedTask {
       waiting: waiting.map { .init(onName: $0.on?.name, what: $0.what, since: $0.since,
         days: TaskPresentation.days(since: $0.since, now: now)) }, needsYou: needsYou,
       needsYouReason: needsYouReason, lastUpdateAt: updatesSent.last?.at, effortId: effortId, origin: origin, suggestion: suggestion, autoKeptAt: autoKeptAt, undoChangeId: undoChangeId, createdBy: createdBy)
+    value.laterUntil = laterUntil; value.laterAt = laterAt
+    if let at = laterUntil.flatMap(Timestamp.date), now < at { value.needsYou = false; value.needsYouReason = nil }
     value.closedAt = closedAt; value.closeReason = closeReason; value.circleSuggestions = circleSuggestions
     value.cover = cover
     value.createdAt = createdAt; value.lastActiveAt = lastActiveAt ?? updatedAt; value.circleIds = circleIds
+    let shown = people.isEmpty ? chats.filter { $0.id.hasSuffix("@g.us") } : people
+    value.faces = Array(shown.prefix(4)); value.faceCount = shown.count
     return value
   }
 }
@@ -619,11 +680,13 @@ public struct CreateTaskRequest: Encodable, Sendable {
   public var chats: [EffortEntity]?
   public var people: [EffortEntity]?
   public init(effort: Effort) {
-    title = String(effort.title.prefix(60)); goal = String(effort.summary.prefix(1000)); kind = "long"
+    title = String(effort.title.split(whereSeparator: \.isWhitespace).prefix(5).joined(separator: " ").prefix(60)); goal = String(effort.summary.prefix(1000)); kind = "long"
     effortId = effort.id; chats = effort.chats; people = effort.people
   }
 }
 public struct TaskPatch: Encodable, Sendable {
+  public var closeReason: String? = nil
+  public var endCondition: String? = nil
   public var circleIds: [String]? = nil
   public var coverItemId: String? = nil
   public var coverRemoved: Bool? = nil
@@ -644,9 +707,11 @@ public struct TaskPatch: Encodable, Sendable {
     self.status = status; self.lifespanDays = lifespanDays; self.checkIn = checkIn
     self.waiting = waiting; self.clearWaiting = clearWaiting; self.clearCheckIn = clearCheckIn
   }
-  enum CodingKeys: String, CodingKey { case circleIds, coverItemId, coverRemoved, summary, summaryAttempt, title, goal, status, kind, lifespanDays, checkIn, waiting }
+  enum CodingKeys: String, CodingKey { case closeReason, endCondition, circleIds, coverItemId, coverRemoved, summary, summaryAttempt, title, goal, status, kind, lifespanDays, checkIn, waiting }
   public func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encodeIfPresent(closeReason, forKey: .closeReason)
+    try c.encodeIfPresent(endCondition, forKey: .endCondition)
     try c.encodeIfPresent(circleIds, forKey: .circleIds)
     try c.encodeIfPresent(coverItemId, forKey: .coverItemId)
     try c.encodeIfPresent(coverRemoved, forKey: .coverRemoved)
@@ -677,6 +742,13 @@ public struct TaskClient: Sendable {
   public func step(_ id: String, step: String, done: Bool) async throws -> TrackedTask {
     let component = Self.path(step).replacingOccurrences(of: "/v1/tasks/", with: "")
     return try await mutate(Self.path(id) + "/checklist/" + component, method: "PATCH", body: ["done": done])
+  }
+  public func removeMembers(_ id: String, chats: [String] = [], people: [String] = []) async throws -> TrackedTask {
+    try await mutate(Self.path(id) + "/remove", method: "POST", body: ["chats": chats, "people": people])
+  }
+  public func undoChange(_ id: String, changeId: String) async throws -> TrackedTask {
+    let component = Self.path(changeId).replacingOccurrences(of: "/v1/tasks/", with: "")
+    return try await mutate(Self.path(id) + "/changes/" + component + "/undo", method: "POST", body: Empty())
   }
   public func skipNudge(_ id: String) async throws -> TrackedTask {
     try await mutate(Self.path(id) + "/nudge/skip", method: "POST", body: Empty())

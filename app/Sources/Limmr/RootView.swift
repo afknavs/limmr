@@ -37,48 +37,14 @@ struct RootView: View {
         if store.showSetup {
           SetupView(store: store, initialStep: store.setupStep)
         } else {
-          NavigationSplitView {
-            VStack(spacing: 0) {
-              List(selection: sidebarSelection) {
-                Section {
-                  ForEach(Page.allCases) { page in
-                    Label(page.rawValue, systemImage: page.symbol)
-                      .badge(page == .tasks ? store.home.tasks.filter(\.needsYou).count : 0)
-                      .tag("page:" + page.rawValue)
-                      .contextMenu { Button("Open " + page.rawValue) { store.selectPage(page) } }
-                  }
-                }
-                if !store.circles.isEmpty {
-                  Section("Circles") {
-                    ForEach(store.circles) { circle in
-                      Label {
-                        Text(circle.name).lineLimit(1)
-                      } icon: {
-                        Image(systemName: circle.icon?.kind == "symbol" ? circle.icon!.value : circle.displaySymbol)
-                          .foregroundStyle(.secondary)
-                      }
-                      .tag("circle:" + circle.id)
-                      .contextMenu {
-                        Button("Open circle") { store.selectSidebar("circle:" + circle.id) }
-                        CircleIdentityMenu(store: store, circle: circle)
-                      }
-                    }
-                  }
-                }
-                SidebarPresence(store: store)
-              }
-              .listStyle(.sidebar)
-              .symbolRenderingMode(.hierarchical)
-              Button { openSettings() } label: {
-                Label("Settings", systemImage: "gearshape").frame(maxWidth: .infinity, alignment: .leading)
-              }.buttonStyle(.borderless).padding(16)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
-          } detail: {
+          HStack(spacing: 0) {
+            PaperSidebar(store: store).frame(width: PaperLayout.sidebarWidth(window.size.width))
+
             NavigationStack(path: store.navigationPath) {
             VStack(alignment: .leading, spacing: 0) {
               ConnectionStatusCard(store: store)
                 .padding(.horizontal, 24).padding(.top, store.connectionAttention == nil ? 0 : 16)
+              ArchivedCircleUndo(store: store).padding(.horizontal, 24)
               FileSendReviewBanner(store: store).padding(.horizontal, 24)
               Group {
                 switch store.page {
@@ -90,21 +56,27 @@ struct RootView: View {
               }
               .id(store.page)
             }
-            .background { Color(nsColor: .windowBackgroundColor).ignoresSafeArea(edges: .top) }
+            .background { LimmrTheme.panel.ignoresSafeArea(edges: .top) }
             .navigationDestination(for: AppRoute.self) { route in
               routeDestination(route).n1PageSurface()
             }
             }
+            .background(LimmrTheme.panel).clipShape(RoundedRectangle(cornerRadius: 24))
+            .padding([.top, .trailing, .bottom], 8)
             .task(id: store.pendingSidebarCircle) { await store.sidebarCircleDidAppear() }
             .task(id: store.pendingActivityRoute) { await store.activityDidAppear() }
           }
-          .navigationSplitViewStyle(.balanced)
+          .background(LimmrTheme.canvas)
         }
       }
       .environment(\.limmrWindowWidth, window.size.width)
+      .environment(\.limmrWindowHeight, window.size.height)
+      .overlay(alignment: .topLeading) { MainWindowContentBoundary().frame(width: 0, height: 0) }
     }
-    .n1PageSurface()
+    .font(LimmrTheme.TypeScale.body).foregroundStyle(LimmrTheme.ink).tint(LimmrTheme.ink)
+    .background(LimmrTheme.canvas)
     .background { MainWindowSurfaceReader() }
+    .mainWindowChrome()
     .task {
       guard !store.snapshot && !store.demo else { return }
       while !Task.isCancelled {

@@ -3,6 +3,26 @@ import Testing
 @testable import LimmrKit
 
 @Suite("Q4 task contract") struct TasksTests {
+  @Test func obsoleteAndTestDecodeAndDisplay() throws {
+    var json = try #require(JSONSerialization.jsonObject(with: Data(Self.fixture.utf8)) as? [String: Any])
+    json["kind"] = "test"
+    json["status"] = "dropped"
+    json["close_reason"] = "obsolete"
+    let data = try JSONSerialization.data(withJSONObject: json)
+    let task = try Wire.decode(TrackedTask.self, from: data)
+    let summary = try Wire.decode(TaskSummary.self, from: data)
+    #expect(task.kind == "test" && task.closeReason == "obsolete")
+    #expect(summary.kind == "test" && summary.closeReason == "obsolete")
+    #expect(TaskListPresentation.kind(task.kind) == "Test")
+    #expect(TaskListPresentation.closure(summary).contains("No activity"))
+    #expect(try Wire.decode(TrackedTask.self, from: Wire.data(task)) == task)
+  }
+  @Test func lifespanClosureExplainsEndTime() {
+    var task = TaskSummary(id: "poster", title: "Science fair poster")
+    task.closeReason = "lifespan"
+    #expect(TaskListPresentation.closure(task).contains("its end time passed"))
+    #expect(!TaskListPresentation.closure(task).contains("inactivity"))
+  }
   @Test func homeOrdersNeedsYouThenRecentActivity() {
     var old = TaskSummary(id: "old", title: "Alpha")
     old.lastActiveAt = "2026-10-01T12:00:00Z"
@@ -11,6 +31,44 @@ import Testing
     var attention = TaskSummary(id: "attention", title: "Middle", needsYou: true)
     attention.lastActiveAt = "2026-09-01T12:00:00Z"
     #expect(TaskPresentation.open([old, recent, attention]).map(\.id) == ["attention", "recent", "old"])
+  }
+  @Test func taskRulesFollowupSubjectAndLegacyDefaultsDecode() throws {
+    let legacy = try Wire.decode(TrackedTask.self, from: Data(Self.fixture.utf8))
+    #expect(legacy.follows == nil && legacy.followsContext == nil && legacy.mergedInto == nil)
+    #expect(legacy.subject == nil && legacy.subjectEvidence.isEmpty && !legacy.subjectEdited)
+    var json = try #require(JSONSerialization.jsonObject(with: Data(Self.fixture.utf8)) as? [String: Any])
+    json["end_at"] = "2026-11-10T18:00:00+05:30"
+    json["end_condition"] = "checklist_done"
+    json["follows"] = "tsk_ended"
+    json["follows_context"] = ["id": "tsk_ended", "title": "Hold the workshop", "people": [["id": "maya", "name": "Maya"]]]
+    json["subject"] = ["id": "maya", "name": "Maya"]
+    json["subject_evidence"] = [["chat_jid": "study@example.test", "message_id": "evidence"]]
+    json["subject_edited"] = true
+    json["merged_into"] = "tsk_primary"
+    let updated = try Wire.decode(TrackedTask.self, from: JSONSerialization.data(withJSONObject: json))
+    #expect(updated.follows == "tsk_ended" && updated.followsContext?.title == "Hold the workshop")
+    #expect(updated.subject?.id == "maya" && updated.subjectEvidence.first?.messageId == "evidence")
+    #expect(updated.subjectEdited && updated.mergedInto == "tsk_primary")
+    #expect(updated.endAt == "2026-11-10T18:00:00+05:30" && updated.endCondition == "checklist_done")
+    let roundTrip = try Wire.decode(TrackedTask.self, from: Wire.data(updated))
+    #expect(roundTrip == updated)
+  }
+  @Test func taskRulesAppCreationAndDemoFailurePreserveContract() async throws {
+    var effort = DemoEfforts.efforts[0]
+    effort.title = "Prepare all workshop review notes today"
+    let request = CreateTaskRequest(effort: effort)
+    #expect(request.title == "Prepare all workshop review notes")
+    let client = TaskClient(backend: DemoBackend())
+    var failure = TaskPatch(status: "dropped"); failure.closeReason = "failed"
+    let failed = try await client.patch("tsk_appointment", failure)
+    #expect(failed.status == "dropped" && failed.closeReason == "failed" && !failed.needsYou)
+    let stored = try await client.get(failed.id)
+    #expect(stored.closeReason == "failed")
+    do {
+      _ = try await client.patch(failed.id, .init(status: "active"))
+      Issue.record("An ordinary patch reopened an ended task")
+    } catch {}
+
   }
   // Literal wire fixture follows TASKS-CONTRACT; it does not depend on our encoder or demo models.
   static let fixture = #"""
@@ -107,7 +165,10 @@ import Testing
     #expect(skipped.waiting?.nudgeState == "skipped" && !skipped.needsYou)
     let home: HomeResponse = try await backend.get("/v1/home")
     #expect(home.tasks.first?.needsYou == true && !home.queued.contains { $0.id == "task-nudge" })
-    let finished = try await client.step("tsk_appointment", step: "a2", done: true)
+    let unfinished = try await client.step("tsk_appointment", step: "a2", done: true)
+    #expect(unfinished.status == "active" && unfinished.closedAt == nil)
+    var completion = TaskPatch(); completion.endCondition = "checklist_done"
+    let finished = try await client.patch("tsk_appointment", completion)
     #expect(finished.status == "done" && finished.closedAt != nil)
     let dropped = try await client.patch(created.id, .init(status: "dropped"))
     #expect(dropped.closeReason == "owner")

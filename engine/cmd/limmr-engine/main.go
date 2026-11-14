@@ -169,6 +169,7 @@ func run() error {
 	fake := &wa.Fake{Messages: messages}
 	link := wa.NewLink(fake)
 	h.Messenger = fake
+	h.Recipients = fake
 	mc := &mcpserver.Service{Hub: h, People: p, Logger: logger}
 	if planOnly {
 		if *demoMode {
@@ -201,6 +202,9 @@ func run() error {
 	defer watchesService.Engine.Close()
 	mc.Watches = watchesService
 	taskService := mc.TaskService()
+	if e = stages.Step("tasks.protocol_v1", func() error { return taskService.ApplyApprovedProtocolPass(ctx, logger) }); e != nil {
+		return fmt.Errorf("protocol_v1: %w", e)
+	}
 	if *demoMode {
 		if e = demo.SeedTasks(taskService); e != nil {
 			return e
@@ -226,6 +230,7 @@ func run() error {
 		}()
 		live.OnStored = enqueue
 		h.Messenger = live
+		h.Recipients = live
 		link.Source = live
 		mc.Downloader = live
 		taskService.CoverMedia = live
@@ -310,6 +315,7 @@ func run() error {
 			live.OnStored = enqueue
 			link.Source = live
 			syncService.Messenger = live
+			h.Recipients = live
 			h.Messenger = syncService
 			mc.Downloader = live
 			taskService.CoverMedia = live

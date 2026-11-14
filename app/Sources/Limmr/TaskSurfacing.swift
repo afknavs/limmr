@@ -11,9 +11,11 @@ extension AppStore {
       let updated = try await TaskClient(backend: backend).surface(id, action: action)
       guard generation == backendGeneration else { return nil }
       let summary = updated.compact(now: presentationNow)
-      if let index = home.tasks.firstIndex(where: { $0.id == id }) {
+      if let index = home.tasks.firstIndex(where: { $0.id == summary.id }) {
         if ["dropped", "done"].contains(summary.status) { home.tasks.remove(at: index) }
         else { home.tasks[index] = summary }
+      } else if action == .keep {
+        home.tasks = Array(TaskPresentation.open([summary] + home.tasks).prefix(6))
       }
       taskActionErrors[id] = nil
       return summary

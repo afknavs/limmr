@@ -68,10 +68,12 @@ struct S2Tests {
     func source(_ path: String) throws -> String {
       try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
-    let sidebar = try source("RootView.swift")
-    #expect(sidebar.contains("Label(\"Settings\", systemImage: \"gearshape\")"))
-    #expect(!sidebar.contains("Image(systemName: \"ellipsis\")"))
-    #expect(sidebar.range(of: "SidebarPresence(store:")!.lowerBound < sidebar.range(of: "Label(\"Settings\"")!.lowerBound)
+    let shell = try source("RootView.swift")
+    #expect(shell.contains("PaperSidebar(store: store)"))
+    let sidebar = try source("PaperComponents.swift")
+    #expect(sidebar.contains("row(\"Settings\", \"slider.horizontal.3\""))
+    #expect(sidebar.contains("openSettings()"))
+    #expect(sidebar.contains("section(\"Your AIs\")"))
     let settings = try source("HealthSettings.swift")
     #expect(!settings.contains("NavigationSplitView"))
     #expect(settings.contains("AboutYouCard(store: store)"))

@@ -61,7 +61,7 @@ func seedTaskSurfacing(s *tasks.Service) error {
 		return err
 	}
 	a.Preset = "own"
-	if _, err = s.SuggestForAgent(context.Background(), &a, tasks.Create{Title: "Review the family CV", Kind: "long", Chats: []tasks.Entity{{ID: DM(10)}}}, tasks.Suggestion{Signals: []string{"Atlas has sent 4 messages here in the last 14 days"}, Confidence: 0.75, DetectedAt: Epoch, EffortIDs: []string{}}); err != nil {
+	if _, err = s.Suggest(&a, tasks.Create{Title: "Review the family CV", Kind: "long", Chats: []tasks.Entity{{ID: DM(10)}}}, tasks.Suggestion{Signals: []string{"Atlas has sent 4 messages here in the last 14 days"}, Confidence: 0.75, DetectedAt: Epoch, EffortIDs: []string{}}); err != nil {
 		return err
 	}
 	return s.Hub.Repo.Put("demo_meta", "task_surfacing_v1", true)

@@ -21,7 +21,7 @@ import (
 )
 
 // Regenerate with LIMMR_UPDATE_TASK_FIXTURES=1. Only random object IDs and
-// ID-dependent array order are canonicalized; field names, values, nulls and
+// ID-dependent array order and built-in cover variant are canonicalized; field names, values, nulls and
 // envelopes come from the actual handlers, never hand-authored JSON.
 func TestQ5SharedTaskFixtures(t *testing.T) {
 	t.Run("workspace", func(t *testing.T) { q5SharedTaskFixtures(t, false) })
@@ -73,8 +73,8 @@ func q5SharedTaskFixtures(t *testing.T, surfacing bool) {
 				t.Fatalf("%s lost its surfacing metadata", key)
 			}
 			if key == "cv" {
-				if v.Status != "active" || v.Origin != "agent" || v.CreatedBy.AgentID != "agent-2" || v.AutoKeptAt == nil || v.UndoChangeID == "" {
-					t.Fatal("auto-kept task lost its provenance or Undo")
+				if v.Status != "suggested" || v.Origin != "agent" || v.CreatedBy.AgentID != "agent-2" || v.AutoKeptAt != nil || v.UndoChangeID != "" {
+					t.Fatal("agent suggestion must remain unkept")
 				}
 			} else if v.Status != "suggested" || v.Origin != "limmr" || v.AutoKeptAt != nil || v.UndoChangeID != "" {
 				t.Fatalf("%s must remain an unkept Limmr suggestion", key)
@@ -132,7 +132,10 @@ func q5SharedTaskFixtures(t *testing.T, surfacing bool) {
 		w := r.request(t, "GET", path, r.api.ControlToken, nil, nil)
 		status(t, w, 200)
 		var value any
-		must(t, json.Unmarshal([]byte(replacer.Replace(w.Body.String())), &value))
+		// The three built-in variants depend only on random task IDs, like array order.
+		wire := replacer.Replace(w.Body.String())
+		wire = strings.NewReplacer("default:1", "default:0", "default:2", "default:0").Replace(wire)
+		must(t, json.Unmarshal([]byte(wire), &value))
 		obj, ok := value.(map[string]any)
 		if !ok {
 			t.Fatal("response envelope")

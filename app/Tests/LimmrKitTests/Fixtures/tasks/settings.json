@@ -9,6 +9,7 @@
     }
   },
   "current_days": 180,
+  "first_contact_limit": 5,
   "hidden_chats": [],
   "max_circles": 8,
   "owner": "Alex",

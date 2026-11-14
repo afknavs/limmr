@@ -15,7 +15,7 @@ import (
 // enrichAffinity uses only projected chats and circles. Reasons contain signal
 // descriptions, never excerpts, keywords, private chat names or message text.
 func (s *Service) enrichAffinity(a *model.Agent, ps []model.Person, ms []model.Membership) error {
-	cs, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func (s *Service) enrichAffinity(a *model.Agent, ps []model.Person, ms []model.M
 	groupCircles := map[string][]string{}
 	affinityCircles := []model.Circle{}
 	for _, c := range cs {
-		if !c.Confirmed || c.Archived || (a != nil && !s.Hub.CircleAccess(a, c)) {
+		if !c.Confirmed || !c.Live() || (a != nil && !s.Hub.CircleAccess(a, c)) {
 			continue
 		}
 		full := true

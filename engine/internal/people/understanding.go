@@ -52,7 +52,7 @@ func (s *Service) PeopleToUnderstand(a *model.Agent) ([]UnderstandingContact, er
 			known[r.A] = true
 		}
 	}
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return nil, e
 	}
@@ -177,7 +177,7 @@ func hasRelationship(p model.Person) bool {
 // Confirmed placement is explicit relationship knowledge. A DM-only model must
 // not replace it, including when membership changed while inference was running.
 func (s *Service) hasConfirmedCircle(id string) bool {
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return true
 	} // fail closed for optional suggestions

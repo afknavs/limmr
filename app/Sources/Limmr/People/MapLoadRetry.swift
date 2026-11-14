@@ -18,6 +18,9 @@ enum MapLoadRetry {
       do { return try await backend.request(path, method: "GET", body: nil) }
       catch {
         try Task.checkCancellation()
+        if path == "/v1/map/mesh", case BackendError.http(404) = error {
+          return try await request(backend, path: "/v1/map", pause: pause)
+        }
         if (error as? URLError)?.code == .timedOut {
           try await pause(.seconds(1))
           continue

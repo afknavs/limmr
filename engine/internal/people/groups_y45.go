@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Service) enrichGroups(a *model.Agent, gs []model.Group) error {
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return e
 	}
@@ -88,7 +88,7 @@ func (s *Service) enrichGroups(a *model.Agent, gs []model.Group) error {
 			g.Photo = entry.Available
 		}
 		for _, c := range cs {
-			if !c.Confirmed || c.Archived || a != nil && !s.Hub.CircleAccess(a, c) {
+			if !c.Confirmed || !c.Live() || a != nil && !s.Hub.CircleAccess(a, c) {
 				continue
 			}
 			for _, j := range c.Chats {

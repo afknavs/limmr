@@ -72,7 +72,7 @@ import Testing
   }
   @MainActor @Test func previewImagesAreBoundedAndBackendChangesCannotLeakOldPhoto() async throws {
     _ = NSApplication.shared
-    let data = try #require(N1MapPortraits.make().first)
+    let data = try #require(N1MapPortraits.tile())
     let image = try #require(NetworkAvatarThumbnail.decode(data))
     #expect(image.width <= 96 && image.height <= 96)
     #expect(NetworkAvatarThumbnail.decode(Data("invalid photo".utf8)) == nil)

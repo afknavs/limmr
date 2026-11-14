@@ -70,11 +70,14 @@ func TestSurfacingPrecisionAndLease(t *testing.T) {
 			if tc.want > 0 {
 				x, err := s.Get(nil, xs[0].ID)
 				testkit.Must(t, err)
-				if want := map[string]string{"Sibling study material": "Sibling study material: Exam", "Parent job search": "Parent job search: CV"}[tc.name]; x.Title != want {
+				if want := map[string]string{"Sibling study material": "Shared work: Exam", "Parent job search": "Shared work: CV"}[tc.name]; x.Title != want {
 					t.Fatalf("title %q, want %q", x.Title, want)
 				}
-				if x.Status != "active" || x.Origin != "agent" || x.CreatedBy.AgentID != a.ID || x.AutoKeptAt == nil || x.UndoChangeID == "" || x.Suggestion == nil || x.Suggestion.Confidence < 0.6 {
-					t.Fatalf("auto keep missing: %+v", x)
+				if x.Subject != nil {
+					t.Fatal("chat membership inferred a subject")
+				}
+				if x.Status != "suggested" || x.Origin != "limmr" || x.CreatedBy.AgentID != "you" || x.AutoKeptAt != nil || x.UndoChangeID != "" || x.Suggestion == nil || x.Suggestion.Confidence < 0.6 {
+					t.Fatalf("detector promoted work: %+v", x)
 				}
 				*now = now.Add(11 * time.Minute)
 				testkit.Must(t, s.Tick(context.Background()))
@@ -83,45 +86,19 @@ func TestSurfacingPrecisionAndLease(t *testing.T) {
 				if len(xs) != 1 {
 					t.Fatal("detector duplicated task")
 				}
-				_, err = s.Undo(x.ID)
+				_, err = s.Dismiss(nil, x.ID, "Not needed")
 				testkit.Must(t, err)
 				*now = now.Add(11 * time.Minute)
 				testkit.Must(t, s.Tick(context.Background()))
 				xs, err = s.List(nil, "open", 100)
 				testkit.Must(t, err)
 				if len(xs) != 0 {
-					t.Fatal("undo was auto-kept again")
+					t.Fatal("dismissed work resurfaced")
 				}
 			}
 		})
 	}
-	t.Run("lease denies auto keep", func(t *testing.T) {
-		s, a, now := fixture(t)
-		a.Preset = "own"
-		testkit.Must(t, s.Hub.Repo.Put("agents", a.ID, a))
-		calls := 0
-		s.MayRunAutomations = func(context.Context) bool {
-			calls++
-			var n int
-			testkit.Must(t, s.Hub.Repo.DB.QueryRow("SELECT count(*) FROM tasks").Scan(&n))
-			if n != 0 {
-				t.Error("lease checked after task creation")
-			}
-			return false
-		}
-		surfacingChat(t, s, a, *now, testkit.Group, "Study material", "exam material is due", true, 3, true)
-		testkit.Must(t, s.Tick(context.Background()))
-		xs, err := s.List(nil, "suggested", 100)
-		testkit.Must(t, err)
-		if len(xs) != 1 || calls != 1 || xs[0].Origin != "limmr" || xs[0].NeedsYou {
-			t.Fatalf("lease not respected: %+v calls=%d", xs, calls)
-		}
-		testkit.Must(t, s.Tick(context.Background()))
-		if calls != 1 {
-			t.Fatal("ten minute gate failed")
-		}
-	})
-	t.Run("sync lease on the hub denies auto keep", func(t *testing.T) {
+	t.Run("sync lease gates detection but never promotes", func(t *testing.T) {
 		s, a, now := fixture(t)
 		a.Preset = "own"
 		testkit.Must(t, s.Hub.Repo.Put("agents", a.ID, a))
@@ -136,14 +113,14 @@ func TestSurfacingPrecisionAndLease(t *testing.T) {
 		if len(xs) != 0 || calls == 0 {
 			t.Fatalf("non-holder surfaced tasks: %+v calls=%d", xs, calls)
 		}
-		// Holding the lease: the own-AI case is found and auto-kept.
+		// Holding the lease: two recorded own-AI sends still produce only a suggestion.
 		holder = true
 		*now = now.Add(11 * time.Minute)
 		testkit.Must(t, s.Tick(context.Background()))
-		xs, err = s.List(nil, "open", 100)
+		xs, err = s.List(nil, "suggested", 100)
 		testkit.Must(t, err)
-		if len(xs) != 1 || xs[0].Origin != "agent" {
-			t.Fatalf("holder did not auto-keep: %+v", xs)
+		if len(xs) != 1 || xs[0].Origin != "limmr" || xs[0].AutoKeptAt != nil {
+			t.Fatalf("holder did not suggest: %+v", xs)
 		}
 	})
 }
@@ -167,9 +144,11 @@ func TestSuggestedLifecyclePermissionsExpiryAndDismissal(t *testing.T) {
 	}
 	var payload string
 	testkit.Must(t, s.Hub.Repo.DB.QueryRow("SELECT payload FROM task_events WHERE task_id=? AND kind='kept'", x.ID).Scan(&payload))
-	var who map[string]string
+	var who struct {
+		By string `json:"by"`
+	}
 	testkit.Must(t, json.Unmarshal([]byte(payload), &who))
-	if who["by"] != a.ID {
+	if who.By != a.ID {
 		t.Fatal("keep attribution missing")
 	}
 	x, err = s.Suggest(nil, Create{Title: "CV application", Kind: "short", Chats: []Entity{{ID: testkit.Phone}, {ID: testkit.Group}}}, sig)

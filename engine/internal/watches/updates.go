@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"limmr/internal/hub"
 	"limmr/internal/model"
+	"limmr/internal/tasks"
 	"limmr/internal/triggers"
 	"limmr/internal/wa"
 	"strings"
@@ -19,9 +20,10 @@ type UpdateItem struct {
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 	} `json:"owner_notes,omitempty"`
-	TaskID   string `json:"task_id,omitempty"`
-	Note     string `json:"note,omitempty"`
-	Progress *struct {
+	LaterUntil *time.Time `json:"later_until,omitempty"`
+	TaskID     string     `json:"task_id,omitempty"`
+	Note       string     `json:"note,omitempty"`
+	Progress   *struct {
 		Done  int `json:"done"`
 		Total int `json:"total"`
 	} `json:"progress,omitempty"`
@@ -308,6 +310,14 @@ func (s *Service) taskUpdate(a model.Agent, row updateRow, item UpdateItem) (*Up
 			return nil, nil
 		}
 	}
+	attention, err := tasks.ProjectAttentionData(s.Hub, raw)
+	if err != nil {
+		return nil, err
+	}
+	if row.kind == "task_due" && !attention.NeedsYou {
+		return nil, nil
+	}
+	item.LaterUntil = attention.LaterUntil
 	item.Kind = row.kind
 	item.TaskID = id
 	if err = json.Unmarshal([]byte(payload), &item); err != nil {

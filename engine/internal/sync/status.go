@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"limmr/internal/dbutil"
+	"limmr/internal/model"
 )
 
 func (s *Service) Status() (map[string]any, error) {
@@ -18,7 +19,18 @@ func (s *Service) Status() (map[string]any, error) {
 	pending := []Review{}
 	for _, r := range reviews {
 		if r.State == "pending" {
-			pending = append(pending, r)
+			live := true
+			if r.Bucket == "circles" {
+				for _, id := range r.IDs {
+					var c model.Circle
+					if s.Repo.Get("circles", id, &c) != nil || !c.Live() {
+						live = false
+					}
+				}
+			}
+			if live {
+				pending = append(pending, r)
+			}
 		}
 	}
 	var out int

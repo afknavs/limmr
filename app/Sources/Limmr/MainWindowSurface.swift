@@ -4,10 +4,28 @@ import SwiftUI
 /// Navigation destinations contribute their own toolbar preferences. Apply this
 /// inside each stack as well as at the window root so a push cannot restore chrome.
 extension View {
+  /// Window chrome belongs to the shell. Hiding windowToolbar on a destination
+  /// also hides the standard button container in a SwiftUI-managed window.
+  func mainWindowChrome() -> some View {
+    toolbarVisibility(.visible, for: .windowToolbar)
+      .toolbar(removing: .title)
+  }
+
   func pageSurface() -> some View {
     background { AppBackground().ignoresSafeArea(edges: .top) }
       .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
   }
+}
+
+/// A zero-sized marker at the top of the shell's safe content area lets the
+/// regression probe check that page layout stays below the native controls.
+struct MainWindowContentBoundary: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSView {
+    let view = NSView()
+    view.identifier = NSUserInterfaceItemIdentifier("LimmrContentBoundary")
+    return view
+  }
+  func updateNSView(_ view: NSView, context: Context) {}
 }
 
 @MainActor enum MainWindowSurface {

@@ -137,10 +137,10 @@ agents lacking that scope. IDs and timestamps follow the conventions above.
 | Route | Request | Response |
 | --- | --- | --- |
 | `GET /v1/home` | none | `{queued:[],needs_reply:[],circles:[],recent_activity:[],watches:[],today:[],cards:[],suggestions:[],proposals:[],integrations:[]}` |
-| `GET /v1/circles` | none | `{circles:[circle]}` (confirmed only) |
+| `GET /v1/circles` | optional `?archived=1` | `{circles:[circle]}`; live confirmed circles by default, archived only with the owner filter |
 | `POST /v1/circles` | circle fields below (no id required) | circle (unconfirmed proposal; created_by="you") |
 | `GET /v1/circles/{id}` | none | circle |
-| `PATCH /v1/circles/{id}` | optional name,kind,symbol,description,send_rule,pinned | circle |
+| `PATCH /v1/circles/{id}` | optional archived,name,kind,symbol,description,send_rule,pinned | circle |
 | `DELETE /v1/circles/{id}` | none | `{ok:true}` |
 | `POST /v1/circles/{id}/confirm` | `{}` | confirmed circle |
 | `POST /v1/circles/proposals/accept` | `{ids:[proposal_id,…]}` | `{ok:true,circles:[confirmed circle,…]}` |
@@ -1431,6 +1431,9 @@ action=list; propose: name,kind,chats,people,why,goal?; add/update: circle_id,ch
         "type": "string"
       },
       "type": "array"
+    },
+    "task_override_reason": {
+      "type": "string"
     },
     "why": {
       "type": "string"
@@ -4699,11 +4702,11 @@ of delivery bookkeeping. `/v1/status` includes `engine_version` for the release 
 
 ### `task`
 
-`list` accepts `status=open|closed|all|suggested` and `limit=1..500` (default 100).
+`list` accepts `status=open|closed|all|suggested|quiet` and `limit=1..500` (default 100).
 For hosted connector compatibility, decimal string limits are normalized before
 validation; malformed strings and out-of-range limits return an audited tool error.
 
-Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_check_in/draft_nudge, needs_you. End conditions: agent_done or checklist_done; end_at is an RFC3339 date. Never sends. Reads need read_messages; writes save_summaries. See task contract for nested fields.
+Track owner work: create/list/get/brief/keep/dismiss/update/attach/checklist, draft_check_in/draft_nudge, needs_you, merge, set_cover, convert_circle. End conditions: agent_done or checklist_done; end_at is an RFC3339 date. Never sends. Reads need read_messages; writes save_summaries. See task contract for nested fields.
 
 ```json
 {
@@ -4722,8 +4725,17 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
         "checklist",
         "draft_check_in",
         "draft_nudge",
-        "needs_you"
+        "needs_you",
+        "merge",
+        "set_cover",
+        "convert_circle",
+        "add_members",
+        "remove_members",
+        "undo"
       ],
+      "type": "string"
+    },
+    "change_id": {
       "type": "string"
     },
     "chats": {
@@ -4756,6 +4768,9 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
     "close_reason": {
       "type": "string"
     },
+    "different_because": {
+      "type": "string"
+    },
     "effort_id": {
       "type": "string"
     },
@@ -4763,6 +4778,12 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
       "type": "string"
     },
     "end_condition": {
+      "type": "string"
+    },
+    "follows": {
+      "type": "string"
+    },
+    "from_id": {
       "type": "string"
     },
     "goal": {
@@ -4782,6 +4803,9 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
         }
       ]
     },
+    "item_id": {
+      "type": "string"
+    },
     "items": {
       "items": {
         "additionalProperties": true,
@@ -4791,6 +4815,11 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
       "type": "array"
     },
     "kind": {
+      "enum": [
+        "long",
+        "short",
+        "test"
+      ],
       "type": "string"
     },
     "lifespan_days": {
@@ -4814,6 +4843,25 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
     "op": {
       "type": "string"
     },
+    "owner_request": {
+      "additionalProperties": false,
+      "properties": {
+        "message_ref": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
     "people": {
       "items": {
         "additionalProperties": true,
@@ -4829,6 +4877,25 @@ Track owner work: create/list/get/keep/dismiss/update/attach/checklist, draft_ch
       "type": "string"
     },
     "steps": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "maxItems": 500,
+      "type": "array"
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "subject_evidence": {
       "items": {
         "additionalProperties": true,
         "type": "object"
@@ -4884,8 +4951,8 @@ The following routes require the **control** credential:
 | Route | Input | Result |
 | --- | --- | --- |
 | `GET /v1/tasks` | `status=open` (active + waiting, default), `closed`, or `all`; `limit=1..500`, default 100 | `{tasks:[TaskSummary]}` |
-| `GET /v1/tasks/{id}` | | Full Task plus owner-only `history:[{at,kind,text}]` and `latest:[{chat_jid,message_id,chat,sender,timestamp,text}]`, newest first |
-| `POST /v1/tasks` | `title`, `kind=long\|short`, optional `goal`, `effort_id`, `chats`, `people`, `items`, `checklist`, `check_in`, `lifespan_days`, `end_at`, `end_condition` | Task |
+| `GET /v1/tasks/{id}` | | Full Task plus owner-only `history:[{at,kind,text,change_id?,undo_until?,reason?,undone?}]` and `latest:[{chat_jid,message_id,chat,sender,timestamp,text}]`, newest first |
+| `POST /v1/tasks` | `title`, `kind=long\|short`, optional `goal` (defaults to title for control callers), `follows`, `different_because`, `subject`, `subject_evidence`, `effort_id`, `chats`, `people`, `items`, `checklist`, `check_in`, `lifespan_days`, `end_at`, `end_condition` | Task |
 | `PATCH /v1/tasks/{id}` | Editable `title`, `goal`, `kind`, `status`, `lifespan_days`, `summary`, `check_in`, `waiting`; `null` clears check-in/waiting | Task |
 | `POST /v1/tasks/{id}/items` | WorkspaceItem (engine assigns ID, provenance and date) | Task |
 | `DELETE /v1/tasks/{id}/items/{item}` | | Task |
@@ -4893,6 +4960,49 @@ The following routes require the **control** credential:
 | `PATCH /v1/tasks/{id}/checklist/{step}` | Any of `text`, `done`, zero-based `order` | Task |
 | `DELETE /v1/tasks/{id}/checklist/{step}` | | Task |
 | `POST /v1/tasks/{id}/nudge/skip` | | Task |
+| `POST /v1/tasks/{id}/merge` | `{from_id}` (B into id=A) | Task A; B remains archived with `merged_into=A` |
+| `POST /v1/tasks/{id}/remove` | `{chats:[chat_jid], people:[person_id]}`; either array optional | Updated owner Task; sticky removals; `me` rejected atomically |
+| `POST /v1/tasks/{id}/changes/{change}/undo` | Empty body or `{}` | Updated owner Task; consumes an `attach_evidence`, `owner_remove` or `rule_*` change younger than 30 days |
+| `POST /v1/tasks/{id}/cover` | `{item_id}` of a task image | Task with pinned cover |
+| `POST /v1/circles/{id}/convert-to-task` | Task create fields; inherits circle chats/people | Task; original circle archived atomically |
+
+Task membership metadata is additive JSON in `tasks.data`, with no schema version change:
+`membership_provenance:{chats:{id:source},people:{id:source}}`,
+`removed_members:{chats:[id],people:[id]}`, and `evidence_refs:[{chat_jid,message_id}]`.
+Sources are `owner`, `agent:<id>`, `effort:<id>`, `detector`, `merge`,
+`circle_conversion`, `backfill`, `follows`, or `legacy`. Existing member sources survive
+later attachments/merges. Explicit create members retain the creator's source;
+additional effort members use `effort:<id>`. Circle conversion uses `circle_conversion`.
+Follows remains a context reference; it does not copy the prior task's members.
+Missing provenance is inferred at read time: membership also present in the linked
+current effort reads as `effort:<id>`; all other legacy membership reads as `legacy`
+and is owner-kept. Reads never rewrite stored provenance. Owner-only projected
+participants use `backfill` and respect the same removal markers.
+
+The two new routes require the control credential; agent and status credentials are
+refused. Repeating a removal is a no-op. Removal markers suppress later backfills,
+attachments, merges and owner GET participant inference. The app uses the task's
+membership directly and replaces it from the removal response without a page reload.
+Each effective change writes one plain history line with `change_id` and stores a
+`changes` object containing only the affected members' before-state (entity, source,
+removal marker); evidence attachments also record newly added message refs. Undo restores
+only those memberships/markers/refs, preserves unrelated edits, writes `Undone: …`,
+and consumes the object. At or beyond 30 days, a mismatched task/change, or a second
+undo returns 409. The existing `/v1/tasks/{id}/undo` auto-keep path is unchanged.
+
+Rule changes include duplicates, finished/deadline, obsolete/test, follows-work removals,
+and protocol-v1 demotions/expiry. Their history carries the plain `reason`, `change_id`
+and RFC3339 `undo_until` (30 days after the change). An undo marks the original line
+`undone:true`, retained after the change object is consumed, and appends `Undone: …`.
+Stored text excludes the actor suffix; public labels resolve and append the actor.
+Protocol demotion undo keeps the task as an owner decision. The app displays Undo on
+the task history until the deadline, then replaces it with Undone after success;
+API errors appear on the same row. Automatic changes create no attention or notification.
+
+`Service.AttachEvidence(taskID, chats, people, messageRefs, source, reason)` is internal
+only, with no MCP or control endpoint. It adds new unblocked memberships and unique
+message refs, retaining existing sources; no-op attachments write no event or change.
+Membership metadata survives trusted device sync as part of the task JSON.
 
 `TaskSummary` contains `id`, `title`, `kind`, `status`, `progress:{done,total}`,
 `needs_you`, optional `needs_you_reason`, `effort_id`, `next_check_in_at`,
@@ -4927,12 +5037,12 @@ normalized HTTP(S) URLs (host case, default ports, fragments and tracking parame
 retain message references and carry `label`: NotebookLM, Google Docs, Google Drive,
 GitHub or the generic host. Hidden chat items are omitted even on control responses.
 
-`task` MCP actions are `create`, `list`, `get`, `update`, `attach`, `checklist`,
-`draft_check_in`, `draft_nudge`, `needs_you`. `checklist` takes `op`:
+`task` MCP actions are `create`, `list`, `get`, `brief`, `keep`, `dismiss`, `update`, `attach`, `checklist`,
+`draft_check_in`, `draft_nudge`, `needs_you`, `merge`, `set_cover`, `convert_circle`. `checklist` takes `op`:
 `add|done|undo|remove|reorder` and `steps:[Step]`; existing steps are identified by ID,
 and reorder supplies the complete ordered set. `summary` is `{text}`; the engine stamps
 its author and date. Completion can include `reason`, stored as the task summary;
-`close_reason` stays `done|lifespan|owner`. `needs_you` takes `reason`; an empty reason
+`close_reason` accepts `done|lifespan|owner|failed`; agent completion without an explicit reason records `agent_done`. `needs_you` takes `reason`; an empty reason
 clears an explicit AI flag. Draft actions take `id,text` and store prose without sending.
 Reads require `read_messages`, writes additionally `save_summaries`. Every task chat
 must be visible. Writes require the creator or an own-preset AI. Scope/hidden checks
@@ -4963,10 +5073,10 @@ dismissing or skipping records `skipped`; a new incoming message in a task chat 
 the canonical waited-on person clears waiting. `get_updates` gains `task_due` (task ID,
 note, progress), `task_waiting_cleared`, and `task_closed` through its existing private cursor.
 
-Short tasks close on done, all steps complete, or 14 days without a task change
-(configurable `lifespan_days`). Closed workspaces remain readable for 90 days, then
-workspace contents, events and task Suggestions are removed, retaining identity, title
-and dates. Owner action clears the cue; an acknowledged on-you effort does not immediately
+Tasks close on explicit done/dropped, an explicitly selected `checklist_done` condition,
+or the first tick on the next local calendar day after `end_at`. `lifespan_days` is
+accepted for short-task compatibility but quiet days alone never complete work.
+Closed workspaces, events and evidence remain readable indefinitely. Owner action clears the cue; an acknowledged on-you effort does not immediately
 re-light it until the effort leaves and re-enters that state.
 
 ### Read-only task feed (status credential)
@@ -5014,8 +5124,9 @@ Tasks and task summaries include `origin` (`limmr`, `agent`, `owner`), optional
 `suggestion: {signals, confidence, detected_at, effort_ids}`, `created_by`, and optional
 `auto_kept_at` / `undo_change_id`. Suggested tasks have `status:"suggested"`.
 `GET /v1/tasks?status=suggested` selects them; `all` includes them; `open` remains
-active + waiting and `closed` remains done + dropped. Home appends up to three
-suggestions after at most six open tasks.
+active + waiting and `closed` remains done + dropped. Home includes at most six open tasks,
+with no suggestions in task cards or recent activity. The app Open list includes quiet tasks;
+suggestions appear only in a collapsed `Suggested (n)` row at the bottom of Tasks.
 
 - `POST /v1/tasks/{id}/keep` activates a suggestion and records who kept it.
 - `POST /v1/tasks/{id}/dismiss` drops it with `close_reason:"not_a_task"` and permanently
@@ -5028,7 +5139,14 @@ suggestions after at most six open tasks.
 Suggested tasks do not run schedules, nudges, lifespan closure, needs-you or Accessory cues.
 They expire after 14 days with `close_reason:"suggestion_expired"`. Detection runs after
 effort grouping at most every ten minutes, using recorded own-AI sends and local activity.
-The optional `MayRunAutomations(context.Context) bool` hook defaults to true and gates auto-keep.
+The hub automation lease gates detection. Detection and `SuggestForAgent` always create
+suggestions; neither auto-keeps. Existing auto-kept records retain their Undo control.
+MCP create/keep accept `owner_request: {text, message_ref?}`; text is the owner's quoted ask
+(1–500 characters), and a supplied ref is an accessible, undeleted message ID with
+`author.type=owner`. Accepted asks store `asked_by_owner: {text, message_ref?, agent_id, at}`
+and the quote in creation/kept history. Without a quote, create returns a suggestion and
+an instruction to ask the owner; keep returns `kept:false` and the same instruction.
+Owner/control API create and keep need no quote.
 
 One-chat confirmed project circles migrate once to active agent-origin tasks, preserving
 people and latest brief summary. Their `changes` records, Activity entries and own-AI
@@ -5065,7 +5183,7 @@ automatic compaction is not enabled. Brief version collisions preserve both sour
 versions with deterministic renumbering. Similar pre-existing tasks/circles remain
 separate and appear in `Service.Reviews()`.
 
-The service's `MayRunAutomations(ctx) bool` is the shared automation/auto-keep hook.
+The service's `MayRunAutomations(ctx) bool` is the shared automation lease hook.
 Standalone engines always run. A paired holder renews after five minutes when the
 hook runs; another engine may take over after thirty minutes. Task ticks and trigger
 execution use the hook. Partition overlap is allowed to park drafts; sync invokes
@@ -5135,7 +5253,7 @@ Photo replication includes selected custom and retained Contacts fallback refere
 ### Task workspace additions (Lane 2)
 - `POST /v1/tasks/{id}/reopen` restores a closed task with a fresh quiet period; expired end dates are cleared.
 - `POST /v1/tasks/{id}/items/{item}/download` fetches a visible task file through the existing media downloader or attachment store and returns `{path}` for this Mac. Hidden/deleted chat media is denied.
-- Task create/update accepts optional `end_at` (RFC3339) and `end_condition` (`agent_done` or `checklist_done`). Existing `lifespan_days` closes short tasks after quiet conversation days. Check-in rule `reply` fires once when an incoming chat message arrives after `next_at`; ordinary timed schedules are unchanged.
+- Task create/update accepts optional `end_at` (RFC3339) and `end_condition` (`agent_done` or `checklist_done`). `lifespan_days` remains accepted for compatibility and does not close idle tasks. Check-in rule `reply` fires once when an incoming chat message arrives after `next_at`; ordinary timed schedules are unchanged.
 - Home task summaries include `created_at`, `last_active_at`, `circle_ids`; task history includes scheduled and fired check-ins. Due events remain durable in `agent_updates` for the creating AI; Home queues the review and the app posts a local notification when authorized. No task timer sends a message.
 
 ### Person summary Undo and circle photos (28 Oct)
@@ -5240,25 +5358,107 @@ Unpairing stops the merged presentation without deleting either integration.
 ### N2 task cover previews (additive)
 
 `GET /v1/tasks` and the tasks in `GET /v1/home` may include `cover_candidate`:
-`{item_id?,media_id?,chat_jid?,title,thumbnail_url,link_url?}`. Selection order is owner choice,
-newest workspace image with pixels, newest image with pixels in linked visible chats, then a workspace link preview.
-An explicit removed cover retains the owner's typographic choice. No captions, OCR or message bodies
-are read or returned for candidate selection. Missing candidates use the typographic cover.
+`{item_id?,media_id?,chat_jid?,title,thumbnail_url,link_url?}`. The candidate is the pinned
+workspace image, or a stable built-in cover if unset/deleted/inaccessible. New chat images
+and workspace links never replace it. An explicit removed cover retains the owner's typographic
+choice. No captions, OCR or message bodies are read or returned by the card projection.
 
 - `GET /v1/tasks/{id}/cover/thumbnail?revision=…` (admin) returns the local preview descriptor
-  `{path,thumbnail}`. The path points to a locally cached JPEG of at most 600 pixels on its long side,
+  `{path,thumbnail}`. The path points to a locally cached JPEG of at most 1280 pixels on its long side (built-ins are 640×800),
   beside downloaded media or in the media cache for stored thumbnails. The original photo path is never returned.
   It rechecks task, hidden-chat and deleted-source visibility, sends `Cache-Control: no-store`, and
-  never downloads WhatsApp media. The revision includes task and message-store revisions. A link
-  candidate may supply a safe workspace URL for the app's existing bounded preview cache.
+  never downloads WhatsApp media. The pinned-image revision includes its item identity and message-store revision.
 
 For bounded startup warming, `GET /v1/tasks?status=all&sort=recent&limit=10` sorts by last activity
 before limiting. The default list retains Needs you priority. Unknown sort values return 400.
 
 For recent covers, a shutdown-bound background worker checks the ten most recent tasks once a minute.
-When WhatsApp is connected it tries the best unavailable image (including an unavailable owner choice)
+When WhatsApp is connected it tries the pinned unavailable image
 through the existing media download reader, serially, with a 30-second timeout. Local attempt dates persist
 across restarts and allow at most one attempt per image per UTC day. Successful downloads bump the message
 revision. Owner removal and current hidden/deleted-source checks apply before fetching. No message is sent
 or marked read. The app polls recent cover summaries every 30 seconds and sync/AI status every five seconds,
 so new pixels and unpairing appear without restarting or loading task workspaces.
+
+### Task rules v2 (additive JSON fields)
+
+See [TASK-RULES.md](TASK-RULES.md). MCP creation requires an explicit `goal`; new titles
+and title edits are limited to five words and 60 characters. Existing titles/goals are
+not rewritten. Optional `follows` names an ended task; full reads include permission-filtered
+`follows_context` (old people, chats and files) without granting access or reopening it.
+Only the owner control reopen route can reopen an ended task. List `all`/`closed` retains history.
+
+Create checks open, quiet and proposed tasks for shared chats/people and similar outcomes.
+A conflict creates nothing: control returns HTTP 409 with top-level `candidates`; MCP returns
+`{created:false,review_required:true,candidates,instruction}`. Repeat only with
+`different_because` (3+ words, <=1000 characters); the reason is retained in the created event.
+Merge preserves files, checklist, notes, sent records and both timelines. The destination's
+outcome, status, schedule, subject and cover remain authoritative; the source is dropped
+with `close_reason:merged` and `merged_into`. Repeating a merge conflicts.
+
+`subject:{id,name}` identifies who the task is about; `people` are participants.
+`subject_evidence:[{chat_jid,message_id}]` must cite accessible undeleted task-chat messages
+from or naming that person. Labels are canonicalized. Owner PATCH may use
+`owner_correction:true` with `subject` (including null); `subject_edited` makes this sticky.
+Agents cannot set that flag or overwrite a correction. Optional link/subject fields are absent
+on old records (empty/false when decoded); no schema migration or destructive backfill is needed.
+
+`cover_item_id` pins a relevant local task image or one of three deterministic built-in covers.
+New chat media never replaces it. Deleted or inaccessible sources use the same stable default.
+Explicit `set_cover`/control cover selection replaces the pin; `cover_removed` suppresses it.
+Legacy covers are adopted on the next workspace write; unpinned legacy cards use the stable
+fallback until then. No image generation. Existing migrations/tables are unchanged by this lane.
+
+Circle create/propose warns on finite work unless `task_override_reason` explains the lasting
+area (3+ words, <=1000 bytes); the reason persists on the circle. `converted_task_id` records
+an explicit conversion, retaining the archived circle. Finite project proposals now require an explicit task creation or a lasting-area override.
+
+Task flags, suggestions, effort attention and brief asks stop surfacing after seven days
+without follow-up (`model.NeedsYouTTL`); answered requests and ended tasks leave Needs you.
+Expiry projects current attention and preserves stored requests and timelines. For old task
+flags without `needs_you_at`, creation time is the conservative expiry anchor.
+
+
+### Paper app read models
+
+- `GET /v1/map/mesh` (admin only): complete owner map without the default map's
+  node/byte truncation. Person nodes add `shared_group_ids`, `needs_you` (task
+  expiry/end rules), `new_this_week` (first retained message within seven days),
+  `messages_30`, `closeness` (DM frequency weighted by recency), `last_contact`
+  (last DM), and `first_seen_at`. No new MCP tools or catalog fields.
+- `GET /v1/people/{id}/conversation-history` (admin only): twelve UTC Monday-based
+  week buckets, current week partial; total direct shared files and the latest
+  twenty file metadata records with optional already-cached thumbnails (256 KB
+  maximum each). All direct aliases are combined; deleted, future and hidden-chat
+  messages are excluded. Reads only; no downloads, receipts or task ticks.
+
+### Task snooze (owner only)
+
+- `POST /v1/tasks/{id}/later` accepts an optional `{until: RFC3339}`. An empty body or `{}` selects the next local 09:00: today before 04:00, otherwise tomorrow. The response is the task, including `later_at` and `later_until`.
+- `DELETE /v1/tasks/{id}/later` brings it back. Both operations append task history. Snoozing preserves the original seven-day request expiry; only a new pending review or a new reason after `later_at` clears it early. Summaries include `later_until`.
+- `GET /v1/status` adds `engine_started_at`, `link_phase` (`connecting`, `connected`, `disconnected`, `logged_out`) and `link_phase_at`. The WhatsApp health check carries the same facts. A remote probe that has not completed is `checking`.
+
+## First-contact sends (U2)
+
+`send.recipient` additionally accepts a person ID or phone for a readable-group member without a DM.
+See [First contact](MCP.md#first-contact) for consent, privacy and registration requirements.
+First-contact responses and approval/activity records add these optional fields:
+
+```json
+{
+  "first_contact": true,
+  "first_contact_person": {"id":"invented-member","name":"Maya Rao","phone":"+15550100901","role":"member"},
+  "first_contact_group": {"id":"invented-group@g.us","name":"Design Club"}
+}
+```
+
+`first_contact_group` is absent for an explicitly quoted bare number. Private profiles are not
+included. A new approval has `state:"pending"`, `approval_id` and `needs_confirmation:true`;
+only the control approval route consumes it. Status and passive receipts retain the same provenance.
+`next_step` reminds the AI that replies follow existing access.
+
+`GET /v1/settings` includes `first_contact_limit` (default 5). Only authenticated admin/control
+`PUT /v1/settings` changes it, as part of the existing settings object; accepted values 0–100.
+Omitting the new field preserves the stored value for older clients. Zero disables new contacts.
+The budget is a rolling 24-hour engine-wide attempt ledger, including uncertain/failed attempts.
+Paired engines/sending recovery reject first contact without queuing; existing sends are unchanged.

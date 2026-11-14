@@ -31,6 +31,16 @@ public struct NetworkMapCamera: Sendable {
 }
 
 public struct NetworkMapProjection: Sendable {
+  public var isPaperMesh = false
+  public var meshDiameters: [String: Double] = [:]
+  public var meshHubs: [String: CGPoint] = [:]
+  public var meshLabelFrames: [String:CGRect] = [:]
+  public var meshFaces: Set<String> = []
+  public var meshMemberships: [String: [String]] = [:]
+  public var meshCounts: [String: Int] = [:]
+  public var meshLastSpoke: [String: TimeInterval] = [:]
+  public var meshRestingEdges: [CircleMapEdge] = []
+  public var meshAdjacent: [String: [CircleMapEdge]] = [:]
   public var preparationMilliseconds = 0.0
   public var map = CircleMap.empty
   public var positions: [String: CGPoint] = [:]
@@ -88,12 +98,22 @@ public struct NetworkMapProjection: Sendable {
   }
   public func hit(_ point: CGPoint, camera: NetworkMapCamera) -> String? {
     if let label = NetworkCircleLabels.frames(scene: self, camera: camera).sorted(by: { $0.key < $1.key }).first(where: { $0.value.contains(point) }) { return label.key }
-    return visible(camera: camera).compactMap { node -> (String, Double)? in
+    let person = visible(camera: camera).compactMap { node -> (String, Double)? in
       guard let p = positions[node.id].map(camera.screen) else { return nil }
       let d = Double(hypot(p.x - point.x, p.y - point.y))
       if node.kind == "circle" { return nil }
-      return d <= (camera.showsAvatars ? 12 : 9) ? (node.id, d) : nil
+      return d <= (isPaperMesh ? max(9, (meshDiameters[node.id] ?? 8) / 2) : camera.showsAvatars ? 12 : 9) ? (node.id, d) : nil
     }.min { $0.1 < $1.1 }?.0
+    if let person { return person }
+    if isPaperMesh {
+      return meshHubs.keys.sorted().first { circle in
+        meshMemberships.contains { id,circles in
+          guard circles.contains(circle), let p = positions[id].map(camera.screen) else { return false }
+          return hypot(p.x-point.x,p.y-point.y) <= ((meshDiameters[id, default:5]/2)+13)*camera.scale
+        }
+      }
+    }
+    return nil
   }
 }
 
@@ -112,19 +132,53 @@ extension CircleMapEdge {
 /// label pass shares its rectangles with hit testing; it never changes node layout.
 public enum NetworkCircleLabels {
   public static func frames(scene: NetworkMapProjection, camera: NetworkMapCamera) -> [String: CGRect] {
+    if scene.isPaperMesh && !scene.meshLabelFrames.isEmpty {
+      return Dictionary(uniqueKeysWithValues:scene.meshLabelFrames.compactMap { id,box -> (String,CGRect)? in
+        let center = CGPoint(x:box.midX,y:box.midY)
+        guard camera.isVisible(center,radius:80) else { return nil }
+        let p = camera.screen(center)
+        return (id,CGRect(x:p.x-box.width/2,y:p.y-box.height/2,width:box.width,height:box.height))
+      })
+    }
+    let obstacles = scene.nodes.compactMap { node -> (CGPoint,Double,Bool)? in
+      guard node.kind == "person",let point = scene.positions[node.id].map(camera.screen) else { return nil }
+      return (point,max(3,scene.meshDiameters[node.id,default:5]*camera.scale/2)+3,node.id == "me")
+    }
     let bounds = CGRect(origin: .zero, size: camera.viewport).insetBy(dx: 8, dy: 8)
     var result: [String: CGRect] = [:]
     for node in scene.visible(camera: camera) where node.kind == "circle" {
       guard let world = scene.positions[node.id] else { continue }
       let anchor = camera.screen(world)
-      let width = min(132, max(36, Double(node.title.count) * 6 + 12))
+      let width = scene.isPaperMesh ? min(164,max(88,Double(node.title.count)*7.5+16)) : min(132, max(36, Double(node.title.count) * 6 + 12))
+      if scene.isPaperMesh {
+        func frame(_ dx: Double, _ dy: Double) -> CGRect {
+          CGRect(x:min(max(bounds.minX,anchor.x+dx-width/2),max(bounds.minX,bounds.maxX-width)),y:min(max(bounds.minY,anchor.y-20+dy),max(bounds.minY,bounds.maxY-40)),width:width,height:40)
+        }
+        var chosen: CGRect?
+        var fallback = frame(0,0), bestScore = Double.infinity
+        for dy in [0.0,8,16,24] {
+          for dx in [0.0,-8,8,-16,16,-32,32,-48,48,-64,64] {
+            let box = frame(dx,dy)
+            let overlaps = result.values.contains { $0.insetBy(dx:-3,dy:-3).intersects(box) }
+            var coverScore = 0.0
+            for (point,r,isOwner) in obstacles where box.insetBy(dx:-r,dy:-r).contains(point) { coverScore += isOwner ? 100 : 1 }
+            let covers = coverScore > 0
+            let score = coverScore*100 + (overlaps ? 1000 : 0) + abs(dx)+dy
+            if score < bestScore { bestScore = score; fallback = box }
+            if !overlaps && !covers { chosen = box; break }
+          }
+          if chosen != nil { break }
+        }
+        result[node.id] = chosen ?? fallback
+        continue
+      }
       for step in 0..<257 {
         let ring = Double((step + 7) / 8) * 12
         let angle = Double(step % 8) * .pi / 4
         let dx = step == 0 ? 0 : cos(angle) * ring
         let dy = step == 0 ? 0 : sin(angle) * ring
         let box = CGRect(x: min(max(bounds.minX, anchor.x + dx - width / 2), max(bounds.minX, bounds.maxX-width)),
-          y: min(max(bounds.minY, anchor.y + dy - 11), max(bounds.minY, bounds.maxY-22)), width: width, height: 22)
+          y: min(max(bounds.minY, anchor.y + dy - (scene.isPaperMesh ? 20 : 11)), max(bounds.minY, bounds.maxY-(scene.isPaperMesh ? 40 : 22))), width: width, height: scene.isPaperMesh ? 40 : 22)
         if !result.values.contains(where: { $0.insetBy(dx: -3, dy: -3).intersects(box) }) {
           result[node.id] = box; break
         }

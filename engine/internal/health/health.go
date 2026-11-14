@@ -35,10 +35,14 @@ type Connection interface {
 	RequestHistory(context.Context) error
 }
 type Service struct {
-	cacheMu    sync.Mutex
-	cached     []model.Check
-	checkedAt  time.Time
-	refreshing bool
+	StartedAt   time.Time
+	phaseMu     sync.Mutex
+	linkPhase   string
+	linkPhaseAt time.Time
+	cacheMu     sync.Mutex
+	cached      []model.Check
+	checkedAt   time.Time
+	refreshing  bool
 
 	Hub           *hub.Service
 	Link          *wa.Link
@@ -54,11 +58,12 @@ type Service struct {
 }
 
 func (s *Service) Checks(ctx context.Context) []model.Check {
+	connection := s.ConnectionStatus()
 	checks := []model.Check{{ID: "version", Title: "Engine", State: "ok", Detail: "Limmr " + Version}}
 	checks = append(checks, WatchdogCheck(s.Home))
 	state := s.Link.State()
-	linked := state.State == "ready" || state.State == "syncing"
-	connected := linked
+	linked := state.State == "ready" || state.State == "syncing" || state.State == "connecting"
+	connected := state.State == "ready" || state.State == "syncing"
 	syncDone := state.State == "ready"
 	outdated := false
 	if s.Connection != nil {
@@ -84,6 +89,9 @@ func (s *Service) Checks(ctx context.Context) []model.Check {
 		c.Detail = "The WhatsApp client needs an update (405)."
 		c.FixID = "update_client"
 	}
+	c.LinkPhase = connection.LinkPhase
+	c.LinkPhaseAt = &connection.LinkPhaseAt
+	c.EngineStartedAt = &connection.EngineStartedAt
 	checks = append(checks, c)
 	phone := model.Check{ID: "phone", Title: "Phone", State: "warn", Detail: "No recent phone connection evidence."}
 	if s.Demo {
@@ -173,6 +181,10 @@ func (s *Service) storeChecks(ctx context.Context) []model.Check {
 			for i := range remoteChecks {
 				if remoteChecks[i].ID == "remote" {
 					remoteChecks[i].Detail = discovery.Detail()
+					if discovery.CheckedAt.IsZero() {
+						remoteChecks[i].State = "checking"
+						remoteChecks[i].FixID = ""
+					}
 				}
 			}
 		}

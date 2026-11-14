@@ -4,14 +4,7 @@ import SwiftUI
 struct EffortStatus: View {
   let status: String
   let label: String
-  var body: some View {
-    Text(label).font(AppType.caption.weight(.medium)).foregroundStyle(
-      status == "on_you" ? Color.accentColor : .secondary
-    )
-    .padding(.horizontal, 9).padding(.vertical, 5)
-    .background(
-      (status == "on_you" ? Color.accentColor : Color.primary).opacity(0.07), in: Capsule())
-  }
+  var body: some View { PaperChip(text: label, kind: status == "on_you" ? "need" : "plain") }
 }
 
 struct EffortCard: View {
@@ -22,28 +15,26 @@ struct EffortCard: View {
   let open: () -> Void
   var body: some View {
     Button(action: open) {
-      VStack(alignment: .leading, spacing: 16) {
+      VStack(alignment: .leading, spacing: 8) {
         HStack(alignment: .top) {
-          Text(effort.title).font(AppType.rowTitle).lineLimit(1).truncationMode(.tail)
+          Text(effort.title).font(LimmrTheme.font(14, .semibold)).foregroundStyle(LimmrTheme.ink).lineLimit(1).truncationMode(.tail)
           Spacer(minLength: 12)
           EffortStatus(status: effort.status, label: effort.statusLabel)
         }
         if !effort.summary.isEmpty {
-          Text(effort.summary).font(.callout).foregroundStyle(AccessibleSecondary())
+          Text(effort.summary).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
             .fixedSize(horizontal: false, vertical: true)
         }
         if effort.createdBy == "This Mac" || effort.createdBy == "this-mac" {
-          Text("Named by This Mac").font(AppType.caption).foregroundStyle(AccessibleSecondary())
+          Text("Named by This Mac").font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink3)
         }
-        Text(effort.meta).font(AppType.caption).foregroundStyle(AccessibleTertiary())
+        Text(effort.meta).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink3)
           .fixedSize(horizontal: false, vertical: true)
-      }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-        .background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-          RoundedRectangle(cornerRadius: 10).stroke(increasedContrast ? Color.primary.opacity(0.65) : Color.secondary.opacity(0.12), lineWidth: increasedContrast ? 1 : 0.5)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 10))
-    }.limmrButton(.row(radius: 10, bordered: false), id: "effort").accessibilityLabel(
+      }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
+        .n1Card()
+        .overlay(RoundedRectangle(cornerRadius: LimmrTheme.cardRadius).stroke(Color.primary.opacity(increasedContrast ? 0.65 : 0), lineWidth: 1))
+        .contentShape(RoundedRectangle(cornerRadius: LimmrTheme.cardRadius))
+    }.limmrButton(.row(radius: LimmrTheme.cardRadius, bordered: false), id: "effort").accessibilityLabel(
       Spoken.effort(effort))
       .accessibilityValue(effort.statusLabel)
       .accessibilityHint("Open this work and its timeline")

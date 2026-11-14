@@ -129,6 +129,8 @@ import Testing
     let since = DemoData.date(1440)
     let recent: CircleMap = try await backend.get("/v1/map?since=\(since)")
     #expect(recent.events.count == 1)
+    // Demo people ship without portraits; a picture exists only once the owner sets one.
+    _ = try await backend.request("/v1/people/person-04/photo", method: "PUT", body: DemoPhotos.group)
     let customPhoto = try await backend.request("/v1/people/person-04/avatar", method: "GET", body: nil)
     #expect(NSImage(data: customPhoto) != nil)
     do {

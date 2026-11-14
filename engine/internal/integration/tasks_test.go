@@ -13,7 +13,7 @@ import (
 
 func newTask(t *testing.T, r *rig) tasks.Task {
 	t.Helper()
-	out, err := r.call(t, "task", map[string]any{"action": "create", "title": "Prepare Maya's study material", "goal": "Track her learning", "kind": "long", "chats": []tasks.Entity{{ID: chatA}}, "people": []tasks.Entity{{ID: "maya", Name: "Maya Rao"}}, "checklist": []tasks.Step{{Text: "Read the syllabus"}}})
+	out, err := r.call(t, "task", map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Prepare Maya's study material", "goal": "Track her learning", "kind": "long", "chats": []tasks.Entity{{ID: chatA}}, "people": []tasks.Entity{{ID: "maya", Name: "Maya Rao"}}, "checklist": []tasks.Step{{Text: "Read the syllabus"}}})
 	must(t, err)
 	return out.(tasks.Task)
 }
@@ -162,7 +162,7 @@ func TestTaskEffortControlDetailAndInvalidAtomicWrites(t *testing.T) {
 	if len(xs) == 0 {
 		t.Fatal("missing derived effort")
 	}
-	out, err := r.call(t, "task", map[string]any{"action": "create", "title": "Track study work", "kind": "long", "effort_id": xs[0].ID})
+	out, err := r.call(t, "task", map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Track study work", "goal": "Finish the study review", "kind": "long", "effort_id": xs[0].ID})
 	must(t, err)
 	v := out.(tasks.Task)
 	detail := r.request(t, "GET", "/v1/efforts/"+xs[0].ID, r.api.ControlToken, nil, nil)

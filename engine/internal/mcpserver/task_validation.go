@@ -11,7 +11,14 @@ import (
 )
 
 var taskExamples = map[string]string{
-	"create":         `{"action":"create","title":"Exam preparation","kind":"long"}`,
+	"add_members":    `{"action":"add_members","id":"tsk_a","chats":[{"id":"chat_id"}],"owner_request":{"text":"Add this chat"}}`,
+	"remove_members": `{"action":"remove_members","id":"tsk_a","people":[{"id":"person_id"}],"owner_request":{"text":"Remove this person"}}`,
+	"undo":           `{"action":"undo","id":"tsk_a","change_id":"chg_a","owner_request":{"text":"Undo this change"}}`,
+	"merge":          `{"action":"merge","id":"tsk_a","from_id":"tsk_b","owner_request":{"text":"Merge these tasks"}}`,
+	"set_cover":      `{"action":"set_cover","id":"tsk_a","item_id":"itm_a"}`,
+	"convert_circle": `{"action":"convert_circle","id":"circle_a","title":"Plan workshop","goal":"Hold the workshop","owner_request":{"text":"Track the workshop"}}`,
+
+	"create":         `{"action":"create","title":"Exam preparation","goal":"Be ready for the exam","kind":"long"}`,
 	"list":           `{"action":"list","status":"open","limit":20}`,
 	"get":            `{"action":"get","id":"tsk_example"}`,
 	"brief":          `{"action":"brief","id":"tsk_example"}`,
@@ -54,6 +61,10 @@ func taskDate() map[string]any {
 	return map[string]any{"type": "string", "format": "date-time", "minLength": 1}
 }
 
+func ownerRequestSchema() map[string]any {
+	return taskObject(map[string]any{"text": taskString(1, 500), "message_ref": taskString(1, 200)}, "text")
+}
+
 // Validate the selected action, including nested fields, before any mutation.
 // Diagnostics contain only field paths and server-owned contracts, never values.
 func validateTaskArgs(args Args) error {
@@ -64,7 +75,7 @@ func validateTaskArgs(args Args) error {
 		}
 	}
 	if taskExamples[action] == "" {
-		return taskError("create", "action", "must be create, list, get, brief, keep, dismiss, update, attach, checklist, draft_check_in, draft_nudge or needs_you")
+		return taskError("create", "action", "must be create, list, get, brief, keep, dismiss, update, attach, checklist, draft_check_in, draft_nudge, needs_you, merge, set_cover, convert_circle, add_members, remove_members or undo")
 	}
 	entity := taskObject(map[string]any{"id": taskString(1, 200), "name": taskString(0, 200)}, "id")
 	ref := taskObject(map[string]any{"chat_jid": taskString(1, 200), "message_id": taskString(1, 200)}, "chat_jid", "message_id")
@@ -78,19 +89,28 @@ func validateTaskArgs(args Args) error {
 		props["id"] = taskString(1, 200)
 		required = append(required, "id")
 	}
-	editable := map[string]any{"title": taskString(1, 60), "goal": taskString(0, 1000), "kind": taskEnum("long", "short"), "lifespan_days": taskInt(1, 3650), "end_at": taskDate(), "end_condition": taskEnum("agent_done", "checklist_done"), "check_in": taskNullable(check)}
+	editable := map[string]any{"title": taskString(1, 60), "goal": taskString(1, 1000), "kind": taskEnum("long", "short", "test"), "lifespan_days": taskInt(1, 3650), "end_at": taskDate(), "end_condition": taskEnum("agent_done", "checklist_done"), "check_in": taskNullable(check)}
 	switch action {
 	case "create":
 		for k, v := range editable {
 			props[k] = v
 		}
-		required = append(required, "title", "kind")
+		props["owner_request"] = ownerRequestSchema()
+		required = append(required, "title", "goal", "kind")
+		props["follows"] = taskString(1, 200)
+		props["different_because"] = taskString(1, 1000)
+		props["subject"] = taskNullable(entity)
+		props["subject_evidence"] = taskArray(ref)
 		props["effort_id"] = taskString(1, 200)
 		props["chats"] = taskArray(entity)
 		props["people"] = taskArray(entity)
 		props["items"] = taskArray(item)
 		props["checklist"] = taskArray(step)
+	case "keep":
+		props["owner_request"] = ownerRequestSchema()
 	case "update":
+		props["subject"] = taskNullable(entity)
+		props["subject_evidence"] = taskArray(ref)
 		for k, v := range editable {
 			props[k] = v
 		}
@@ -98,7 +118,31 @@ func validateTaskArgs(args Args) error {
 		props["summary"] = taskObject(map[string]any{"text": taskString(0, 1500)}, "text")
 		props["waiting"] = taskNullable(waiting)
 		props["reason"] = taskString(0, 1500)
-		props["close_reason"] = taskEnum("done", "lifespan", "owner")
+		props["close_reason"] = taskEnum("done", "lifespan", "owner", "failed", "obsolete")
+	case "add_members", "remove_members":
+		props["chats"], props["people"] = taskArray(entity), taskArray(entity)
+		props["owner_request"] = ownerRequestSchema()
+		required = append(required, "owner_request")
+	case "undo":
+		props["change_id"] = taskString(1, 200)
+		props["owner_request"] = ownerRequestSchema()
+		required = append(required, "change_id", "owner_request")
+	case "merge":
+		props["owner_request"] = ownerRequestSchema()
+		required = append(required, "owner_request")
+		props["from_id"] = taskString(1, 200)
+		required = append(required, "from_id")
+	case "set_cover":
+		props["item_id"] = taskString(1, 200)
+		required = append(required, "item_id")
+	case "convert_circle":
+		props["owner_request"] = ownerRequestSchema()
+		required = append(required, "owner_request")
+		for k, v := range editable {
+			props[k] = v
+		}
+		props["different_because"] = taskString(1, 1000)
+		required = append(required, "title", "goal")
 	case "list":
 		props["status"] = taskEnum("open", "closed", "all", "suggested", "quiet")
 		props["limit"] = taskInt(1, 500)
@@ -129,21 +173,30 @@ func validateTaskArgs(args Args) error {
 		}
 		return taskError(action, strings.TrimPrefix(problems[0], "."), "(use the fields for this action)")
 	}
-	for _, key := range []string{"title", "text"} {
+	if request, ok := args["owner_request"].(map[string]any); ok && strings.TrimSpace(request["text"].(string)) == "" {
+		return taskError(action, "owner_request.text", "must contain the owner's words")
+	}
+	for _, key := range []string{"title", "text", "goal"} {
 		if value, ok := args[key].(string); ok && strings.TrimSpace(value) == "" {
 			return taskError(action, key, "must contain text")
 		}
+	}
+	if v := args.str("title"); v != "" && len(strings.Fields(v)) > 5 {
+		return taskError(action, "title", "must be at most five plain words")
 	}
 	if action == "create" && args.str("kind") == "long" {
 		if _, ok := args["lifespan_days"]; ok {
 			return taskError(action, "lifespan_days", "applies only to short tasks")
 		}
 	}
+	if (action == "add_members" || action == "remove_members") && emptyTaskMembers(args) {
+		return taskError(action, "chats/people", "requires at least one member")
+	}
 	if action == "update" && len(args) == 2 {
 		return taskError(action, "status", "or another editable field is required")
 	}
-	if args["reason"] != nil && action == "update" && args.str("status") != "done" && args.str("status") != "dropped" {
-		return taskError(action, "reason", "requires status done or dropped")
+	if args["reason"] != nil && action == "update" && args.str("status") == "" {
+		return taskError(action, "reason", "requires status")
 	}
 	if v, ok := args["check_in"].(map[string]any); ok {
 		if _, err := time.Parse("15:04", v["at_time"].(string)); err != nil {
@@ -214,7 +267,7 @@ func validateTaskArgs(args Args) error {
 // the precise reference rather than turning storage errors into generic JSON errors.
 func (s *Service) validateTaskState(a model.Agent, args Args) error {
 	action := args.str("action")
-	if action == "list" {
+	if action == "list" || action == "convert_circle" {
 		return nil
 	}
 	var task tasks.Task
@@ -326,4 +379,10 @@ func (s *Service) validateTaskState(a model.Agent, args Args) error {
 		return taskError(action, "waiting", "must be set with update before drafting")
 	}
 	return nil
+}
+
+func emptyTaskMembers(args Args) bool {
+	chats, _ := args["chats"].([]any)
+	people, _ := args["people"].([]any)
+	return len(chats)+len(people) == 0
 }

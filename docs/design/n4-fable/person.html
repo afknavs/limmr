@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.hero{padding:16px 20px;min-height:0;display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;margin-bottom:12px}
+.hero h1{font-size:24px}.hero .how{font-size:14px;color:var(--ink2);margin:7px 0 10px;max-width:520px;line-height:1.4}
+.stats{display:flex;gap:28px;align-items:flex-end;padding:12px 20px;margin-bottom:12px}
+.bars{display:flex;align-items:flex-end;gap:5px;height:40px;width:230px}.bars i{flex:1;border-radius:2px;background:var(--ink2)}
+.cols{display:grid;grid-template-columns:1fr 330px;gap:12px}
+.ask{position:relative;padding:12px 16px;border-radius:16px;background:var(--need-bg);display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.ask b{font-size:14px;display:block}
+.box{padding:16px;margin-bottom:12px}.box h4{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:9px;display:flex}.box h4 a{margin-left:auto;color:var(--link);font-weight:600;font-weight:500}
+.sum{font-size:14px;line-height:1.45}
+.m{display:flex;gap:10px;padding:8px 0}.m+.m{border-top:1px solid var(--line)}.m b{font-weight:600}.m p{margin-top:2px;font-size:14px}
+.tk{display:flex;align-items:center;gap:10px;padding:7px 0}.tk .cover{width:52px;height:38px;border-radius:7px}.tk b{font-weight:600;display:block}
+.gr{display:flex;align-items:center;gap:10px;padding:5px 0}.gr b{font-weight:600;display:block}.gr svg{color:var(--ink2)}
+</style>
+<body><main>
+<div class="crumb">People <span id="c1"></span> Isha Sen</div>
+<div class="card hero" id="he"></div>
+<div class="card stats" id="st"></div>
+<div class="cols"><div id="L"></div><div id="R"></div></div>
+</main>
+<script>shell('people');c1.innerHTML=ic('chev',11);
+he.innerHTML=`${av(5,84)}<div><h1>Isha Sen</h1><div class="how">Your research partner at university since 2025. You run the survey project together, and she is also in the Design Collective.</div><div class="row"><span class="chip">${ic('cap',12)}University</span><span class="chip">${ic('bag',12)}Design Collective</span><span class="chip">+1 202 555 0146</span></div></div><div class="row" style="align-self:flex-start"><span class="btn">${ic('map',13)}Show in map</span><span class="btn">Open chat</span><span class="btn">${ic('more',14)}</span></div>`;
+st.innerHTML=`<div><div class="num">34 m</div><div class="lab">last spoke</div></div><div><div class="num">128</div><div class="lab">messages this month</div></div><div><div class="num">3</div><div class="lab">groups in common</div></div><div><div class="num">2</div><div class="lab">tasks together</div></div><span class="sp"></span><div><div class="bars">${[3,5,2,6,8,4,7,9,6,10,8,12].map((v,i)=>`<i style="height:${v*8}%;opacity:${i>8?1:.4}"></i>`).join('')}</div><div class="lab" style="margin-top:6px">How often you talk · 12 weeks · more than usual lately</div></div>`;
+L.innerHTML=`<div class="ask"><div><b><i class="dot need" style="margin-right:8px"></i>Six survey questions revised — approve to send</b><span class="meta">Research proposal · asked 34 m ago</span></div><span class="sp"></span><span class="btn">Later</span><span class="btn pri">Review</span></div>
+<div class="card box"><h4>Lately<a>Refresh</a></h4><div class="sum">The survey is nearly ready: Isha tightened two questions and dropped one, and is waiting for your approval before sending it to the cohort. The reading-group notes are being merged by Codex.</div><div class="meta dim" style="margin-top:8px">Summary by Dot · 18 m ago</div></div>
+<div class="card box" style="margin-bottom:0"><h4>Recent conversation<a>Open chat</a></h4>
+<div class="m">${av(5,26)}<div><b>Isha Sen</b> <span class="dim">· today 11:18</span><p>I tightened questions 2 and 5 and dropped the last one. Can you check before I send it to the group?</p></div></div>
+<div class="m">${av(0,26)}<div><b>You</b> <span class="dim">· yesterday 18:42</span><p>Looks good overall. Let’s keep it under five minutes to fill in.</p></div></div>
+<div class="m">${av(5,26)}<div><b>Isha Sen</b> <span class="dim">· yesterday 18:30</span><p>Draft three is in the shared folder.</p></div></div></div>`;
+R.innerHTML=`<div class="card box"><h4>Work you share</h4>${[[5,'Research proposal','Ends Fri 13 Nov','<span class="chip need">Needs you</span>'],[3,'Reading group notes','Codex is merging notes','<span class="chip live"><i class="dot live"></i>Working</span>']].map(t=>`<div class="tk"><div class="cover" style="background-image:url(assets/p${t[0]}.jpg)"></div><span><b>${t[1]}</b><span class="meta">${t[2]}</span></span><span class="sp"></span>${t[3]}</div>`).join('')}<div class="meta dim" style="margin-top:6px">1 ended task in History</div></div>
+<div class="card box"><h4>Groups in common</h4>${[['Stats project','4 members · active today'],['Section C','71 members · active today']].map(g=>`<div class="gr">${ic('people')}<span><b>${g[0]}</b><span class="meta">${g[1]}</span></span><span class="sp"></span>${ic('chev',12)}</div>`).join('')}</div>
+<div class="card box" style="margin-bottom:0"><h4>Notes for your AIs<a>Edit</a></h4><div class="meta" style="font-size:12px;line-height:1.45">Prefers messages in the evening. Always confirm before sending anything to the cohort group.</div></div>`;
+</script></body>

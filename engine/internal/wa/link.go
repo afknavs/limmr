@@ -13,15 +13,16 @@ type Account struct {
 	PhoneMasked string `json:"phone_masked"`
 }
 type LinkEvent struct {
-	State     string   `json:"state"`
-	Code      string   `json:"code,omitempty"`
-	ExpiresIn int      `json:"expires_in,omitempty"`
-	Progress  int      `json:"progress,omitempty"`
-	Chats     int      `json:"chats,omitempty"`
-	Messages  int      `json:"messages,omitempty"`
-	Account   *Account `json:"account,omitempty"`
-	Reason    string   `json:"reason,omitempty"`
-	Fix       string   `json:"fix,omitempty"`
+	StateAt   time.Time `json:"state_at,omitempty"`
+	State     string    `json:"state"`
+	Code      string    `json:"code,omitempty"`
+	ExpiresIn int       `json:"expires_in,omitempty"`
+	Progress  int       `json:"progress,omitempty"`
+	Chats     int       `json:"chats,omitempty"`
+	Messages  int       `json:"messages,omitempty"`
+	Account   *Account  `json:"account,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	Fix       string    `json:"fix,omitempty"`
 }
 type PairingSource interface {
 	Start(context.Context, string, string, func(LinkEvent)) error
@@ -46,6 +47,11 @@ func NewLink(src PairingSource) *Link {
 func (l *Link) State() LinkEvent { l.mu.Lock(); defer l.mu.Unlock(); return l.state }
 func (l *Link) Emit(e LinkEvent) { l.mu.Lock(); defer l.mu.Unlock(); l.emit(e) }
 func (l *Link) emit(e LinkEvent) {
+	if e.State == l.state.State {
+		e.StateAt = l.state.StateAt
+	} else if e.StateAt.IsZero() {
+		e.StateAt = time.Now()
+	}
 	l.state = e
 	for ch := range l.watchers {
 		select {

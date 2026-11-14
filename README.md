@@ -30,6 +30,7 @@ The Mac app requires Apple silicon and macOS 26 or newer. [Run Limmr on Linux or
 - **Tasks:** durable work with checklists and workspace items. Keep or dismiss suggestions; create tasks yourself or with your AI.
 - **Permissions:** each AI gets its own profile, chat/circle access, capabilities and optional expiry.
 - **Activity:** see what each AI read, changed or sent and follow the work it belongs to.
+- **First contact:** ask an AI to find a member of a readable group and draft a new conversation, with explicit first-contact approval and a daily limit.
 
 Connect ChatGPT, Claude, Claude Code, Codex, Cursor or another MCP client. Circles are lasting groups of people in your life; tasks are time-bound work; groups are WhatsApp group chats.
 
@@ -50,6 +51,21 @@ Data stays on the machine running each engine. There is no Limmr-hosted message 
 Hide chats from every AI or restrict an AI to selected circles. Hiding a DM does not hide that person's messages in a visible group. Remote access is optional and uses HTTPS/OAuth; keep the control API private.
 
 Circle send rules are **send freely**, **confirm in chat**, or **never**. The strictest rule wins. Confirmation relies on the AI following the conversation; the engine cannot prove a person clicked a button. Use Never where that matters.
+
+### First contact
+
+An AI can address a readable group's member by person ID or phone without an existing DM.
+New chats require approval in Limmr, except an own local foreground AI quoting your request that
+names the person or full number. Own AIs may also use a bare number explicitly quoted by you.
+Given/remote AIs and unattended work require approval; handoffs cannot start a chat outside their grant.
+Hidden people/groups stay hidden, Never rules still apply, and reply access is not added. Text/files
+are supported; reactions/replies cannot start chats. The client verifies WhatsApp registration and
+resolves the phone address before sending; unavailable hidden-number mappings fail clearly.
+
+The default limit is five first-contact attempts per rolling 24 hours across this engine's AIs;
+only the owner can change it. WhatsApp bans accounts that message many strangers. Paired engines
+and pending sending recovery refuse first contact without queuing it. The approval and Activity
+show who the new chat is with and which group allowed it. [First-contact rules](docs/MCP.md#first-contact).
 
 Limmr uses the unofficial whatsmeow WhatsApp library, so WhatsApp changes may break compatibility and using it carries account risk. [Security model](docs/SECURITY.md).
 

@@ -10,12 +10,16 @@ import (
 
 // Fake never constructs a Whatsmeow client and cannot access the network.
 type Fake struct {
-	Home     string
-	Uploaded [][]byte
-	Messages *Store
-	mu       sync.Mutex
-	Sent     []model.Approval
-	Events   []LinkEvent
+	RecipientMappings map[string]string
+	NotOnWhatsApp     map[string]bool
+	RecipientError    error
+	RecipientChecks   []string
+	Home              string
+	Uploaded          [][]byte
+	Messages          *Store
+	mu                sync.Mutex
+	Sent              []model.Approval
+	Events            []LinkEvent
 }
 
 func (f *Fake) Start(ctx context.Context, method, phone string, emit func(LinkEvent)) error {

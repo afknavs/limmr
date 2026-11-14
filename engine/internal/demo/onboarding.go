@@ -76,7 +76,7 @@ func seedRound10(h *hub.Service, p *people.Service) error {
 		if e = h.Messages.PutChat(model.Chat{JID: chat, Name: v.name, IsGroup: true, LastMessageTime: &Epoch}); e != nil {
 			return e
 		}
-		if _, e = service.Create(&a, model.Circle{Name: v.name, Kind: v.kind, Chats: []model.CircleChat{{ChatJID: chat}}}, "Shared conversations suggest this circle; keep or edit it in Limmr."); e != nil {
+		if _, e = service.Create(&a, model.Circle{Name: v.name, Kind: v.kind, TaskOverrideReason: "Recurring workshop community across projects", Chats: []model.CircleChat{{ChatJID: chat}}}, "Shared conversations suggest this circle; keep or edit it in Limmr."); e != nil {
 			return e
 		}
 	}

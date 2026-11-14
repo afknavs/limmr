@@ -68,14 +68,28 @@ func (s *Service) next(c CheckIn, after time.Time) time.Time {
 }
 func (s *Service) refreshNeeds(tx *sql.Tx, r *record) error {
 	var n int
-	if err := tx.QueryRow("SELECT count(*) FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')=? AND json_extract(data,'$.state')='pending'", r.ID).Scan(&n); err != nil {
+	if err := tx.QueryRow("SELECT count(*) FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')=? AND json_extract(data,'$.state')='pending' AND julianday(json_extract(data,'$.created_at'))>julianday(?)", r.ID, s.now().Add(-model.NeedsYouTTL)).Scan(&n); err != nil {
 		return err
 	}
-	r.NeedsYou = open(r.Task) && (n > 0 || r.FlagReason != "" || r.EffortNeeds)
+	if r.LaterAt != nil && r.LaterUntil != nil {
+		var count int
+		if err := tx.QueryRow("SELECT count(*) FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')=? AND json_extract(data,'$.state')='pending' AND julianday(json_extract(data,'$.created_at'))>julianday(?)", r.ID, *r.LaterAt).Scan(&count); err != nil {
+			return err
+		}
+		if count > 0 {
+			r.LaterUntil = nil
+		}
+	}
+	if r.NeedsYouAt == nil {
+		at := r.CreatedAt
+		r.NeedsYouAt = &at
+	}
+	fresh := s.now().Before(r.NeedsYouAt.Add(model.NeedsYouTTL))
+	r.NeedsYou = open(r.Task) && (n > 0 || fresh && (r.FlagReason != "" || r.EffortNeeds))
 	r.NeedsYouReason = ""
 	if r.NeedsYou {
 		switch {
-		case r.FlagReason != "":
+		case fresh && r.FlagReason != "":
 			r.NeedsYouReason = r.FlagReason
 		case n > 0:
 			r.NeedsYouReason = "An update is ready for your review"
@@ -97,8 +111,10 @@ func (s *Service) suggestion(tx *sql.Tx, r *record, key, kind, chat, text, why s
 	if len(r.CircleIDs) > 0 {
 		circle = r.CircleIDs[0]
 	}
+	now := s.now()
+	r.NeedsYouAt = &now
 	id := r.ID + ":" + key
-	x := model.Suggestion{DraftSource: draftSource, ID: id, TaskID: r.ID, Kind: kind, ChatJID: chat, CircleID: circle, DraftText: text, Body: text, Variations: []string{text}, Why: why, CreatedBy: r.CreatedBy.AgentID, CreatedAt: s.now(), ExpiresAt: s.now().AddDate(0, 0, 90), State: "pending"}
+	x := model.Suggestion{DraftSource: draftSource, ID: id, TaskID: r.ID, Kind: kind, ChatJID: chat, CircleID: circle, DraftText: text, Body: text, Variations: []string{text}, Why: why, CreatedBy: r.CreatedBy.AgentID, CreatedAt: s.now(), ExpiresAt: s.now().Add(model.NeedsYouTTL), State: "pending"}
 	if s.Hub.MayRunAutomations != nil {
 		// A slot is shared, while each offline engine's immutable claim is distinct.
 		slot := r.ID + ":" + key
@@ -147,20 +163,52 @@ func (s *Service) Tick(ctx context.Context) error {
 		if old.Purged {
 			continue
 		}
+		if err = s.applyFollowsWork(old); err != nil {
+			return err
+		}
+		old, err = s.raw(old.ID)
+		if err != nil {
+			return err
+		}
+		if s.deadlinePassed(old.Task) {
+			_, err = s.mutate(nil, old.ID, func(r *record, tx *sql.Tx) error {
+				if s.deadlinePassed(r.Task) {
+					return s.finishTask(tx, r, json.RawMessage(dbutil.JSON(r)), "its end time passed", "lifespan", map[string]any{"end_at": r.EndAt})
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		if old.Status == "suggested" {
-			if old.Suggestion != nil && !s.now().Before(old.Suggestion.DetectedAt.AddDate(0, 0, 14)) {
-				if _, err = s.resolve(nil, old.ID, "suggestion_expired", ""); err != nil {
+			if suggestionExpired(old.Task, s.now()) {
+				if _, err = s.resolve(nil, old.ID, "suggestion_expired", "", nil); err != nil {
 					return err
 				}
 			}
 			continue
 		}
 		if !open(old.Task) && old.Status != "quiet" {
-			if old.ClosedAt != nil && !s.now().Before(old.ClosedAt.AddDate(0, 0, 90)) {
-				if err = s.purge(old); err != nil {
-					return err
-				}
-			}
+			continue
+		}
+		finished, finishErr := s.applyFinished(old)
+		if finishErr != nil {
+			return finishErr
+		}
+		if finished {
+			continue
+		}
+		old, err = s.raw(old.ID)
+		if err != nil {
+			return err
+		}
+		obsolete, obsoleteErr := s.applyObsolete(old)
+		if obsoleteErr != nil {
+			return obsoleteErr
+		}
+		if obsolete {
 			continue
 		}
 		scanned := old
@@ -205,7 +253,7 @@ func (s *Service) Tick(ctx context.Context) error {
 			if active.IsZero() {
 				active = r.CreatedAt
 			}
-			// Quiet-day expiry follows conversation activity, never timer/summary bookkeeping.
+			// Quiet status follows conversation activity, never summary bookkeeping.
 			if latestActivity.After(active) {
 				active = latestActivity
 				r.UpdatedAt = now
@@ -218,14 +266,16 @@ func (s *Service) Tick(ctx context.Context) error {
 				}
 				wakeTask(r)
 			}
-			expired := r.EndAt != nil && !now.Before(*r.EndAt)
-			if expired || r.Kind == "short" && !now.Before(active.AddDate(0, 0, r.LifespanDays)) {
-				closeTask(r, now, "lifespan")
-				r.UpdatedAt = now
-				return nil
+			expired := s.deadlinePassed(r.Task)
+			if expired {
+				return s.finishTask(tx, r, json.RawMessage(dbutil.JSON(r)), "its end time passed", "lifespan", map[string]any{"end_at": r.EndAt})
 			}
 			if !effortNeeds {
 				r.EffortAcknowledged = false
+			}
+			if effortNeeds && !r.EffortNeeds && !r.EffortAcknowledged {
+				at := now
+				r.NeedsYouAt = &at
 			}
 			r.EffortNeeds = effortNeeds && !r.EffortAcknowledged
 			if c := r.CheckIn; c != nil && (c.Rule == "reply" && replyDue || c.Rule != "reply" && !c.NextAt.After(now)) {
@@ -360,6 +410,11 @@ func (s *Service) Incoming(ctx context.Context, m model.Message) error {
 	if m.DeletedAt != nil {
 		return nil
 	}
+	attributed, attributeErr := s.Hub.Attribute(m)
+	if attributeErr != nil {
+		return attributeErr
+	}
+	owner := attributed.Author.Type == "owner"
 	xs, err := s.records()
 	if err != nil {
 		return err
@@ -380,9 +435,13 @@ func (s *Service) Incoming(ctx context.Context, m model.Message) error {
 			for _, ch := range r.Chats {
 				linked = linked || ch.ID == m.ChatJID
 			}
-			if linked && !s.Hub.HiddenChat(m.ChatJID) && m.Timestamp.After(r.LastActiveAt) {
+			if linked && !s.Hub.HiddenChat(m.ChatJID) && (m.Timestamp.After(r.LastActiveAt) || owner && r.FinishHint != nil) {
 				updated, wakeErr := s.mutate(nil, r.ID, func(current *record, tx *sql.Tx) error {
 					current.eventActor = "This Mac"
+					if owner && current.FinishHint != nil && m.Timestamp.After(current.FinishHint.At) {
+						current.FinishHint = nil
+						current.FinishHintAfter = m.Timestamp
+					}
 					if m.Timestamp.After(current.LastActiveAt) {
 						current.LastActiveAt = m.Timestamp
 						current.UpdatedAt = s.now()
@@ -432,24 +491,6 @@ func (s *Service) Incoming(ctx context.Context, m model.Message) error {
 		}
 	}
 	return ctx.Err()
-}
-func (s *Service) purge(old record) error {
-	tx, err := s.Hub.Repo.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	r := record{Task: Task{ID: old.ID, Title: old.Title, CreatedAt: old.CreatedAt, UpdatedAt: old.UpdatedAt, ClosedAt: old.ClosedAt}, Purged: true}
-	if _, err = tx.Exec("UPDATE tasks SET data=? WHERE id=?", dbutil.JSON(r), old.ID); err != nil {
-		return err
-	}
-	if _, err = tx.Exec("DELETE FROM task_events WHERE task_id=?", old.ID); err != nil {
-		return err
-	}
-	if _, err = tx.Exec("DELETE FROM objects WHERE bucket='suggestions' AND json_extract(data,'$.task_id')=?", old.ID); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 func (s *Service) ValidateSend(a model.Agent, id, chat string) error {
 	t, err := s.Get(&a, id)

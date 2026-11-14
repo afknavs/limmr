@@ -59,11 +59,15 @@ extension AppStore {
     let source = backend
     let generation = backendGeneration
     do {
-      async let circle: LimmrKit.Circle = source.get("/v1/circles/\(id)")
-      async let history: BriefsResponse = source.get("/v1/circles/\(id)/briefs")
-      let (value, versions) = try await (circle, history)
+      let value: LimmrKit.Circle = try await source.get("/v1/circles/\(id)")
       guard generation == backendGeneration else { return }
-      guard circles.contains(where: { $0.id == id }) else { return }
+      if value.archived == true {
+        archivedCircles.removeAll { $0.id == id }; archivedCircles.append(value)
+        circleDetails[id] = nil; circleError = nil
+        return
+      }
+      let versions: BriefsResponse = try await source.get("/v1/circles/\(id)/briefs")
+      guard generation == backendGeneration else { return }
       circleDetails[id] = CircleDetail(
         circle: value, chats: value.chats, people: value.people, topics: value.topics,
         brief: versions.briefs.first)

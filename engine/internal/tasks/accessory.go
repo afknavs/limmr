@@ -107,9 +107,16 @@ func (g *Accessory) Sync(ctx context.Context, xs []record, c model.AccessoryCue,
 		g.seen = map[string]bool{}
 	}
 	needs := map[string]bool{}
+	snoozed := map[string]bool{}
 	title := ""
 	for _, r := range xs {
-		if r.NeedsYou {
+		// The persisted deadline also marks an expired snooze as already cued.
+		// This works even if no Sync ran during the entire snooze interval.
+		if r.LaterUntil != nil {
+			snoozed[r.ID] = true
+			g.seen[r.ID] = true
+		}
+		if attentionAt(r, now).NeedsYou {
 			needs[r.ID] = true
 			if !g.seen[r.ID] && title == "" {
 				title = r.Title
@@ -129,7 +136,9 @@ func (g *Accessory) Sync(ctx context.Context, xs []record, c model.AccessoryCue,
 				}
 			}
 		}
-		g.seen = map[string]bool{}
+		// Ordinary disappeared needs must be forgotten so their next arrival
+		// can cue again; only snoozes carry a quiet return across this gap.
+		g.seen = snoozed
 		return
 	}
 	if title != "" && !quiet(now, c.QuietHours) && (g.last.IsZero() || now.Sub(g.last) >= 10*time.Minute) {
@@ -147,7 +156,7 @@ func (g *Accessory) Sync(ctx context.Context, xs []record, c model.AccessoryCue,
 		}
 	}
 	for id := range g.seen {
-		if !needs[id] {
+		if !needs[id] && !snoozed[id] {
 			delete(g.seen, id)
 		}
 	}

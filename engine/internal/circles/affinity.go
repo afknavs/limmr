@@ -36,7 +36,7 @@ func (s *Service) SuggestAffinity() (any, error) {
 			break
 		}
 	}
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return nil, e
 	}

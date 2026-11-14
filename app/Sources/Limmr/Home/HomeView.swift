@@ -40,19 +40,15 @@ struct HomeView: View {
       } else {
         ScrollViewReader { proxy in
           GeometryReader { geometry in
-            let wide = windowWidth >= 1200 && geometry.size.width >= 900
             ScrollView {
               VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 20) {
                   LazyVStack(alignment: .leading, spacing: 20) {
-                    N1Overview(store: store) { row in openOverview(row, proxy: proxy) }
-                    if let history = store.homeActivityHistory {
-                      N2HomeActivity(history: history, now: store.presentationNow, openDay: store.openActivityDay)
+                    PaperHomeContents(store: store)
+                    if let setup = store.setupStatus, !store.snapshot { SetupHomeCard(store: store, setup: setup) }
+                    if let notice = store.taskQuietNotice {
+                      HStack { Text(notice); Button("Undo") { Task { await store.undoQuietTask() } } }
                     }
-                    if let setup = store.setupStatus { SetupHomeCard(store: store, setup: setup) }
-                    if !TaskListPresentation.active(store.home.tasks).isEmpty || store.taskQuietNotice != nil { TasksTile(store: store) }
-                    N1CirclesGrid(store: store).id("n2-circles")
-                    if !wide { N1HomeRail(store: store) }
                     if !store.pending.isEmpty {
                       VStack(alignment: .leading, spacing: 12) {
                         Text("Approvals").font(LimmrTheme.TypeScale.section)
@@ -64,9 +60,9 @@ struct HomeView: View {
                     if !store.home.waiting.isEmpty { block("triggers") }
                     if !store.home.proposals.isEmpty { block("proposals") }
                   }.frame(maxWidth: .infinity, alignment: .leading)
-                  if wide { N1HomeRail(store: store).frame(width: 240) }
+
                 }
-              }.padding(20).frame(maxWidth: 1320, alignment: .leading).frame(maxWidth: .infinity)
+              }.padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 12).frame(maxWidth: .infinity).paperReadingWidth()
             }
           }
           .onChange(of: store.searchRequest) { _, _ in proxy.scrollTo("greeting", anchor: .top) }
@@ -97,7 +93,6 @@ struct HomeView: View {
       }
     }
     .navigationTitle("Home")
-    .modifier(HomeToolbarSearch(store: store))
     .onAppear { HomeQuietSnapshot.prepare(store: store) }
     .onChange(of: store.escapeRequest) { _, _ in showAllAsks = false }
     .sheet(isPresented: $showAllAsks) { ReplyAsksSheet(store: store).dismissOnEscape() }

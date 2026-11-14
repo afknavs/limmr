@@ -22,7 +22,7 @@ func (s *Service) OwnerCircleIDs() (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return nil, err
 	}

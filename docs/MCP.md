@@ -12,6 +12,37 @@ descriptions. Execute an action with `{action,args}`; cached legacy aliases reta
 validation and result shape. Unknown arguments/types, missing required fields and invalid enums
 return accepted-field guidance without echoing the supplied value.
 
+## First contact
+
+Find a member by name with `find {types:["person"],query:"Maya"}`, or read
+`get {kind:"group",id:"<visible group JID>"}`. Readable members include `contact` with `id`, `name`,
+`role` (member/admin) and `phone` when known; find candidates also include their readable source
+`group`. This does not expose private profile fields or hidden people/groups.
+
+Use the member's person ID or phone as `send.recipient` for text/files. The member must belong to
+a group this AI can read; both message and people reading must be enabled. Reactions and replies
+cannot start a chat. Other recipients return `not found`. An own-preset AI may supply a bare number
+without group membership only when its full digits appear in `owner_instruction`.
+
+A first contact never uses a free rule. Only an own-preset **local foreground** AI with a quote
+naming the member (one whole name word or the complete number) can deliver directly. Other sends,
+including given/remote and unattended work, wait for approval in Limmr. `draft_only` saves a draft
+without sending/queuing; `send {draft_id}` may deliver a qualifying instructed draft or request
+Limmr approval, but cannot consume a pending approval. Handoffs cannot leave their granted chat.
+
+The client checks registration and resolves a phone address before a draft and again before delivery;
+LID-only members need a client mapping. No typing, presence or read receipt is sent. Approval rechecks
+current eligibility, hidden aliases and send rules. First contact respects both the target's and source
+group's Never/Ask rules. Results carry `first_contact`, `first_contact_person`, `first_contact_group`
+and explain that replies remain subject to the AI's existing access. Use `send_status` for receipts;
+it never resends or grants message access.
+
+At most **5 first-contact attempts per rolling 24 hours** across this engine's AIs are allowed by
+default. Only the owner/control API may change `first_contact_limit` (0–100; 0 disables). Uncertain
+and failed attempts count; exhausted limits queue nothing. WhatsApp bans accounts that message many
+strangers. Paired engines/sending recovery refuse new chats without queuing: deferred delivery lacks
+the originating grant and shared budget checks. First contacts never replay automatically.
+
 ## Naming efforts
 
 An effort is a shared purpose supported by conversations, not one activity row or one group.
@@ -81,7 +112,18 @@ Byte/4 token estimates are approximations, not model-tokenizer measurements.
 ## Tracking owner work with tasks
 
 The twentieth tool, `task`, stores an owner workspace while efforts remain derived.
-Use `create` with `effort_id` to track visible work, or provide a title, kind, chats
+Never create a task the owner did not ask for. Without his quoted request, create makes a
+suggestion; mention it when relevant and keep it with `owner_request` once he says yes.
+`create` and `keep` accept `owner_request: {text: "the owner's words", message_ref?: "message ID"}`.
+The quote must contain 1–500 characters. A supplied message ID must identify one accessible,
+undeleted message with `author.type=owner`; contact, AI and unknown authors are invalid.
+Accepted requests are stored as `asked_by_owner: {text, message_ref?, agent_id, at}` and
+quoted in creation/kept history. Without a quote, create returns
+`{created:"suggestion", id, instruction:"Ask the owner; keep it with owner_request once he says yes"}`;
+keep returns `{kept:false, instruction:"Ask the owner; keep it with owner_request once he says yes"}`
+and changes nothing. Owner app/control create and keep are unchanged.
+
+Use `create` with `effort_id` to track visible work, or provide a title, explicit goal, kind, chats
 and people from scratch. `list`/`get` read it; `update` writes a summary, waiting or
 schedule; `attach` adds links/files/notes; `checklist` manages steps. `draft_check_in`
 and `draft_nudge` save text for owner review. `needs_you` flags attention with a reason.
@@ -89,8 +131,7 @@ Exact shapes and routes are in [API.md](API.md#tasks-and-the-task-timeline).
 
 For a checklist addition, use `{"action":"checklist","id":"tsk_example","op":"add","steps":[{"text":"Read"}]}`.
 `items` is accepted as an alias for `steps`, and `text` can supply one step. Change
-checklists with this action rather than `update`. Set `lifespan_days` on short tasks;
-omit it when creating a long task.
+checklists with this action rather than `update`. `lifespan_days` is accepted only on short tasks for compatibility; default tasks end after 21 days without activity; an explicit lifespan overrides this, and end_at tasks end by date.
 
 Reads need `read_messages`; writes also need `save_summaries`. You must see every
 task chat. Only the creator or a visible task's own-preset AI can update it. Hidden
@@ -107,36 +148,58 @@ and timeline labels, never message text or saved draft prose.
 
 Circles are lasting parts of life. One-off projects, events and errands are tasks: use `task create`.
 `task(action:"list",status:"suggested")` lists visible suggestions.
-`task(action:"keep",id)` activates one without changing its origin;
+`task(action:"keep",id,owner_request)` activates one without changing its origin;
 `task(action:"dismiss",id,reason?)` marks it not a task and suppresses the same effort/chat-topic.
 Both require `read_messages`, `save_summaries` and visibility of every task chat.
 These two actions can claim fully visible suggestions regardless of creator; ordinary task
 writes retain the existing creator/own-AI rule. Own AIs receive `task_suggested` updates,
-including automatic tracking and migrated projects, subject to current chat permissions.
-Project circle proposals need three named people across two chats; smaller proposals return
-`{"converted_to_task":"tsk_…"}` with the proposal's why as the first suggestion signal.
+subject to current chat permissions. Detection only suggests; it never starts tracking.
+Suggestions stay off Home and attention counts; the Tasks page has a collapsed Suggested row.
+Finite project proposals return a warning; create a task explicitly or explain the lasting area with `task_override_reason`.
 
 Task lifecycle: `task create` / `task update` accepts `end_at` (RFC3339),
-`end_condition` (`agent_done` or `checklist_done`) and `lifespan_days` (quiet days for short tasks).
+`end_condition` (`agent_done` or `checklist_done`) and compatibility `lifespan_days`.
+An end date archives on the first tick of the next local calendar day; history is permanent.
 An agent completes work with `task update {id,status:"done"}`. Timers queue a check-in
 and a durable `task_due` update; they never send. The owner can Undo automatic closure.
 
 Task argument errors are checked per action, including nested paths, and contain a correct call.
-Examples: `create {"action":"create","title":"Exam preparation","kind":"long"}`;
-`list {"action":"list","status":"open","limit":20}`; `get` / `brief` / `keep` use
-`{"action":"get","id":"tsk_example"}` (substitute the action); `dismiss` adds `"reason":"Not needed"`;
-`update {"action":"update","id":"tsk_example","status":"active"}`;
-`attach {"action":"attach","id":"tsk_example","item":{"kind":"note","text":"Review next"}}`;
-`checklist {"action":"checklist","id":"tsk_example","op":"add","steps":[{"text":"Read"}]}`;
-`draft_check_in` / `draft_nudge` use `{"action":"draft_nudge","id":"tsk_example","text":"Please share the syllabus"}`;
-`needs_you {"action":"needs_you","id":"tsk_example","reason":"Choose a time"}`.
+One-line examples (each object is the arguments of MCP `tools/call` with `name:"task"`):
+- `create`: `{"action":"create","title":"Fair plan","goal":"Prepare the fair","kind":"long","owner_request":{"text":"Track the fair"}}`; omit the quote to suggest; add `follows:"tsk_old"` for a follow-up.
+- `list`: `{"action":"list","status":"suggested","limit":20}`; suggestion cards include signals, confidence, detected_at, effort_ids, chats, people, chat_count and people_count.
+- `get`: `{"action":"get","id":"tsk_example"}` returns asked_by_owner, finish_hint, membership_provenance and access-filtered history with rule reasons/change_id.
+- `brief`: `{"action":"brief","id":"tsk_example"}` returns the same task detail.
+- `keep`: `{"action":"keep","id":"tsk_example","owner_request":{"text":"Yes, track it"}}`.
+- `dismiss`: `{"action":"dismiss","id":"tsk_example","reason":"Not needed"}`.
+- `update`: `{"action":"update","id":"tsk_example","status":"waiting","reason":"Awaiting the review"}`; active/waiting/quiet/done/dropped accept a reason in history; done/dropped also save it as the summary. Clear waiting with `waiting:null`; set it with `waiting:{what:"Review",on:{id:"person_id"}}`; save an update with `summary:{text:"Draft ready"}`.
+- `attach`: `{"action":"attach","id":"tsk_example","item":{"kind":"note","text":"Review next"}}` also supports link/file items.
+- `checklist`: `{"action":"checklist","id":"tsk_example","op":"add","steps":[{"text":"Read"}]}`; tick/untick/remove with `op:"done"|"undo"|"remove"` and `steps:[{id:"stp_example"}]`; reorder lists every step ID once.
+- `add_members`: `{"action":"add_members","id":"tsk_example","chats":[{"id":"chat_id"}],"people":[{"id":"person_id"}],"owner_request":{"text":"Add these to the task"}}`.
+- `remove_members`: `{"action":"remove_members","id":"tsk_example","chats":[{"id":"chat_id"}],"people":[{"id":"person_id"}],"owner_request":{"text":"Remove these from the task"}}`.
+- `undo`: `{"action":"undo","id":"tsk_example","change_id":"chg_example","owner_request":{"text":"Undo that rule change"}}`; uses the existing scoped, consumed-once, 30-day membership/rule undo; current permissions also cover the restored work.
+- `draft_check_in`: `{"action":"draft_check_in","id":"tsk_example","text":"Review is ready"}` requires an existing check_in schedule.
+- `draft_nudge`: `{"action":"draft_nudge","id":"tsk_example","text":"Please share the syllabus"}` requires waiting; saves a draft and never sends.
+- `needs_you`: `{"action":"needs_you","id":"tsk_example","reason":"Choose a time"}` is an explicit attention request.
+- `merge`: `{"action":"merge","id":"tsk_a","from_id":"tsk_b","owner_request":{"text":"Merge these tasks"}}`.
+- `set_cover`: `{"action":"set_cover","id":"tsk_a","item_id":"itm_image"}`.
+- `convert_circle`: `{"action":"convert_circle","id":"circle_a","title":"Hold workshop","goal":"Complete the workshop","owner_request":{"text":"Track the workshop"}}`.
+
+Membership actions require a nonempty quoted request, including for own AIs; the optional
+`message_ref` uses the same owner-author check as create/keep. Each real change writes one
+history line naming the AI and quoting the request. Removals remain sticky against automatic
+attachment; only an explicit quoted add reverses them. The owner control API remains owner-only.
+History checks the chats recorded when each event happened, including removed/restored work;
+legacy prose without a recoverable scope is redacted for agents. Automatic rule changes and
+rule undo remain silent: no notifications, attention, Home/Recently lines or notify_me calls.
+Local and remote (dot/Claude/ChatGPT) clients share these actions and permission checks.
+
 Checklist `items` and bare `text` are accepted aliases; update uses the checklist action for steps.
 
 N1 task reads: list defaults to `open` and excludes quiet. Request `status:"quiet"` or `"all"`
 explicitly to include it. Quiet/wake with `{"action":"update","id":"tsk_example","status":"quiet"}`
 or `status:"active"`. Quiet state and workspace activity wakeups sync to a paired dot; timers never send.
 Stored-reference errors name nested fields such as `check_in.to`, `waiting.on.id`, and `steps[0].id`.
-`lifespan_days` is accepted only for short tasks, including updates to an existing task.
+`lifespan_days` is accepted only for short tasks, including updates to an existing task. Use `kind=test` for test or scratch tasks; they end after one day without activity, regardless of lifespan.
 
 `get_updates` and `brief {action:"get",id:"circle_id"}` include `recently:[string,...]`: three to five
 plain lines from stored events, attributed where the writer is known, without message/note bodies.
@@ -210,3 +273,28 @@ Unpairing a non-holder retains a local sending fence: wait until the old lease
 expires plus one minute and explicitly confirm that the old device has stopped.
 After unpairing each engine may dispatch only requests it originated; imported
 queues remain quarantined. Read the [partition rule](lanes/SYNC-CONTRACT.md#coordination-schema-18-protocol-2).
+
+### Task rules v2 operations
+
+- `task {action:"create",title:"Email participants",goal:"Participants receive the recap",kind:"short",follows:"tsk_ended",owner_request:{text:"Track the recap"}}` starts a new outcome; `follows_context` respects current access. Only the owner can reopen through control.
+- Duplicate refusal returns `{created:false,review_required:true,candidates,instruction}` without a write. Update a candidate, or repeat create with `different_because` explaining a distinct outcome (at least three words, at most 1000 characters).
+- `task {action:"merge",id:"tsk_a",from_id:"tsk_b",owner_request:{text:"Merge these tasks"}}` keeps A's outcome/schedule/cover, combines history/files and archives B with `merged_into`. Both tasks require write access.
+- `task {action:"set_cover",id:"tsk_a",item_id:"itm_image"}` explicitly replaces the pinned cover. Covers otherwise stay fixed; inaccessible/deleted sources use a stable built-in fallback. No generated art or latest-chat replacement.
+- `task {action:"convert_circle",id:"circle_a",title:"Hold workshop",goal:"Complete the workshop",owner_request:{text:"Track the workshop"}}` preserves all people/chats, creates a task and archives the original atomically; `kind` defaults to long and `end_at` is optional.
+
+Titles use at most five plain owner words and 60 characters. `people` are participants;
+`subject` is separate and requires accessible `subject_evidence:[{chat_jid,message_id}]`.
+Leave it unset when unsure. Owner corrections are sticky and cannot be overridden by agents.
+Mark success `status:"done"`; failure `status:"dropped",close_reason:"failed"`.
+Ended tasks leave active lists; `list status:"all"`/`"closed"` and `get` retain them.
+Needs-you flags expire on answer, ending, or seven days without follow-up; evidence remains.
+
+Circle proposals that look finite need `task_override_reason` (3+ words, <=1000 bytes)
+explaining the lasting life area; otherwise create a task. Finite project proposals warn rather than silently creating a task suggestion. See
+[API.md](API.md#task-rules-v2-additive-json-fields) for control operations, fields and defaults.
+
+R2 task reads may include `finish_hint: {why, message_refs, at}` in list/get and the
+owner task API. It is weak evidence only: ask the owner before closing the task.
+Hints expire after seven days and clear on new owner activity or closure. They do
+not appear on Home, in Needs you, or as notifications. Automatic finished-rule
+endings record their reason and evidence in task history with owner undo.

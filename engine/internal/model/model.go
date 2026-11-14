@@ -131,6 +131,7 @@ type Attachment struct {
 	SHA256    string    `json:"sha256"`
 }
 type Approval struct {
+	FirstContactInfo
 	Upload         *UploadProgress `json:"upload,omitempty"`
 	AsDocument     bool            `json:"as_document,omitempty"`
 	Status         string          `json:"status,omitempty"`
@@ -154,6 +155,7 @@ type Approval struct {
 	Reason         string          `json:"reason,omitempty"`
 }
 type Activity struct {
+	FirstContactInfo
 	TaskID           string    `json:"task_id,omitempty"`
 	CalledAs         string    `json:"called_as,omitempty"`
 	OwnerInstruction string    `json:"owner_instruction,omitempty"`
@@ -310,21 +312,25 @@ type AccessoryCue struct {
 	QuietHours *TaskQuietHours `json:"quiet_hours,omitempty"`
 }
 type Settings struct {
-	AccessoryCue      AccessoryCue `json:"accessory_cue"`
-	AutoCircles   *bool    `json:"auto_circles,omitempty"`
-	MaxCircles    int      `json:"max_circles,omitempty"`
-	CurrentDays   int      `json:"current_days"`
-	HiddenChats   []string `json:"hidden_chats"`
-	RetentionDays int      `json:"retention_days"`
-	Owner         string   `json:"owner"`
+	FirstContactLimit *int     `json:"first_contact_limit,omitempty"`
+	AccessoryCue          AccessoryCue `json:"accessory_cue"`
+	AutoCircles       *bool    `json:"auto_circles,omitempty"`
+	MaxCircles        int      `json:"max_circles,omitempty"`
+	CurrentDays       int      `json:"current_days"`
+	HiddenChats       []string `json:"hidden_chats"`
+	RetentionDays     int      `json:"retention_days"`
+	Owner             string   `json:"owner"`
 }
 
 func (s Settings) AutoCirclesEnabled() bool { return s.AutoCircles == nil || *s.AutoCircles }
 
 type Check struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	State  string `json:"state"`
-	Detail string `json:"detail"`
-	FixID  string `json:"fix_id,omitempty"`
+	EngineStartedAt *time.Time `json:"engine_started_at,omitempty"`
+	LinkPhase       string     `json:"link_phase,omitempty"`
+	LinkPhaseAt     *time.Time `json:"link_phase_at,omitempty"`
+	ID              string     `json:"id"`
+	Title           string     `json:"title"`
+	State           string     `json:"state"`
+	Detail          string     `json:"detail"`
+	FixID           string     `json:"fix_id,omitempty"`
 }

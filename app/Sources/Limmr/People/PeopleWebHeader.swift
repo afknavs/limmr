@@ -62,9 +62,12 @@ extension EnvironmentValues {
 }
 
 /// Replay advances the attributed events without moving the seeded field or running when idle.
-private struct PeopleNetworkReplay: View {
+struct PeopleNetworkReplay: View {
   @Bindable var store: AppStore
   let map: CircleMap
+  var paper = false
+  var paperScope = "Everyone"
+  var paperQuery = ""
   var onSelect: (CircleMapNode?) -> Void
   @State private var start: Date?
   @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -77,13 +80,11 @@ private struct PeopleNetworkReplay: View {
     TimelineView(.animation(minimumInterval: 1 / 30, paused: start == nil || reduceMotion || snapshot || phase != .active)) { timeline in
       let elapsed = start.map { timeline.date.timeIntervalSince($0) } ?? 0
       let event = start == nil ? nil : event(at: min(1, elapsed / 8))
-      NetworkMapView(store: store, map: map, selected: store.mapSelection.person, focusesSelection: false, replayEvent: event, onSelect: onSelect)
-        .overlay(alignment: .topTrailing) {
-          Button(start == nil ? "Replay" : "Replaying", systemImage: "arrow.counterclockwise") { start = Date() }
-            .limmrButton().font(.caption).padding(10).background(.regularMaterial, in: Capsule()).padding(12)
-            .disabled(reduceMotion || events.isEmpty || start != nil)
-            .accessibilityValue(reduceMotion ? "Unavailable with Reduce Motion" : "Last 14 days")
-        }
+      VStack(spacing: 0) {
+        if paper { HStack { Spacer(); replayButton }.frame(height:32) }
+        NetworkMapView(store: store, map: map, selected: paper ? (store.mapSelection.person ?? store.mapSelection.circle) : store.mapSelection.person, focusesSelection: false, replayEvent: event, paper: paper, paperScope: paperScope, paperQuery: paperQuery, onSelect: onSelect)
+          .overlay(alignment: .topTrailing) { if !paper { replayButton.padding(12) } }
+      }
         .overlay(alignment: .topLeading) {
           if let event {
             Text(event.capsule(nodes: map.nodes)).font(.caption).lineLimit(2)
@@ -96,6 +97,12 @@ private struct PeopleNetworkReplay: View {
     }
     .onChange(of: reduceMotion) { _, reduced in if reduced { start = nil } }
     .onChange(of: phase) { _, phase in if phase != .active { start = nil } }
+  }
+  private var replayButton: some View {
+    Button(start == nil ? "Replay" : "Replaying", systemImage: "arrow.counterclockwise") { start = Date() }
+      .buttonStyle(PaperButtonStyle()).font(LimmrTheme.font(12))
+      .disabled(reduceMotion || events.isEmpty || start != nil)
+      .accessibilityValue(reduceMotion ? "Unavailable with Reduce Motion" : "Last 14 days")
   }
   private func event(at progress: Double) -> MapEvent? {
     guard let first = events.first.flatMap({ Timestamp.date($0.at) }),

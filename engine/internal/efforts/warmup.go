@@ -37,6 +37,10 @@ func (s *Service) ReadyCircleUpdates() ([]CircleUpdate, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	c, err = s.surfaceSnapshot(c)
+	if err != nil {
+		return nil, false, err
+	}
 	xs, err := s.circleUpdates(filterSnapshot(c, Filter{Limit: 500}))
 	return xs, err == nil, err
 }

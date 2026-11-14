@@ -14,5 +14,5 @@ func (s *Service) shared() *Service {
 }
 func (s *Service) WithContext(ctx context.Context) *Service {
 	messages := &wa.Store{DB: dbutil.WithContext(s.Messages.DB, ctx)}
-	return &Service{MayRunAutomations: s.shared().MayRunAutomations, TaskSendValidate: s.TaskSendValidate, TaskSent: s.TaskSent, TaskSuggestionDone: s.TaskSuggestionDone, parent: s.shared(), Repo: &Repo{DB: dbutil.WithContext(s.Repo.DB, ctx)}, Messages: messages, Messenger: s.Messenger, Home: s.Home, Now: s.Now, Watches: s.Watches, WatchStore: s.WatchStore}
+	return &Service{MayRunAutomations: s.shared().MayRunAutomations, TaskSendValidate: s.TaskSendValidate, TaskSent: s.TaskSent, TaskSuggestionDone: s.TaskSuggestionDone, parent: s.shared(), Repo: &Repo{DB: dbutil.WithContext(s.Repo.DB, ctx)}, Messages: messages, Recipients: s.Recipients, Messenger: s.Messenger, Home: s.Home, Now: s.Now, Watches: s.Watches, WatchStore: s.WatchStore}
 }

@@ -13,7 +13,7 @@ func (s *Service) suggestCircles(a *model.Agent, t *Task) error {
 	if t.CirclesEdited || len(t.CircleIDs) > 0 {
 		return nil
 	}
-	circles, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	circles, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return err
 	}
@@ -92,4 +92,32 @@ func (s *Service) BackfillCircles(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Filter response copies only. Preserve stored IDs for history and restoration.
+func (s *Service) filterTaskCircles(t *Task) {
+	live, err := hub.LiveCircles(s.Hub.Repo)
+	if err != nil {
+		t.CircleIDs = []string{}
+		t.CircleSuggestions = nil
+		return
+	}
+	ids := map[string]bool{}
+	for _, c := range live {
+		ids[c.ID] = true
+	}
+	kept := []string{}
+	for _, id := range t.CircleIDs {
+		if ids[id] {
+			kept = append(kept, id)
+		}
+	}
+	t.CircleIDs = kept
+	suggestions := []CircleSuggestion{}
+	for _, c := range t.CircleSuggestions {
+		if ids[c.CircleID] {
+			suggestions = append(suggestions, c)
+		}
+	}
+	t.CircleSuggestions = suggestions
 }

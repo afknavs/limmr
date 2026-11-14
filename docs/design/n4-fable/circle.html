@@ -1,0 +1,48 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.hd{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.hd .tile{width:44px;height:44px;border-radius:12px;background:var(--surface2);display:grid;place-items:center;color:var(--ink2)}
+.hd .st{display:flex;gap:26px;margin-right:10px}
+.brief{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;margin-bottom:12px;font-size:14px}
+.brief svg{color:var(--ink2)}.brief b{font-weight:600}
+.body{display:grid;grid-template-columns:372px 1fr;gap:12px;height:600px}
+.list{padding:10px 0 0;display:flex;flex-direction:column;overflow:hidden}
+.list .bar{display:flex;gap:8px;padding:0 10px 8px;align-items:center}.list .search{width:auto;flex:1;height:28px;background:var(--panel)}
+.sorts{display:flex;gap:6px;padding:0 10px 8px}.sorts .chip.on{background:var(--pri);color:var(--on-pri)}
+.sec{font-size:12px;font-weight:600;color:var(--ink2);padding:8px 16px 4px;display:flex;gap:6px;align-items:center}
+.r{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px}.r.on{background:var(--surface2)}
+.r b{display:block;font-weight:600;font-size:14px}.r em{margin-left:auto;font-style:normal;font-size:12px;color:var(--ink3)}
+.det{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.det .who{display:flex;align-items:center;gap:14px}.det .who h3{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.ask{position:relative;padding:12px 16px;border-radius:12px;background:var(--need-bg);display:flex;align-items:center;gap:12px}
+
+.ask b{font-size:14px;display:block}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.box{padding:0}.two{border-top:1px solid var(--line);padding-top:16px}.det>.box{border-top:1px solid var(--line);padding-top:16px}.box h4{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:8px}
+.q{font-size:14px;line-height:1.4}.gr{display:flex;align-items:center;gap:10px;padding:6px 0}.gr b{font-weight:600;display:block}
+.tk{display:flex;align-items:center;gap:10px;padding:6px 0}.tk .cover{width:44px;height:32px;border-radius:6px}
+.files{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.files i{height:40px;border-radius:8px;background-size:cover;background-position:center}.files .d{background:var(--surface2);display:grid;place-items:center;color:var(--ink3)}
+.bars{display:flex;align-items:flex-end;gap:5px;height:44px}.bars i{flex:1;border-radius:2px;background:var(--ink2)}
+</style>
+<body><main>
+<div class="crumb">Home <span id="c1"></span> University</div>
+<div class="hd"><div class="tile" id="tl"></div><div><h1 style="font-size:24px">University</h1><div class="meta" style="margin-top:4px">Classes, research and campus life</div></div><span class="sp"></span>
+<div class="st"><div><div class="num">148</div><div class="lab">people</div></div><div><div class="num">8</div><div class="lab">group chats</div></div><div><div class="num">2</div><div class="lab">open tasks</div></div></div><span class="btn" id="pn"></span><span class="btn" id="mr"></span></div>
+<div class="card brief" id="br"></div>
+<div class="body"><div class="card list" id="ls"></div><div class="card det" id="dt"></div></div>
+</main>
+<script>shell('uni');c1.innerHTML=ic('chev',11);tl.innerHTML=ic('cap',22);pn.innerHTML=ic('pin',13)+'Pinned';mr.innerHTML=ic('more',14);
+br.innerHTML='<span><b>Today</b> &nbsp;Choose the poster layout and approve Isha’s survey questions.</span><span class="sp"></span><span class="dim">Dot · 18 m</span><a style="color:var(--link);font-weight:600">Full brief</a>';
+const r=(a,n,role,t,on,need)=>`<div class="r${on?' on':''}">${av(a,30)}<span><b>${n}</b><span class="meta">${role}</span></span><em>${need?'<i class="dot need" style="margin-right:6px"></i>':''}${t}</em></div>`;
+ls.innerHTML=`<div class="bar"><span class="seg"><span class="on">People <span class="dim">148</span></span><span>Groups <span class="dim">8</span></span></span><div class="search">${ic('search',14)}Search</div></div>
+<div class="sorts"><span class="chip on">Recent</span><span class="chip">Closest</span><span class="chip">Role</span><span class="chip">A–Z</span><span class="sp"></span><span class="chip">${ic('filter',12)}Staff</span></div>
+<div class="sec">Needs you <span class="dim">2</span></div>${r(5,'Isha Sen','Research partner','34 m',1,1)}${r(9,'Jonah Mehta','Class representative','2 h',0,1)}
+<div class="sec">Active this week <span class="dim">23</span></div>${r(6,'Theo Park','Library volunteer','2 h')}${r(4,'Sam Okafor','Lab group B','3 h')}${r(1,'Prof. Anand','Statistics · staff','Yesterday')}${r(12,'Lena Ortiz','Seminar partner','Yesterday')}${r(15,'Kiran Shah','Sports committee','2 d')}${r(10,'Dr. Meera Iyer','Course coordinator · staff','3 d')}
+<div class="sec">Everyone else <span class="dim">123</span></div>${r(13,'Ada Bell','Section C','2 w')}${r(14,'Noor Haddad','Section A','3 w')}`;
+dt.innerHTML=`<div class="who">${av(5,56)}<div><h3>Isha Sen</h3><div class="meta" style="margin-top:3px">Research partner · classmate since 2025 · also in Design Collective</div></div><span class="sp"></span><span class="btn">Open chat</span><span class="btn">Profile ${ic('chev',12)}</span></div>
+<div class="ask"><div><b><i class="dot need" style="margin-right:8px"></i>Six survey questions revised — approve to send</b><span class="meta">Research proposal · asked 34 m ago</span></div><span class="sp"></span><span class="btn">Later</span><span class="btn pri">Review</span></div>
+<div class="two"><div class="box"><h4>Latest from Isha</h4><div class="q">“I tightened questions 2 and 5 and dropped the last one. Can you check before I send it to the group?”</div><div class="meta dim" style="margin-top:8px">Stats project · today 11:18</div></div>
+<div class="box"><h4>How often you talk · 12 weeks</h4><div class="bars">${[3,5,2,6,8,4,7,9,6,10,8,12].map((v,i)=>`<i style="height:${v*8}%;opacity:${i>8?1:.45}"></i>`).join('')}</div><div class="meta dim" style="margin-top:8px">More than usual this month</div></div></div>
+<div class="two"><div class="box"><h4>Groups in common</h4>${[['Stats project','4 members · active today'],['Section C','71 members · active today']].map(g=>`<div class="gr">${ic('people')}<span><b>${g[0]}</b><span class="meta">${g[1]}</span></span><span class="sp"></span>${ic('chev',12)}</div>`).join('')}</div>
+<div class="box"><h4>Work you share</h4>${[[5,'Research proposal','<span class="chip need">Needs you</span>'],[3,'Reading group notes','<span class="chip live"><i class="dot live"></i>Codex</span>']].map(t=>`<div class="tk"><div class="cover" style="background-image:url(assets/p${t[0]}.jpg)"></div><b style="font-weight:600">${t[1]}</b><span class="sp"></span>${t[2]}</div>`).join('')}<div class="meta dim" style="margin-top:8px">1 ended task · History</div></div></div><div class="box"><h4>Shared between you · 14 files</h4><div class="files">${[5,3,12].map(i=>`<i style="background-image:url(assets/p${i}.jpg)"></i>`).join('')}<i class="d">${ic('doc',20)}</i><i class="d">${ic('doc',20)}</i><i class="d" style="font-size:12px;font-style:normal">+9</i></div></div>`;
+</script></body>

@@ -13,6 +13,7 @@ public struct EntityIcon: Codable, Sendable, Equatable, Hashable {
 public struct HistoryAgent: Codable, Sendable, Equatable {
   public var reads: Int = 0
   public var sends: Int = 0
+  public init(reads: Int = 0, sends: Int = 0) { self.reads = reads; self.sends = sends }
 }
 public struct HistoryDay: Codable, Identifiable, Sendable, Equatable {
   public var date: String

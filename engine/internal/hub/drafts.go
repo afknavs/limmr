@@ -39,9 +39,12 @@ func sendOptions(options []SendOptions) (SendOptions, error) {
 	return o, nil
 }
 func instructed(a model.Agent, d model.Draft) bool {
-	return a.Preset == "own" && d.OwnerInstruction != ""
+	return a.Preset == "own" && d.OwnerInstruction != "" && (!d.FirstContact || a.Transport != "remote" && !d.FirstContactUnattended && quoteNamesContact(d.OwnerInstruction, d.FirstContactInfo))
 }
 func parkForReview(ctx context.Context, a model.Agent, d model.Draft) bool {
+	if d.FirstContact && !instructed(a, d) {
+		return true
+	}
 	if d.QueueForApproval || d.Rule == "ask_in_limmr" {
 		return true
 	}
@@ -74,7 +77,7 @@ func (s *Service) SendPolicy(chat string) (string, error) {
 	}
 	rule, found := "free", false
 	for _, c := range xs {
-		if !c.Confirmed {
+		if !c.Confirmed || c.Archived {
 			continue
 		}
 		for _, j := range c.Chats {
@@ -166,7 +169,7 @@ func (s *Service) draftSend(ctx context.Context, a model.Agent, kind, chat, text
 		current.RunChat = a.RunChat
 		a = current
 		if previous, e := s.keyedDraft(a.ID, key); e == nil {
-			if !s.CanChat(&a, previous.ChatJID) || a.RunChat != "" && previous.ChatJID != a.RunChat {
+			if previous.FirstContact && !s.canSeeContactDraft(a, previous) || !previous.FirstContact && (!s.CanChat(&a, previous.ChatJID) || a.RunChat != "" && previous.ChatJID != a.RunChat) {
 				return model.Draft{}, model.ErrNotFound
 			}
 			return previous, nil
@@ -174,7 +177,7 @@ func (s *Service) draftSend(ctx context.Context, a model.Agent, kind, chat, text
 			return model.Draft{}, e
 		}
 	}
-	a, rule, e := s.sendAgent(a.ID, chat)
+	a, chat, rule, contact, e := s.sendRecipient(ctx, a, chat, kind, reply, o)
 	if e != nil {
 		return model.Draft{}, e
 	}
@@ -192,6 +195,11 @@ func (s *Service) draftSend(ctx context.Context, a model.Agent, kind, chat, text
 		}
 	}
 	d := model.Draft{ID: dbutil.ID(), AgentID: a.ID, ChatJID: chat, FinalText: text, Rule: rule, NeedsConfirmation: rule != "free", CreatedAt: s.Now().UTC(), ExpiresAt: s.Now().UTC().Add(30 * time.Minute), State: "draft", Kind: kind, ReplyTo: reply}
+	d.FirstContactInfo = contact
+	d.FirstContactUnattended = d.FirstContact && (Background(ctx, a) || o.TaskID != "")
+	if d.FirstContact {
+		d.NextStep = "Reply access still follows your existing permissions."
+	}
 	d.TaskID = o.TaskID
 	if d.TaskID != "" {
 		if s.TaskSendValidate == nil {
@@ -236,6 +244,9 @@ func (s *Service) draftSend(ctx context.Context, a model.Agent, kind, chat, text
 		return d, s.Repo.Put("drafts", d.ID, d)
 	}
 	if parkForReview(ctx, a, d) {
+		if d.FirstContact {
+			return s.parkFirstContact(d)
+		}
 		return s.parkDraft(d, "Draft requires your review in Limmr.")
 	}
 
@@ -271,6 +282,34 @@ func (s *Service) SendDraft(ctx context.Context, a model.Agent, id string, optio
 	}
 	if d.AgentID != a.ID {
 		return model.Draft{}, model.ErrNotFound
+	}
+	if d.FirstContact {
+		if !s.canSeeContactDraft(a, d) {
+			return model.Draft{}, model.ErrNotFound
+		}
+		if o.TaskID != "" && o.TaskID != d.TaskID {
+			return d, model.ErrInvalid
+		}
+		if d.State != "draft" || !s.Now().Before(d.ExpiresAt) {
+			return d, model.ErrConflict
+		}
+		current, err := s.recheckFirstContact(ctx, d)
+		if err != nil {
+			return d, err
+		}
+		if o.OwnerInstruction != "" {
+			d.OwnerInstruction = o.OwnerInstruction
+		}
+		d.FirstContactUnattended = d.FirstContactUnattended || Background(ctx, a) || d.TaskID != ""
+		d.QueueForApproval = d.QueueForApproval || o.QueueForApproval
+		d.Rule, err = s.firstContactRule(current, d.ChatJID, d.FirstContactInfo)
+		if err != nil {
+			return d, err
+		}
+		if parkForReview(ctx, current, d) {
+			return s.parkFirstContact(d)
+		}
+		return s.deliverDraft(ctx, d, "owner_instruction")
 	}
 	current, rule, e := s.sendAgent(a.ID, d.ChatJID)
 	if e != nil {
@@ -326,6 +365,18 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 	if s.Messenger == nil {
 		return d, model.ErrConflict
 	}
+	if d.FirstContact {
+		a, err := s.recheckFirstContact(ctx, d)
+		if err != nil {
+			return d, err
+		}
+		if via != "mac" && (Background(ctx, a) || !instructed(a, d) || d.QueueForApproval || d.Rule == "ask_in_limmr") {
+			return s.parkFirstContact(d)
+		}
+		if d.Kind != "message" && d.Kind != "file" || d.ReplyTo != "" {
+			return d, model.ErrNotFound
+		}
+	}
 	if mode, err := s.handoffPolicy(ctx, d, true); err != nil {
 		return d, err
 	} else if mode == "park" {
@@ -337,7 +388,11 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 		d.Upload = &model.UploadProgress{Phase: "ready", Total: d.Attachment.Size}
 	}
 	d.ConfirmedVia = via
-	if e := s.Repo.Put("drafts", d.ID, d); e != nil {
+	mutations := []Mutation{{Bucket: "drafts", ID: d.ID, Value: d}}
+	if d.FirstContact {
+		mutations = append(mutations, Mutation{Bucket: "first_contact_attempts", ID: d.ID, Value: map[string]any{"at_ns": s.Now().UnixNano()}})
+	}
+	if e := s.Repo.Apply(mutations...); e != nil {
 		return d, e
 	}
 	reserved, e := s.prepareAuthor(d.AgentID, d.ChatJID)
@@ -348,7 +403,7 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 		return d, e
 	}
 	ctx = model.WithUploadProgress(ctx, func(p model.UploadProgress) error { d.Upload = &p; return s.Repo.Put("drafts", d.ID, d) })
-	id, e := s.Messenger.Send(ctx, model.Approval{AsDocument: d.AsDocument, MessageID: reserved, ID: d.ID, AgentID: d.AgentID, ChatJID: d.ChatJID, Kind: d.Kind, Text: d.FinalText, Attachment: d.Attachment, ReplyTo: d.ReplyTo, State: "approved", CreatedAt: d.CreatedAt, ExpiresAt: d.ExpiresAt})
+	id, e := s.Messenger.Send(ctx, model.Approval{FirstContactInfo: d.FirstContactInfo, AsDocument: d.AsDocument, MessageID: reserved, ID: d.ID, AgentID: d.AgentID, ChatJID: d.ChatJID, Kind: d.Kind, Text: d.FinalText, Attachment: d.Attachment, ReplyTo: d.ReplyTo, State: "approved", CreatedAt: d.CreatedAt, ExpiresAt: d.ExpiresAt})
 	if e == ErrSendQueued {
 		d.State = "queued_peer"
 		d.Status = "queued"
@@ -371,6 +426,13 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 		return d, e
 	}
 	if d.State == "sent" {
+		if d.FirstContact {
+			name := d.FirstContactPerson.Name
+			at := s.Now().UTC()
+			if err := s.Messages.PutChat(model.Chat{JID: d.ChatJID, Name: name, LastMessageTime: &at}); err != nil {
+				return d, err
+			}
+		}
 		if s.TaskSent != nil {
 			if err := s.TaskSent(d); err != nil {
 				return d, err
@@ -380,7 +442,7 @@ func (s *Service) deliverDraft(ctx context.Context, d model.Draft, via string) (
 			return d, err
 		}
 	}
-	act := model.Activity{AgentID: d.AgentID, Tool: "send_draft", Kind: d.State, ChatJIDs: []string{d.ChatJID}, Count: 1, Note: d.FinalText, ConfirmedVia: via, OwnerInstruction: d.OwnerInstruction, QueueForApproval: d.QueueForApproval}
+	act := model.Activity{FirstContactInfo: d.FirstContactInfo, AgentID: d.AgentID, Tool: "send_draft", Kind: d.State, ChatJIDs: []string{d.ChatJID}, Count: 1, Note: d.FinalText, ConfirmedVia: via, OwnerInstruction: d.OwnerInstruction, QueueForApproval: d.QueueForApproval}
 	act.Description = "sent by integration"
 	if via == "mac" {
 		act.Description = "sent by you from Limmr"
@@ -540,7 +602,7 @@ func (s *Service) circleForChat(chat string) string {
 		return ""
 	}
 	for _, c := range cs {
-		if !c.Confirmed {
+		if !c.Confirmed || c.Archived {
 			continue
 		}
 		for _, j := range c.Chats {

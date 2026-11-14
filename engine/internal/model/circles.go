@@ -6,25 +6,27 @@ import (
 )
 
 type Circle struct {
-	ConfirmedBy   string         `json:"confirmed_by,omitempty"`
-	Archived      bool           `json:"archived,omitempty"`
-	Goal          string         `json:"goal,omitempty"`
-	ReviewReason  string         `json:"review_reason,omitempty"`
-	Origin        *Origin        `json:"origin,omitempty"`
-	ConfirmOrigin *Origin        `json:"confirm_origin,omitempty"`
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Kind          string         `json:"kind"`
-	Symbol        string         `json:"symbol"`
-	Description   string         `json:"description"`
-	SendRule      string         `json:"send_rule"`
-	Pinned        bool           `json:"pinned"`
-	CreatedBy     string         `json:"created_by"`
-	Confirmed     bool           `json:"confirmed"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	Chats         []CircleChat   `json:"chats"`
-	People        []CirclePerson `json:"people"`
-	Topics        []Topic        `json:"topics"`
+	TaskOverrideReason string         `json:"task_override_reason,omitempty"`
+	ConvertedTaskID    string         `json:"converted_task_id,omitempty"`
+	ConfirmedBy        string         `json:"confirmed_by,omitempty"`
+	Archived           bool           `json:"archived,omitempty"`
+	Goal               string         `json:"goal,omitempty"`
+	ReviewReason       string         `json:"review_reason,omitempty"`
+	Origin             *Origin        `json:"origin,omitempty"`
+	ConfirmOrigin      *Origin        `json:"confirm_origin,omitempty"`
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	Kind               string         `json:"kind"`
+	Symbol             string         `json:"symbol"`
+	Description        string         `json:"description"`
+	SendRule           string         `json:"send_rule"`
+	Pinned             bool           `json:"pinned"`
+	CreatedBy          string         `json:"created_by"`
+	Confirmed          bool           `json:"confirmed"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+	Chats              []CircleChat   `json:"chats"`
+	People             []CirclePerson `json:"people"`
+	Topics             []Topic        `json:"topics"`
 }
 type CircleChat struct {
 	Origin        *Origin   `json:"origin,omitempty"`
@@ -124,20 +126,22 @@ type BriefSettings struct {
 	Time    string `json:"time"`
 }
 type Draft struct {
-	NextStep         string          `json:"next_step,omitempty"`
-	Upload           *UploadProgress `json:"upload,omitempty"`
-	TaskID           string          `json:"task_id,omitempty"`
-	AsDocument       bool            `json:"as_document,omitempty"`
-	OwnerInstruction string          `json:"owner_instruction,omitempty"`
-	QueueForApproval bool            `json:"queue_for_approval,omitempty"`
-	Key              string          `json:"key,omitempty"`
-	Status           string          `json:"status"`
-	ApprovalID       string          `json:"approval_id,omitempty"`
-	SentAt           *time.Time      `json:"sent_at,omitempty"`
-	DeliveredAt      *time.Time      `json:"delivered_at,omitempty"`
-	ReadAt           *time.Time      `json:"read_at,omitempty"`
-	DeliveredCount   int             `json:"delivered_count"`
-	ReadCount        int             `json:"read_count"`
+	FirstContactInfo
+	FirstContactUnattended bool            `json:"first_contact_unattended,omitempty"`
+	NextStep               string          `json:"next_step,omitempty"`
+	Upload                 *UploadProgress `json:"upload,omitempty"`
+	TaskID                 string          `json:"task_id,omitempty"`
+	AsDocument             bool            `json:"as_document,omitempty"`
+	OwnerInstruction       string          `json:"owner_instruction,omitempty"`
+	QueueForApproval       bool            `json:"queue_for_approval,omitempty"`
+	Key                    string          `json:"key,omitempty"`
+	Status                 string          `json:"status"`
+	ApprovalID             string          `json:"approval_id,omitempty"`
+	SentAt                 *time.Time      `json:"sent_at,omitempty"`
+	DeliveredAt            *time.Time      `json:"delivered_at,omitempty"`
+	ReadAt                 *time.Time      `json:"read_at,omitempty"`
+	DeliveredCount         int             `json:"delivered_count"`
+	ReadCount              int             `json:"read_count"`
 
 	Variations        []string    `json:"variations,omitempty"`
 	Edited            bool        `json:"edited"`
@@ -168,3 +172,7 @@ func DefaultSendRule(kind string) string {
 	}
 	return "confirm"
 }
+
+// Live excludes archived records from projections. Confirmation rules remain local
+// to each caller so suggested and self circles keep their existing behavior.
+func (c Circle) Live() bool { return !c.Archived }

@@ -147,11 +147,19 @@ func (s *Service) snapshotMode(a *model.Agent, readyOnly bool) (cached, error) {
 	if err != nil {
 		return cached{}, err
 	}
-	circles, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	rawCircles, err := hub.List[model.Circle](s.Hub.Repo, "circles")
 	if err != nil {
 		return cached{}, err
 	}
-	rules := newQuality(ps, circles, aliases, s.Hub.Settings().Owner)
+	// Identity exclusions are not a circle projection: never reinterpret the
+	// owner's self chat as shared work when its old circle is retired.
+	rules := newQuality(ps, rawCircles, aliases, s.Hub.Settings().Owner)
+	circles := []model.Circle{}
+	for _, c := range rawCircles {
+		if c.Live() {
+			circles = append(circles, c)
+		}
+	}
 	directoryGroups, err := hub.List[model.Group](s.Hub.Repo, "groups")
 	if err != nil {
 		return cached{}, err
@@ -636,6 +644,10 @@ func (s *Service) list(a *model.Agent, f Filter) ([]Effort, error) {
 	if e != nil {
 		return nil, e
 	}
+	c, e = s.surfaceSnapshot(c)
+	if e != nil {
+		return nil, e
+	}
 	return filterSnapshot(c, f), nil
 }
 func filterSnapshot(c cached, f Filter) []Effort {
@@ -694,6 +706,10 @@ func (s *Service) get(a *model.Agent, id string) (Detail, error) {
 	for _, v := range c.efforts {
 		if v.ID != id || (v.Hidden && a != nil) {
 			continue
+		}
+		v, e = s.surfaceStatus(v)
+		if e != nil {
+			return Detail{}, e
 		}
 		d := Detail{Effort: v, Timeline: []Item{}}
 		for _, r := range v.MessageRefs {
@@ -997,7 +1013,7 @@ func (s *Service) CircleUpdates() ([]CircleUpdate, error) {
 	return s.circleUpdates(xs)
 }
 func (s *Service) circleUpdates(xs []Effort) ([]CircleUpdate, error) {
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return nil, e
 	}
@@ -1007,7 +1023,7 @@ func (s *Service) circleUpdates(xs []Effort) ([]CircleUpdate, error) {
 	}
 	out := []CircleUpdate{}
 	for _, c := range cs {
-		if !c.Confirmed || c.Archived {
+		if !c.Confirmed || !c.Live() {
 			continue
 		}
 		for _, x := range xs {
@@ -1056,7 +1072,7 @@ func (s *Service) circleUpdates(xs []Effort) ([]CircleUpdate, error) {
 func (s *Service) Seen(through ...map[string]time.Time) error {
 	s.shared().mu.Lock()
 	defer s.shared().mu.Unlock()
-	cs, e := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, e := hub.LiveCircles(s.Hub.Repo)
 	if e != nil {
 		return e
 	}
@@ -1066,7 +1082,7 @@ func (s *Service) Seen(through ...map[string]time.Time) error {
 	}
 	eligible := map[string]bool{}
 	for _, c := range cs {
-		if c.Confirmed && !c.Archived {
+		if c.Confirmed && c.Live() {
 			eligible[c.ID] = true
 		}
 	}

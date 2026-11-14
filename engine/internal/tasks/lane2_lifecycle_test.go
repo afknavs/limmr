@@ -55,24 +55,18 @@ func TestLane2QuietExpiryTracksTextActivityAndUndo(t *testing.T) {
 	testkit.Must(t, s.Tick(context.Background()))
 	got, err = s.Get(nil, v.ID)
 	testkit.Must(t, err)
-	if got.CloseReason != "lifespan" {
-		t.Fatal("quiet task did not close")
+	if got.Status != "dropped" || got.CloseReason != "obsolete" || got.ClosedAt == nil {
+		t.Fatal("explicit inactivity lifespan did not end the task")
 	}
-	automatic := false
-	for _, e := range got.History {
-		automatic = automatic || e.Text == "Closed automatically"
-	}
-	if !automatic {
-		t.Fatal("automatic close missing from history")
-	}
-	_, err = s.Reopen(v.ID)
-	testkit.Must(t, err)
+	// Ending preserves the outcome and history indefinitely.
+	*now = now.AddDate(0, 0, 100)
 	testkit.Must(t, s.Tick(context.Background()))
 	got, err = s.Get(nil, v.ID)
 	testkit.Must(t, err)
-	if got.Status != "active" {
-		t.Fatal("undo immediately reclosed")
+	if got.Status != "dropped" || got.Summary.Text != "Still waiting" {
+		t.Fatal("idle task was lost")
 	}
+
 }
 
 func TestLane2EndDateAgentDoneAndChecklistCondition(t *testing.T) {
@@ -80,7 +74,7 @@ func TestLane2EndDateAgentDoneAndChecklistCondition(t *testing.T) {
 	end := now.Add(time.Hour)
 	v, err := s.Create(a, Create{Title: "Deadline", Kind: "long", EndAt: &end, EndCondition: "agent_done"})
 	testkit.Must(t, err)
-	*now = now.Add(2 * time.Hour)
+	*now = end.AddDate(0, 0, 1)
 	testkit.Must(t, s.Tick(context.Background()))
 	got, err := s.Get(nil, v.ID)
 	testkit.Must(t, err)

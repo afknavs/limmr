@@ -45,7 +45,7 @@ func (s *Service) fetchRecentCovers(ctx context.Context) {
 		if s.Hub.Repo.DB.QueryRow("SELECT data FROM task_cards WHERE id=?", card.ID).Scan(&raw) != nil || json.Unmarshal([]byte(raw), &task) != nil || !s.visible(nil, task) {
 			continue
 		}
-		c := s.selectCoverCandidate(nil, task, false)
+		c := s.coverCandidate(nil, task)
 		if c == nil || c.MediaID == "" || s.coverHasFile(c) {
 			continue
 		}

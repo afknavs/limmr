@@ -1,0 +1,67 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.tools{display:flex;align-items:center;gap:12px;height:28px;margin-bottom:12px}
+.wrap{display:grid;grid-template-columns:1fr 256px;gap:16px;height:372px;margin-bottom:16px}
+.map{position:relative}
+.map svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.map .av,.mono{position:absolute;transform:translate(-50%,-50%)}
+.map .av{box-shadow:none}
+.mono{font-style:normal;border-radius:50%;background:var(--surface2);color:var(--ink2);font-size:9px;font-weight:600;display:grid;place-items:center}
+.sel{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ink)!important}
+.bdg{position:absolute;width:9px;height:9px;border-radius:2.500px;background:var(--brand);box-shadow:0 0 0 2px var(--surface);transform:translate(-50%,-50%)}
+.lbl{position:absolute;transform:translate(-50%,0);text-align:center;font-size:14px;font-weight:600;white-space:nowrap;display:flex;flex-direction:column;align-items:center}
+.lbl span{font-weight:400;font-size:12px;color:var(--ink3)}
+.legend{position:absolute;left:0;bottom:0;font-size:12px;color:var(--ink3);display:flex;gap:16px;align-items:center}
+.legend span{display:flex;align-items:center;gap:6px}
+.pane{padding:16px;display:flex;flex-direction:column;gap:12px}
+.pane h3{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.pane .st{display:flex;gap:24px}
+.pane .ask{padding:12px;border-radius:12px;background:var(--need-bg);display:flex;flex-direction:column;gap:8px}.pane .ask b{font-size:14px;line-height:1.3;font-weight:600}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pl{display:grid;grid-template-columns:repeat(3,1fr);gap:0 20px}
+.p{display:flex;align-items:center;gap:12px;height:50px;border-top:1px solid var(--line)}
+.p b{font-weight:600;font-size:14px;display:block}.p em{margin-left:auto;font-style:normal;color:var(--ink3);font-size:12px}
+</style>
+<body><main>
+<div class="top"><h1>People</h1><span class="sub">220 people · 4 circles · 3 new this week</span><span class="sp"></span><div class="search" id="s"></div></div>
+<div class="tools"><span class="seg"><span class="on">Everyone</span><span>Close</span><span>This week</span></span><span class="sp"></span><span class="meta">18 people are not in a circle yet</span><span class="btn">Sort them</span></div>
+<div class="wrap"><div class="map" id="map"><svg id="sv"></svg></div><div class="card pane" id="pane"></div></div>
+<div class="bar"><span class="seg"><span>Circles</span><span class="on">People</span><span>Groups</span></span><span class="sp"></span><span class="btn" id="b1"></span><span class="btn" id="b2"></span></div>
+<div class="pl" id="pl"></div>
+</main>
+<script>shell('people');s.innerHTML=ic('search')+'Find someone<kbd>⌘F</kbd>';b1.innerHTML=ic('sort',13)+'Recent';b2.innerHTML=ic('filter',13)+'All circles';
+let seed=11;const R=()=>(seed=(seed*16807)%2147483647)/2147483647;
+// Each circle is a plate. Rings inside it: the middle is who you are closest to, each ring out is one step further.
+const SZ=[40,30,22,13,8,6],RR=[0,41,71,93,108,118];
+const IN='AK RM TS JD NP LO SB MV HC EG DW PR'.split(' ');
+const cl=[{n:'University',i:'cap',c:148,rings:[1,7,16,31,46,47],x:137,y:137,a:0,ph:20},
+{n:'Design Collective',i:'bag',c:58,rings:[1,7,16,34],x:414,y:137,a:Math.PI,ph:40},
+{n:'Family',i:'house',c:6,rings:[1,5],x:626,y:70,a:-1.57,ph:60},
+{n:'Close people',i:'heart',c:8,rings:[1,7],x:626,y:258,a:-1.57,ph:80}];
+let h='',d='';const pos={};
+for(const c of cl){const last=c.rings.length-1,rad=RR[last]+SZ[last]/2+14;c.r=rad;
+ h+=`<circle cx="${c.x}" cy="${c.y}" r="${rad}" style="fill:var(--surface)"/>`;
+ d+=`<div class="lbl" style="left:${c.x}px;top:${c.y+rad+8}px">${c.n}<span>${c.c} people</span></div>`;
+ c.rings.forEach((n,k)=>{for(let j=0;j<n;j++){const a=c.a+(k%2?0:Math.PI/n)+j*2*Math.PI/n,x=c.x+Math.cos(a)*RR[k],y=c.y+Math.sin(a)*RR[k],sz=SZ[k];
+  pos[c.n+k+'_'+j]=[x,y];
+  if(k<2||(k==2&&j%3==0)){d+=av(c.ph+k*9+j,sz).replace('style="',`style="left:${x}px;top:${y}px;${k==2&&j%2?'opacity:.55;':''}`)}
+  else if(k==2){d+=`<i class="mono" style="left:${x}px;top:${y}px;width:${sz}px;height:${sz}px;opacity:${j%4==1?.55:1}">${IN[(j+c.ph)%12]}</i>`}
+  else{const rec=R(),nw=(c.n=='University'&&k==3&&(j==4||j==19))||(c.n=='Design Collective'&&k==3&&j==9);
+   h+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${sz/2}" style="fill:${nw?'var(--info)':'var(--ink)'}" fill-opacity="${nw?1:(.14+rec*rec*.55).toFixed(2)}"/>`}}})}
+// selection: Isha is in two circles. Both places light up, joined by one quiet line.
+const A=pos['University1_0'],B=pos['Design Collective1_0'];
+h+=`<path d="M${A[0]+19} ${A[1]}L${B[0]-19} ${B[1]}" style="stroke:var(--ink)" stroke-opacity=".22" stroke-dasharray="2 4" fill="none"/>`;
+sv.innerHTML=h;
+d+=av(5,30).replace('class="av"','class="av sel"').replace('style="',`style="left:${A[0]}px;top:${A[1]}px;`)+av(5,30).replace('class="av"','class="av sel"').replace('style="',`style="left:${B[0]}px;top:${B[1]}px;`);
+[[A[0]+11,A[1]-11],[pos['University1_3'][0]+11,pos['University1_3'][1]-11],[cl[1].x+15,cl[1].y-15]].forEach(([x,y])=>d+=`<i class="bdg" style="left:${x}px;top:${y}px"></i>`);
+d+=`<div class="legend"><span>Middle of a circle = closest to you</span><span><i class="dot" style="background:var(--ink);opacity:.25"></i>faded = quiet lately</span><span><i class="dot need"></i>needs you</span><span><i class="dot live"></i>new this week</span></div>`;
+map.insertAdjacentHTML('beforeend',d);
+pane.innerHTML=`<div class="row" style="gap:12px">${av(5,48)}<div><h3>Isha Sen</h3><div class="meta">Research partner</div></div></div>
+<div class="row" style="flex-wrap:wrap;gap:6px"><span class="chip">${ic('cap',12)}University</span><span class="chip">${ic('bag',12)}Design Collective</span></div>
+<div class="st"><div><div class="num">34 m</div><div class="lab">last spoke</div></div><div><div class="num">128</div><div class="lab">messages this month</div></div></div>
+<div class="ask"><b><i class="dot need" style="margin-right:8px"></i>Six survey questions revised — approve to send</b><div class="row"><span class="meta">Research proposal</span><span class="sp"></span><span class="btn pri">Review</span></div></div>
+<div class="meta" style="line-height:1.45">In both circles through the survey project and the Collective’s open studio.</div>
+<span class="sp"></span><div class="row"><span class="btn" style="flex:1;justify-content:center">Open chat</span><span class="btn" style="flex:1;justify-content:center">Profile</span></div>`;
+const ppl=[['Maya Rao','Design Collective','12 m',2],['Isha Sen','University · Design Collective','34 m',5],['Theo Park','University','2 h',6],['Nina Das','Design Collective','3 h',7],['Ravi Bell','Close people','Yesterday',13],['Ada Bell','Family','Yesterday',8],['Jonah Mehta','University','Yesterday',9],['Lena Ortiz','Close people','2 d',14],['Sam Okafor','University','3 d',4],['Kiran Shah','University','3 d',15],['Noor Haddad','Design Collective','4 d',10],['Dev Arora','Close people','5 d',11]];
+pl.innerHTML=ppl.map(p=>`<div class="p">${av(p[3],30)}<span><b>${p[0]}</b><span class="meta">${p[1]}</span></span><em>${p[2]}</em></div>`).join('');
+</script></body>

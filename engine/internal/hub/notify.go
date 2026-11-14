@@ -122,7 +122,20 @@ func (s *Service) RecordReceipt(chat, sender string, ids []string, status string
 				ap.ReadCount = d.ReadCount
 				value = ap
 			}
-			if e := s.Repo.Apply(Mutation{Bucket: bucket, ID: d.ID, Value: value}, Mutation{Bucket: "send_receipts", ID: d.ID, Value: seen}); e != nil {
+			mutations := []Mutation{{Bucket: bucket, ID: d.ID, Value: value}, {Bucket: "send_receipts", ID: d.ID, Value: seen}}
+			if bucket == "drafts" && d.FirstContact {
+				var ap model.Approval
+				err := s.Repo.Get("approvals", d.ID, &ap)
+				if err != nil && err != model.ErrNotFound {
+					return err
+				}
+				if err == nil {
+					ap.Status, ap.DeliveredAt, ap.ReadAt = d.Status, d.DeliveredAt, d.ReadAt
+					ap.DeliveredCount, ap.ReadCount = d.DeliveredCount, d.ReadCount
+					mutations = append(mutations, Mutation{Bucket: "approvals", ID: ap.ID, Value: ap})
+				}
+			}
+			if e := s.Repo.Apply(mutations...); e != nil {
 				return e
 			}
 		}
@@ -165,7 +178,7 @@ func (s *Service) SendStatus(a model.Agent, message, approval, key string) (mode
 			}
 		}
 	}
-	if e != nil || d.AgentID != a.ID || !s.CanChat(&a, d.ChatJID) || a.RunChat != "" && a.RunChat != d.ChatJID {
+	if e != nil || d.AgentID != a.ID || d.FirstContact && !s.canSeeContactDraft(a, d) || !d.FirstContact && (!s.CanChat(&a, d.ChatJID) || a.RunChat != "" && a.RunChat != d.ChatJID) {
 		return model.Draft{}, model.ErrNotFound
 	}
 	if d.Status == "" {
@@ -187,5 +200,5 @@ func (s *Service) SendStatus(a model.Agent, message, approval, key string) (mode
 }
 
 func approvalDraft(a model.Approval) model.Draft {
-	return model.Draft{Upload: a.Upload, AsDocument: a.AsDocument, ID: a.ID, AgentID: a.AgentID, ChatJID: a.ChatJID, FinalText: a.Text, Status: a.Status, MessageID: a.MessageID, ApprovalID: a.ID, State: a.State, SentAt: a.SentAt, DeliveredAt: a.DeliveredAt, ReadAt: a.ReadAt, DeliveredCount: a.DeliveredCount, ReadCount: a.ReadCount, CreatedAt: a.CreatedAt, ExpiresAt: a.ExpiresAt, Attachment: a.Attachment, ReplyTo: a.ReplyTo, Kind: a.Kind}
+	return model.Draft{FirstContactInfo: a.FirstContactInfo, Upload: a.Upload, AsDocument: a.AsDocument, ID: a.ID, AgentID: a.AgentID, ChatJID: a.ChatJID, FinalText: a.Text, Status: a.Status, MessageID: a.MessageID, ApprovalID: a.ID, State: a.State, SentAt: a.SentAt, DeliveredAt: a.DeliveredAt, ReadAt: a.ReadAt, DeliveredCount: a.DeliveredCount, ReadCount: a.ReadCount, CreatedAt: a.CreatedAt, ExpiresAt: a.ExpiresAt, Attachment: a.Attachment, ReplyTo: a.ReplyTo, Kind: a.Kind}
 }

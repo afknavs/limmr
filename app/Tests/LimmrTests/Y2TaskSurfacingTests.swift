@@ -8,6 +8,7 @@ import Testing
     let backend = Y2RecordingBackend()
     let store = AppStore(demo: true, snapshot: true, backend: backend)
     await store.refresh()
+    #expect(TaskPresentation.suggested(store.home.tasks).isEmpty)
     let before = store.history?.days
     let reads = await backend.reads
     let kept = await store.surfaceTask("tsk_cv", action: .keep)

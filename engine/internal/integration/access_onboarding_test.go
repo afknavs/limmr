@@ -460,7 +460,7 @@ func TestProposalFiftyMemberLimitAndOtherAgentIsolation(t *testing.T) {
 		must(t, r.m.PutChat(model.Chat{JID: j, Name: "Invented project", LastMessageTime: &epoch}))
 		chats = append(chats, j)
 	}
-	args := map[string]any{"name": "Project", "kind": "community", "chats": chats[:50], "people": []string{}, "why": "Review"}
+	args := map[string]any{"name": "Project", "kind": "community", "task_override_reason": "Ongoing community across many projects", "chats": chats[:50], "people": []string{}, "why": "Review"}
 	out, e := r.call(t, "propose_circle", args)
 	must(t, e)
 	proposal := out.(model.Proposal)

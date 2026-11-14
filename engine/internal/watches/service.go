@@ -166,7 +166,7 @@ func (s *Service) Suggest(ctx context.Context, r triggers.Record, h triggers.Hit
 }
 func (s *Service) CircleFor(r triggers.Record, chat string) string {
 
-	cs, _ := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, _ := hub.LiveCircles(s.Hub.Repo)
 	a, e := s.Hub.Agent(r.CreatedVia.Agent)
 	for _, preferScoped := range []bool{true, false} {
 		for _, c := range cs {
@@ -214,7 +214,7 @@ func (s *Service) Handle(ctx context.Context, m wa.StoredEvent) error {
 			break
 		}
 	}
-	cs, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return err
 	}
@@ -361,7 +361,7 @@ func (s *Service) Detail(ctx context.Context, id string) (Detail, error) {
 	if a, e := s.Hub.Agent(r.CreatedVia.Agent); e == nil {
 		d.CreatedBy = a.Name
 	}
-	cs, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return d, err
 	}

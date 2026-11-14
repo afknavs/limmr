@@ -12,6 +12,13 @@ import (
 )
 
 type MapNode struct {
+	SharedGroupIDs      []string               `json:"shared_group_ids,omitempty"`
+	NeedsYou            *bool                  `json:"needs_you,omitempty"`
+	NewThisWeek         *bool                  `json:"new_this_week,omitempty"`
+	Messages30          *int                   `json:"messages_30,omitempty"`
+	Closeness           *float64               `json:"closeness,omitempty"`
+	LastContact         *time.Time             `json:"last_contact,omitempty"`
+	FirstSeenAt         *time.Time             `json:"first_seen_at,omitempty"`
 	GroupsInCommonCount int                    `json:"groups_in_common_count,omitempty"`
 	GroupsInCommon      []model.GroupInCommon  `json:"groups_in_common,omitempty"`
 	CircleAffinity      []model.CircleAffinity `json:"circle_affinity,omitempty"`
@@ -90,15 +97,21 @@ func (s *Service) Map() (any, error) { return s.MapSince(time.Time{}) }
 
 // MapSince always returns the complete current graph. Only the event window is
 // incremental, so polling never loses nodes, pending links or summary counts.
-func (s *Service) MapSince(since time.Time) (any, error) { return s.mapView(since, "") }
+func (s *Service) MapSince(since time.Time) (any, error) { return s.mapView(since, "", false) }
 
 // MapFocus loads the complete confirmed membership of one circle for the zoomed view.
-func (s *Service) MapFocus(focus string) (any, error) { return s.mapView(time.Time{}, focus) }
-func (s *Service) mapView(since time.Time, focus string) (any, error) {
+func (s *Service) MapFocus(focus string) (any, error) { return s.mapView(time.Time{}, focus, false) }
+
+// MapMesh is the complete owner-only app projection; the bounded map stays unchanged.
+func (s *Service) MapMesh() (any, error) { return s.mapView(time.Time{}, "", true) }
+func (s *Service) mapView(since time.Time, focus string, full bool) (any, error) {
 	var h, m int64
 	_ = s.Hub.Repo.DB.QueryRow("SELECT value FROM p1_revision WHERE id=1").Scan(&h)
 	_ = s.Hub.Messages.DB.QueryRow("SELECT value FROM p1_revision WHERE id=1").Scan(&m)
 	key := fmt.Sprintf("%d/%d/%d/%s", h, m, s.Hub.Now().Unix()/60, focus)
+	if full {
+		key += "/mesh"
+	}
 	s.shared().mapMu.Lock()
 	defer s.shared().mapMu.Unlock()
 	if key == s.shared().mapKey {
@@ -107,7 +120,7 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 		return out, nil
 	}
 	out := UnderstandingMap{Nodes: []MapNode{}, Edges: []MapEdge{}, Pulses: []MapPulse{}, Events: []MapEvent{}}
-	cs, err := hub.List[model.Circle](s.Hub.Repo, "circles")
+	cs, err := hub.LiveCircles(s.Hub.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +188,7 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 	addNode := func(id, kind, title, circle string) {
 		n := nodes[id]
 		if n == nil {
-			if focus == "" && len(nodes) >= 150 {
+			if !full && focus == "" && len(nodes) >= 150 {
 				return
 			}
 			n = &MapNode{ID: id, Kind: kind, Title: title, Initials: initials(title), Circles: []string{}}
@@ -223,7 +236,7 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 	}
 	if focus == "" {
 		for _, p := range ranked {
-			if len(ps) >= 120 {
+			if !full && len(ps) >= 120 {
 				break
 			}
 			addPerson(p)
@@ -238,6 +251,11 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 		if n := nodes[p.ID]; n != nil {
 			n.GroupsInCommonCount = len(p.GroupsInCommon)
 			n.GroupsInCommon = p.GroupsInCommon[:min(3, len(p.GroupsInCommon))]
+			if full {
+				for _, group := range p.GroupsInCommon {
+					n.SharedGroupIDs = append(n.SharedGroupIDs, group.ID)
+				}
+			}
 			n.CircleAffinity = p.CircleAffinity
 			n.PrimaryCircleID = p.PrimaryCircleID
 			n.HowKnown = p.HowKnown
@@ -265,7 +283,7 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 	}
 	// Chats are represented by people and circles; current chat detail fits the remaining budget.
 	for _, c := range chats {
-		if len(nodes) >= 145 || focus != "" {
+		if (!full && len(nodes) >= 145) || focus != "" {
 			break
 		}
 		if s.Hub.Current(c) && (c.IsGroup || personByJID[c.JID] != "") {
@@ -549,9 +567,12 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 	// Aggregate metadata only: no message content is copied into the map.
 	type volume struct {
 		n, recent int
+		year      int
+		first     time.Time
 		last      time.Time
 	}
 	volumes := map[string]volume{}
+	direct := map[string]volume{}
 	bump := func(id string, at time.Time) {
 		v := volumes[id]
 		if at.After(s.Hub.Now().Add(-30 * 24 * time.Hour)) {
@@ -560,12 +581,19 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 		if at.After(s.Hub.Now().Add(-24 * time.Hour)) {
 			v.recent++
 		}
+		if v.first.IsZero() || at.Before(v.first) {
+			v.first = at
+		}
 		if at.After(v.last) {
 			v.last = at
 		}
 		volumes[id] = v
 	}
-	rows, err := s.Hub.Messages.DB.Query("SELECT chat_jid,sender,timestamp FROM messages WHERE julianday(timestamp)<=julianday(?)", s.Hub.Now())
+	messageWhere := "julianday(timestamp)<=julianday(?)"
+	if full {
+		messageWhere += " AND deleted_at IS NULL"
+	}
+	rows, err := s.Hub.Messages.DB.Query("SELECT chat_jid,sender,timestamp FROM messages WHERE "+messageWhere, s.Hub.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -577,6 +605,21 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 			return nil, err
 		}
 		bump(j, at)
+		if full {
+			if id := personByJID[j]; id != "" {
+				v := direct[id]
+				if at.After(s.Hub.Now().AddDate(0, 0, -30)) {
+					v.n++
+				}
+				if at.After(s.Hub.Now().AddDate(0, 0, -365)) {
+					v.year++
+				}
+				if at.After(v.last) {
+					v.last = at
+				}
+				direct[id] = v
+			}
+		}
 		p := personByJID[j]
 		if p == "" {
 			p = personBySender[sender]
@@ -638,6 +681,28 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 		}
 		n.Weight = float64(v.n) / float64(denominator)
 		n.NewMessages = v.recent
+		if full && n.Kind == "person" {
+			d := direct[n.ID]
+			count := d.n
+			n.Messages30 = &count
+			score := 0.0
+			if !d.last.IsZero() {
+				days := s.Hub.Now().Sub(d.last).Hours() / 24
+				if days < 0 {
+					days = 0
+				}
+				score = float64(1+d.n*4+d.year) / (1 + days/14)
+				at := d.last
+				n.LastContact = &at
+			}
+			n.Closeness = &score
+			fresh := !v.first.IsZero() && !v.first.Before(s.Hub.Now().AddDate(0, 0, -7))
+			n.NewThisWeek = &fresh
+			if !v.first.IsZero() {
+				at := v.first
+				n.FirstSeenAt = &at
+			}
+		}
 		if !v.last.IsZero() {
 			at := v.last
 			n.LastActiveAt = &at
@@ -692,7 +757,9 @@ func (s *Service) mapView(since time.Time, focus string) (any, error) {
 	sort.Slice(out.Nodes, func(i, j int) bool { return out.Nodes[i].ID < out.Nodes[j].ID })
 	sort.Slice(out.Edges, func(i, j int) bool { return out.Edges[i].ID < out.Edges[j].ID })
 	sort.Slice(out.Pulses, func(i, j int) bool { return out.Pulses[i].ID < out.Pulses[j].ID })
-	boundMap(&out)
+	if !full {
+		boundMap(&out)
+	}
 	out.Cursor = "p1." + dbutil.Digest(key)[:16]
 	s.shared().mapKey = key
 	s.shared().mapValue = out

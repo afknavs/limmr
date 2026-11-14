@@ -158,4 +158,9 @@ func TestRemoteOAuthTaskList(t *testing.T) {
 			}
 		})
 	}
+	t.Run("j_controls_via_remote_oauth", func(t *testing.T) {
+		a, err := h.Agent(a.ID)
+		testkit.Must(t, err)
+		exerciseTaskControls(t, h, mc, a, rpc)
+	})
 }

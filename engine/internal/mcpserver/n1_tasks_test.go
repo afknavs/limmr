@@ -18,7 +18,7 @@ func TestN1AgentTaskWithoutChatsOrCircleOnHomeAndAllTasks(t *testing.T) {
 	a, _, err := h.CreateAgent("Example AI", "custom", "local")
 	testkit.Must(t, err)
 	mc := &mcpserver.Service{Hub: h, People: p}
-	out, err := mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "title": "Exam preparation", "kind": "long"})
+	out, err := mc.Call(context.Background(), a.ID, "task", map[string]any{"action": "create", "owner_request": map[string]any{"text": "Please track this work"}, "title": "Exam preparation", "goal": "Be ready for the exam", "kind": "long"})
 	testkit.Must(t, err)
 	task := out.(tasks.Task)
 	if len(task.Chats) != 0 || len(task.CircleIDs) != 0 {

@@ -11,6 +11,9 @@ struct NetworkMapView: View {
   var selected: String? = nil
   var replayEvent: MapEvent? = nil
   var compact = false
+  var paper = false
+  var paperScope = "Everyone"
+  var paperQuery = ""
   var focusesSelection = true
   var namespace: Namespace.ID? = nil
   var onSelect: (CircleMapNode?) -> Void = { _ in }
@@ -27,6 +30,8 @@ struct NetworkMapView: View {
   @State private var hover: String?
   @State private var keyboard = KeyboardSelection()
   @FocusState private var focused: Bool
+  @State private var viewportSize: CGSize?
+  @State private var islandImage: Image?
   @State private var images: [String: Image] = [:]
   private var reduceMotion: Bool { systemReduceMotion || snapshotReduceMotion }
   private var dark: Bool { scheme == .dark }
@@ -34,29 +39,35 @@ struct NetworkMapView: View {
   private var performance: Bool { ProcessInfo.processInfo.arguments.contains("--n1-map-benchmark") }
 
   init(store: AppStore, map: CircleMap, selected: String? = nil, compact: Bool = false,
-       namespace: Namespace.ID? = nil, focusesSelection: Bool = true, replayEvent: MapEvent? = nil, onSelect: @escaping (CircleMapNode?) -> Void = { _ in }) {
+       namespace: Namespace.ID? = nil, focusesSelection: Bool = true, replayEvent: MapEvent? = nil, paper: Bool = false, paperScope: String = "Everyone", paperQuery: String = "", onSelect: @escaping (CircleMapNode?) -> Void = { _ in }) {
+    self.paperScope = paperScope; self.paperQuery = paperQuery
+    self.paper = paper
     self.store = store; self.map = map; self.selected = selected; self.compact = compact
     self.focusesSelection = focusesSelection
     self.namespace = namespace; self.onSelect = onSelect; self.replayEvent = replayEvent
-    let cached = NetworkMapLayoutCache.cached(map) ?? NetworkMapProjection()
+    let cached = NetworkMapLayoutCache.cached(map, paper: paper) ?? NetworkMapProjection()
     _scene = State(initialValue: compact && selected != nil ? PersonNetworkPresentation.miniScene(cached, selected: selected!) : cached)
   }
 
   var body: some View {
     VStack(spacing: 0) {
       accessibleMap
-      if !compact {
+      if !compact && !paper {
         HStack {
           Text("Drag to explore · Pinch to zoom").font(.caption2).foregroundStyle(AccessibleSecondary())
           Spacer(minLength: 8)
           zoomControls
         }.padding(.horizontal, 12).padding(.vertical, 8)
-          .background(Color(nsColor: .controlBackgroundColor))
+          .background(paper ? LimmrTheme.panel : Color(nsColor: .controlBackgroundColor))
       }
-    }.clipShape(RoundedRectangle(cornerRadius: 14))
-      .overlay(RoundedRectangle(cornerRadius: 14).stroke(.primary.opacity(0.08), lineWidth: 1))
+    }.animation(reduceMotion ? nil : .easeInOut(duration:0.2), value:paperScope+paperQuery+(selected ?? "")).clipShape(RoundedRectangle(cornerRadius: 14))
+      .overlay(RoundedRectangle(cornerRadius: 14).stroke(.primary.opacity(paper ? 0 : 0.08), lineWidth: 1))
       .task(id: NetworkMapInput(nodes: map.nodes, edges: map.edges, generation: store.backendGeneration)) {
-        await prepare()
+        await prepare(size: viewportSize)
+      }
+      .onChange(of: selected) { _, value in
+        if value == nil { keyboard.id = nil }
+        if paper, let value, let point = scene.positions[value], let viewportSize, !camera(for:viewportSize).isVisible(point,radius:0) { zoom = 1; pan = .zero }
       }
       .onChange(of: store.backendGeneration) { _, _ in images = [:] }
       .onChange(of: store.avatarData) { old, new in
@@ -69,7 +80,7 @@ struct NetworkMapView: View {
   }
   private var accessibleMap: some View {
     GeometryReader { geometry in surface(size: geometry.size) }
-      .background(Color(nsColor: .controlBackgroundColor))
+      .background(paper ? LimmrTheme.panel : Color(nsColor: .controlBackgroundColor))
       .clipShape(RoundedRectangle(cornerRadius: 14))
       .accessibilityElement(children: .ignore)
       .accessibilityLabel("People network map")
@@ -77,21 +88,32 @@ struct NetworkMapView: View {
       .accessibilityHint("Use the People and Circles lists to navigate. Drag to pan and pinch to zoom.")
       .focusable(!compact).focusEffectDisabled().focused($focused)
       .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow]) { key in
-        keyboard.move(key.key == .leftArrow || key.key == .upArrow ? -1 : 1, in: scene.nodes.filter { $0.kind != "chat" }.map(\.id))
+        if paper {
+          let id = PaperMapNavigation.next(from: keyboard.id ?? selected, dx: key.key == .leftArrow ? -1 : key.key == .rightArrow ? 1 : 0, dy: key.key == .upArrow ? -1 : key.key == .downArrow ? 1 : 0, positions:scene.positions,people:Set(scene.nodes.filter { $0.kind == "person" && $0.id != "me" }.map(\.id)))
+          keyboard.id = id; onSelect(id.flatMap { scene.nodesByID[$0] })
+        } else { keyboard.move(key.key == .leftArrow || key.key == .upArrow ? -1 : 1, in: scene.nodes.filter { $0.kind != "chat" }.map(\.id)) }
         return .handled
       }
       .onKeyPress(keys: [.return, .space]) { _ in
-        guard let id = keyboard.id else { return .ignored }; onSelect(scene.nodesByID[id]); return .handled
+        guard let id = keyboard.id ?? selected else { return .ignored }
+        if paper { store.openPeopleRoute(scene.nodesByID[id]?.kind == "circle" ? .circle(id) : .person(id)) }
+        else { onSelect(scene.nodesByID[id]) }; return .handled
       }
   }
   private var spokenSummary: String {
-    "\(scene.peopleCount) people, \(scene.circleCount) circles" + ((keyboard.id ?? selected).map { ", highlighting \(scene.nodesByID[$0]?.title ?? "person") and their connections" } ?? "")
+    if paper, let node = scene.nodesByID[keyboard.id ?? selected ?? ""] {
+      let circles = scene.meshMemberships[node.id, default: []].compactMap { scene.nodesByID[$0]?.title }.joined(separator:" and ")
+      return node.title + (circles.isEmpty ? "" : ", " + circles) + (node.needsYou == true ? ", needs you" : "")
+    }
+    return "\(scene.peopleCount) people, \(scene.circleCount) circles" + ((keyboard.id ?? selected).map { ", highlighting \(scene.nodesByID[$0]?.title ?? "person") and their connections" } ?? "")
   }
   private func surface(size: CGSize) -> some View {
     let camera = camera(for: size)
     let visible = scene.visible(camera: camera)
     let loadID = String(store.backendGeneration) + ":" + String(camera.showsAvatars) + ":" + visible.map(\.id).joined(separator: ",")
     return drawing(camera: camera, size: size)
+      .task(id: "viewport-\(Int(size.width))-\(Int(size.height))") { if paper { viewportSize = size; await prepare(size: size) } }
+      .task(id: "islands-\(scene.preparationMilliseconds)-\(dark)") { if paper { islandImage = PaperIslandBackground.image(scene:scene,dark:dark) } }
       .contentShape(Rectangle()).clipped()
       .onContinuousHover { phase in
         guard !compact else { return }
@@ -99,6 +121,10 @@ struct NetworkMapView: View {
         case .active(let point): hover = scene.hit(point, camera: camera)
         case .ended: hover = nil
         }
+      }
+      .onTapGesture(count: 2) { (point: CGPoint) in
+        guard paper, let id = scene.hit(point,camera:camera), let node = scene.nodesByID[id] else { return }
+        store.openPeopleRoute(node.kind == "circle" ? .circle(id) : .person(id))
       }
       .onTapGesture { (point: CGPoint) in
         guard !compact else { return }; focused = true
@@ -144,18 +170,26 @@ struct NetworkMapView: View {
   private func drawing(camera: NetworkMapCamera, size: CGSize) -> some View {
       ZStack(alignment: .topLeading) {
         Canvas { context, _ in
+          if paper {
+            let needs = Set(store.taskWorkspaceCache.values.compactMap(\.task).filter(\.needsYou).flatMap { $0.people.map(\.id) })
+            PaperMeshRenderer.draw(context: &context, scene: scene, camera: camera, images: images, selected: selected ?? keyboard.id, needs: needs, newPeople: PaperMesh.newPeople(map, now: store.presentationNow), now: store.presentationNow, islandImage: islandImage, hover: hover, faded: paperFaded)
+          } else {
           NetworkMapRenderer.draw(context: &context, scene: scene, camera: camera, images: images,
             circles: store.circles, dark: dark, active: selected ?? active, selected: selected,
             omitSelected: namespace != nil && selected != nil, compact: compact)
-        }.accessibilityHidden(true)
+          }
+        }.id(paper ? paperScope+paperQuery+(selected ?? "") : "legacy").transition(.opacity).accessibilityHidden(true)
+        if paper, !compact, zoom != 1 || pan != .zero {
+          VStack { Spacer(); HStack { Spacer(); Button("Fit") { zoom = 1; pan = .zero }.buttonStyle(PaperButtonStyle()).padding(8) } }
+        }
         if namespace != nil, let selected, let node = scene.nodesByID[selected], let world = scene.positions[selected] {
           let point = camera.screen(world)
           if camera.isVisible(world, radius: 32) {
-            flightAvatar(node, diameter: compact ? 32 : 44)
+            flightAvatar(node, diameter: compact ? 32 : paper ? 34 : 44)
               .position(point).allowsHitTesting(false).accessibilityHidden(true)
           }
         }
-        if !compact, let id = active, let node = scene.nodesByID[id], let p = scene.positions[id] {
+        if !compact, let id = (paper ? (hover ?? keyboard.id) : active), let node = scene.nodesByID[id], let p = scene.positions[id] {
           let point = camera.screen(p)
           if camera.isVisible(p, radius: 0) {
             Text(node.title).font(.system(size: 12, weight: .semibold)).lineLimit(1)
@@ -173,9 +207,19 @@ struct NetworkMapView: View {
         }
       }
   }
-  private func prepare() async {
-    guard scene.map.nodes != map.nodes || scene.map.edges != map.edges else { return }
-    let value = await NetworkMapLayoutCache.projection(map)
+  private var paperFaded: Set<String> {
+    Set(scene.nodes.filter { node in
+      guard node.kind == "person", node.id != "me" else { return false }
+      let matches = paperQuery.isEmpty || node.title.localizedStandardContains(paperQuery)
+      let week = (node.lastContact ?? node.lastActiveAt).flatMap(Timestamp.date).map { store.presentationNow.timeIntervalSince($0) <= 7*86400 } ?? false
+      let inScope = paperScope == "Everyone" || (paperScope == "Close" ? scene.meshFaces.contains(node.id) : week)
+      return !matches || !inScope
+    }.map(\.id))
+  }
+  private func prepare(size: CGSize? = nil) async {
+    let bucket = NetworkMapLayoutCache.bucket(size, paper: paper)
+    guard scene.map.nodes != map.nodes || scene.map.edges != map.edges || (paper && scene.world != bucket) else { return }
+    let value = await NetworkMapLayoutCache.projection(map, paper: paper, size: bucket)
     guard !Task.isCancelled else { return }
     scene = compact && selected != nil ? PersonNetworkPresentation.miniScene(value, selected: selected!) : value
   }
@@ -207,7 +251,7 @@ struct NetworkMapView: View {
     let generation = store.backendGeneration
     var batch: [String: Image] = [:]
     var published = Date()
-    for (index, node) in nodes.enumerated() where node.kind == "person" && (camera.showsAvatars || scene.peopleCount <= 120) {
+    for (index, node) in nodes.enumerated() where node.kind == "person" && (paper ? scene.meshFaces.contains(node.id) || node.id == selected : camera.showsAvatars || scene.peopleCount <= 120) {
       guard !Task.isCancelled, generation == store.backendGeneration else { return }
       if images[node.id] != nil { continue }
       await store.loadAvatar(node.id)
@@ -302,19 +346,28 @@ private struct NetworkMapInput: Equatable {
   struct Revision: Equatable {
     let nodes: [CircleMapNode]
     let edges: [CircleMapEdge]
-    init(_ map: CircleMap) {
+    let paper: Bool
+    let size: CGSize
+    init(_ map: CircleMap, paper: Bool = false, size: CGSize? = nil) {
+      self.size = NetworkMapLayoutCache.bucket(size, paper: paper)
+      self.paper = paper
       nodes = map.nodes.sorted { $0.id < $1.id }
       edges = map.edges.sorted { $0.key < $1.key }
     }
   }
+  nonisolated static func bucket(_ size: CGSize?, paper: Bool) -> CGSize {
+    guard paper else { return CGSize(width: 1600, height: 1000) }
+    guard let size else { return CGSize(width: 712, height: 430) }
+    return CGSize(width: max(256, floor(size.width)), height: max(256, floor(size.height)))
+  }
   private(set) static var preparations = 0
   static var entries: [(Revision, NetworkMapProjection)] = []
   static var pending: [(Revision, Task<NetworkMapProjection, Never>)] = []
-  static func cached(_ map: CircleMap) -> NetworkMapProjection? {
-    entries.first(where: { $0.0 == Revision(map) })?.1
+  static func cached(_ map: CircleMap, paper: Bool = false, size: CGSize? = nil) -> NetworkMapProjection? {
+    entries.first(where: { $0.0 == Revision(map, paper: paper, size: size) })?.1
   }
-  static func projection(_ map: CircleMap) async -> NetworkMapProjection {
-    let revision = Revision(map)
+  static func projection(_ map: CircleMap, paper: Bool = false, size: CGSize? = nil) async -> NetworkMapProjection {
+    let revision = Revision(map, paper: paper, size: size)
     if let index = entries.firstIndex(where: { $0.0 == revision }) {
       let hit = entries.remove(at: index); entries.append(hit)
       return hit.1
@@ -326,9 +379,13 @@ private struct NetworkMapInput: Equatable {
       preparations += 1
       task = Task.detached(priority: .userInitiated) {
         let start = Date()
-        var layout = UnderstandingLayout()
-        layout.updateNetwork(map: map, size: CGSize(width: 1600, height: 1000))
-        var result = NetworkMapProjection(map: map, positions: layout.positions)
+        var result: NetworkMapProjection
+        if paper { result = PaperMesh.prepare(map, size: revision.size) }
+        else {
+          var layout = UnderstandingLayout()
+          layout.updateNetwork(map: map, size: CGSize(width: 1600, height: 1000))
+          result = NetworkMapProjection(map: map, positions: layout.positions)
+        }
         result.preparationMilliseconds = Date().timeIntervalSince(start) * 1000
         return result
       }
@@ -336,7 +393,7 @@ private struct NetworkMapInput: Equatable {
     }
     let result = await task.value
     pending.removeAll { $0.0 == revision }
-    if cached(map) == nil {
+    if cached(map, paper: paper, size: size) == nil {
       entries.append((revision, result)); if entries.count > 4 { entries.removeFirst() }
     }
     return result

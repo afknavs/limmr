@@ -81,6 +81,19 @@ import Testing
     #expect(HomePresentation.circles([item]).count == 1)
   }
 
+  @Test func archivedHomeRowsStayHiddenEvenWhenPinnedAndBusy() throws {
+    var item = try #require(DemoCircles.home(details: DemoCircles.details, suggestions: [], proposals: []).today.first)
+    item.pinned = true
+    item.openAsks = 8
+    item.newMessages = 120
+    item.circle.confirmed = false
+    #expect(HomePresentation.circles([item]).count == 1)
+    #expect(item.circle.isLive)
+    item.circle.archived = true
+    #expect(HomePresentation.circles([item]).isEmpty)
+    #expect(!item.circle.isLive)
+  }
+
   @Test func greetingUsesLocalBandsIncludingMidnightAndBoundaries() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "Asia/Kolkata")!

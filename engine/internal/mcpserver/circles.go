@@ -23,7 +23,7 @@ func circleCatalog() []Tool {
 		def("catch_up", "Read new messages across visible chats with sender roles. Continue next_page_token until empty; only then cursor advances. Update brief after answering.", "id", "since limit:integer page_token"),
 		def("update_brief", "Write the next version (summary at most 120 words), visible evidence and coverage no later than your caught-up cursor. First brief requires evidence_message_ids. Skip if catch_up returned no messages.", "id summary what_changed", "open_asks:array upcoming:array people_notes:array evidence_message_ids:array covers_until"),
 		def("suggest", "Park a reply/action/reminder on Home for the owner; this does not send.", "circle_id kind why", "chat_jid draft_text voice variations:array"),
-		def("propose_circle", "Propose a few life-now circles (usually 3–6), never one per group/Community. Up to 50 chats and 50 people; at least one chat must be current. At most 8 pending per AI. Returns proposal id; the owner keeps it in Limmr. Then call get_started.", "name kind chats:array people:array why", "goal"),
+		def("propose_circle", "Circles are lasting life areas. Work that ends is a task; a project/event warning needs task_override_reason explaining why it lasts. Propose a few circles, never one per group/Community. Up to 50 chats and 50 people; at least one chat must be current. At most 8 pending per AI. Returns proposal id; the owner keeps it in Limmr. Then call get_started.", "name kind chats:array people:array why", "goal task_override_reason"),
 		def("add_to_circle", "Add current chats or named people to an existing circle, citing their chat names or recent message IDs in why. Own AIs apply directly with Undo; given AIs go to review. Existing owner edits are preserved.", "circle_id chats:array people:array why", ""),
 		def("set_person_role", "Set a person's role in one fully visible circle, attributed to you.", "circle_id person_id role", ""),
 		def("add_topic", "Add a topic spanning visible chats and people in a fully visible circle.", "circle_id title", "status chats:array people:array keywords:array"),
@@ -164,20 +164,12 @@ func (s *Service) callCircle(ctx context.Context, a model.Agent, name string, ar
 		act.Count = 1
 		return x, e
 	case "propose_circle":
-		v := model.Circle{Name: args.str("name"), Kind: args.str("kind"), Goal: args.str("goal")}
+		v := model.Circle{Name: args.str("name"), Kind: args.str("kind"), Goal: args.str("goal"), TaskOverrideReason: args.str("task_override_reason")}
 		for _, j := range stringsArg(args, "chats") {
 			v.Chats = append(v.Chats, model.CircleChat{ChatJID: j})
 		}
 		for _, p := range stringsArg(args, "people") {
 			v.People = append(v.People, model.CirclePerson{PersonID: p, Source: a.ID})
-		}
-		if id, err := c.ProjectTask(a, v, args.str("why")); err != nil {
-			return nil, err
-		} else if id != "" {
-			act.Kind = "summary"
-			act.ChatJIDs = circles.JIDs(v)
-			act.Count = 1
-			return map[string]string{"converted_to_task": id}, nil
 		}
 		v, e := c.Create(&a, v, args.str("why"))
 		act.Kind = "people_write"
@@ -241,6 +233,7 @@ func (s *Service) callCircle(ctx context.Context, a model.Agent, name string, ar
 		sendNow, _ := args["send_now"].(bool)
 		d, e := s.Hub.DraftMessageVariations(ctx, a, args.str("chat"), args.str("text"), args.str("voice"), sendNow, stringsArg(args, "variations"), sendOptions(args))
 		act.Kind = "send_requested"
+		act.FirstContactInfo = d.FirstContactInfo
 		act.OwnerInstruction = d.OwnerInstruction
 		act.QueueForApproval = d.QueueForApproval
 		act.ChatJIDs = []string{d.ChatJID}
@@ -250,6 +243,7 @@ func (s *Service) callCircle(ctx context.Context, a model.Agent, name string, ar
 		phase(ctx, "bridge")
 		d, e := s.Hub.SendDraft(ctx, a, args.str("draft_id"), sendOptions(args))
 		act.Kind = "send_requested"
+		act.FirstContactInfo = d.FirstContactInfo
 		act.OwnerInstruction = d.OwnerInstruction
 		act.QueueForApproval = d.QueueForApproval
 		act.ChatJIDs = []string{d.ChatJID}

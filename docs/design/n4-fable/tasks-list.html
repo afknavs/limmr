@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.tb{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.wrap{display:grid;grid-template-columns:1fr 308px;gap:12px;height:620px}
+.tbl{overflow:hidden}
+.hr,.r{display:grid;grid-template-columns:44px 1.5fr 1.35fr 92px 84px 54px;gap:12px;align-items:center;padding:0 14px}
+.hr{height:32px;font-size:12px;color:var(--ink3);font-weight:600;border-bottom:1px solid var(--line)}
+.sec{height:30px;padding:0 14px;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--ink3)}
+.r{height:75px}.r+.r{border-top:1px solid var(--line)}.r.on{background:var(--surface2)}
+.r .cover{width:44px;height:34px;border-radius:7px}.r b{font-weight:600;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r>span{min-width:0}
+.r .nx{color:var(--ink2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.r .u{color:var(--ink3);font-size:12px;text-align:right}
+.ins{overflow:hidden;display:flex;flex-direction:column}.ins .cover{height:150px}
+.ins .b{padding:14px;display:flex;flex-direction:column;gap:12px;flex:1}
+.ins h3{font-size:17px;font-weight:600}.kv{display:grid;grid-template-columns:76px 1fr;gap:6px 10px;font-size:12px}.kv span:nth-child(odd){color:var(--ink3)}
+.fl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2)}
+</style>
+<body><main>
+<div class="top"><h1>Tasks</h1><span class="sub">2 need you · 3 working · 1 scheduled</span><span class="sp"></span><div class="search" id="s"></div></div>
+<div class="tb"><span class="seg"><span class="on">Open <span class="dim">6</span></span><span>Ended <span class="dim">18</span></span></span><span class="sp"></span><span class="btn" id="f1"></span><span class="btn" id="f2"></span><span class="seg" id="vw"></span></div>
+<div class="wrap"><div class="card tbl" id="tb"></div><div class="card ins" id="in"></div></div>
+</main>
+<script>shell('tasks');s.innerHTML=ic('search')+'Search tasks<kbd>⌘F</kbd>';f1.innerHTML=ic('filter',13)+'All circles';f2.innerHTML=ic('sort',13)+'Last updated';
+vw.innerHTML=`<span>${ic('grid')}Gallery</span><span class="on">${ic('list')}List</span>`;
+const r=(p,n,c,nx,who,d,t,u,on,live)=>`<div class="r${on?' on':''}"><div class="cover" style="background-image:url(assets/p${p}.jpg)"></div><span><b>${n}</b><span class="meta">${c}</span></span><span class="nx">${nx}</span><span class="meta">${who}</span>${steps(d,t,live)}<span class="u">${u}</span></div>`;
+tb.innerHTML=`<div class="hr"><span></span><span>Task</span><span>Next</span><span>Who</span><span>Progress</span><span style="text-align:right">Updated</span></div>
+<div class="sec"><i class="dot need"></i>Needs you · 2</div>${r(2,'Open studio','Design Collective','Choose the poster layout before 4 PM','You',4,5,'12 m')}${r(5,'Research proposal','University','Approve six revised survey questions','You',3,6,'34 m',1)}
+<div class="sec"><i class="dot live"></i>Working now · 3</div>${r(3,'Reading group notes','University','Comparing notes from 3 chats','Codex',2,4,'Now',0,1)}${r(7,'Portfolio review','Design Collective','Checking the project summaries','Claude Code',4,7,'Now',0,1)}${r(11,'Mum’s birthday trip','Family','Collecting dates from everyone','Dot',1,5,'8 m',0,1)}
+<div class="sec">${ic('cal',12)}Scheduled · 1</div>${r(9,'Saturday dinner','Family','Ends after the dinner · table for six','Dot',2,3,'2 h')}
+<div class="sec" style="border-top:1px solid var(--line);height:40px">${ic('check',13)}Ended · 18<span class="sp"></span>${ic('chev',12)}</div>`;
+document.getElementById('in').innerHTML=`<div class="cover" style="background-image:url(assets/p5.jpg)"></div><div class="b"><div><h3>Research proposal</h3><div class="meta" style="margin-top:3px">University · with Isha Sen</div></div>
+<span class="chip need" style="align-self:flex-start"><i class="dot need"></i>Needs you · approve six questions</span>
+<div>${steps(3,6)}<div class="meta dim" style="margin-top:6px">3 of 6 steps done · next is your approval</div></div>
+<div class="kv"><span>Done when</span><span>The survey is sent to the cohort</span><span>Ends</span><span>Fri 13 Nov, then archives itself</span><span>Follows</span><span class="lk">Survey pilot · ended 2 Nov</span><span>People</span><span>${stack([5,9,6],18)}</span></div>
+<div style="border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:7px"><div class="fl">${ic('doc',14)}Survey-draft-v3.pdf</div><div class="fl">${ic('doc',14)}Pilot-checklist.pdf</div><div class="fl">${ic('chat',14)}Stats project · 14 messages</div></div>
+<div class="meta" style="line-height:1.45;border-top:1px solid var(--line);padding-top:10px">“I tightened questions 2 and 5 and dropped the last one.” <span class="dim">— Isha, 11:18</span></div><span class="sp"></span><div class="row"><span class="btn">Open task</span><span class="sp"></span><span class="btn pri">Review</span></div></div>`;
+</script></body>

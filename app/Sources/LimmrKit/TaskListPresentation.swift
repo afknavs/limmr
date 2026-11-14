@@ -1,12 +1,22 @@
 import Foundation
 
 public enum TaskListPresentation {
+  public static func kind(_ value: String) -> String {
+    switch value {
+    case "test": return "Test"
+    case "short": return "Short task"
+    default: return "Ongoing task"
+    }
+  }
   public static func search(_ tasks: [TaskSummary], title: String) -> [TaskSummary] {
     let query = title.trimmingCharacters(in: .whitespacesAndNewlines)
     return query.isEmpty ? tasks : tasks.filter { $0.title.localizedStandardContains(query) }
   }
   public static func active(_ tasks: [TaskSummary]) -> [TaskSummary] {
-    TaskPresentation.open(tasks) + TaskPresentation.suggested(tasks)
+    TaskPresentation.open(tasks)
+  }
+  public static func open(_ tasks: [TaskSummary]) -> [TaskSummary] {
+    tasks.filter { ["active", "waiting", "quiet"].contains($0.status) }
   }
   public static func quiet(_ tasks: [TaskSummary]) -> [TaskSummary] {
     tasks.filter { $0.status == "quiet" }.sorted { ($0.lastActiveAt.flatMap(Timestamp.date) ?? .distantPast) > ($1.lastActiveAt.flatMap(Timestamp.date) ?? .distantPast) }
@@ -19,7 +29,8 @@ public enum TaskListPresentation {
     let reason: String
     switch task.closeReason {
     case "agent_done": reason = "Completed by AI"
-    case "lifespan": reason = "Closed after inactivity"
+    case "obsolete": reason = "No activity"
+    case "lifespan": reason = "Ended: its end time passed"
     case "not_a_task", "suggestion_expired": reason = "Suggestion dismissed"
     case "owner": reason = "Set aside by you"
     default: reason = "Completed"

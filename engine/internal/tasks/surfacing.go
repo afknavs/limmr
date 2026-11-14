@@ -80,23 +80,58 @@ func (s *Service) suggestedEvent(tx *sql.Tx, r record) error {
 	_, err := tx.Exec("INSERT INTO agent_updates(agent,at,kind,ref) SELECT id,?,'task_suggested',? FROM objects WHERE bucket='agents' AND json_extract(data,'$.preset')='own'", s.now().UTC().Format(time.RFC3339Nano), r.ID+":suggested")
 	return err
 }
-func (s *Service) Keep(a *model.Agent, id string) (Task, error) { return s.resolve(a, id, "kept", "") }
+func (s *Service) Keep(a *model.Agent, id string) (Task, error) {
+	return s.resolve(a, id, "kept", "", nil)
+}
 func (s *Service) Dismiss(a *model.Agent, id, reason string) (Task, error) {
 	if !length(reason, 1000) {
 		return Task{}, model.ErrInvalid
 	}
-	return s.resolve(a, id, "not_a_task", reason)
+	return s.resolve(a, id, "not_a_task", reason, nil)
 }
-func (s *Service) resolve(a *model.Agent, id, action, reason string) (Task, error) {
-	if _, err := s.Get(a, id); err != nil {
+func (s *Service) resolve(a *model.Agent, id, action, reason string, ask *AskedByOwner) (Task, error) {
+	current, err := s.Get(a, id)
+	if err != nil {
 		return Task{}, err
 	}
 	if a != nil && !a.Permissions.SaveSummaries {
 		return Task{}, model.ErrForbidden
 	}
-	return s.mutate(nil, id, func(r *record, tx *sql.Tx) error {
+	visible, err := s.visibilitySnapshot(a)
+	if err != nil {
+		return Task{}, err
+	}
+	hidden := s.Hub.HiddenChatAccess()
+	refs := taskMessageRefs(current)
+	if action == "kept" && current.EffortID != "" && s.Efforts != nil {
+		if effort, e := s.Efforts.Get(a, current.EffortID); e == nil {
+			for _, ref := range effort.MessageRefs {
+				if !hasRef(refs, ref) {
+					refs = append(refs, ref)
+				}
+			}
+		}
+	}
+	attachedID := ""
+	result, err := s.mutate(nil, id, func(r *record, tx *sql.Tx) error {
+		if !visible(r.Task) {
+			return model.ErrNotFound
+		}
 		if r.Status != "suggested" {
 			return model.ErrConflict
+		}
+		if action == "kept" {
+			dst, err := s.duplicateTarget(tx, r.Task, visible, false)
+			if err != nil {
+				return err
+			}
+			if dst != nil {
+				if err := s.mergeKeptSuggestion(tx, r, dst, refs, hidden, ask); err != nil {
+					return err
+				}
+				attachedID = dst.ID
+				return nil
+			}
 		}
 		now := s.now()
 		r.UpdatedAt = now
@@ -105,6 +140,7 @@ func (s *Service) resolve(a *model.Agent, id, action, reason string) (Task, erro
 			who = a.ID
 		}
 		if action == "kept" {
+			r.AskedByOwner = ask
 			r.Status = "active"
 			r.ClosedAt = nil
 			r.CloseReason = ""
@@ -126,8 +162,16 @@ func (s *Service) resolve(a *model.Agent, id, action, reason string) (Task, erro
 		if action == "not_a_task" {
 			kind = "dismissed"
 		}
-		return s.event(tx, *r, kind, kind, "Task "+kind, map[string]string{"by": who, "reason": reason})
+		return s.event(tx, *r, kind, kind, ownerRequestLine("Task "+kind, ask), map[string]string{"by": who, "reason": reason})
 	})
+	if err != nil {
+		return Task{}, err
+	}
+	if attachedID != "" {
+		result, err = s.Get(a, attachedID)
+		result.AttachedToExisting = err == nil
+	}
+	return result, err
 }
 
 // Undo is owner-only and checks the archived snapshot before restoring a circle.
@@ -212,10 +256,6 @@ func (s *Service) detect(ctx context.Context) error {
 		return err
 	}
 	people, err := hub.List[model.Person](s.Hub.Repo, "people")
-	if err != nil {
-		return err
-	}
-	memberships, err := hub.List[model.Membership](s.Hub.Repo, "memberships")
 	if err != nil {
 		return err
 	}
@@ -306,6 +346,7 @@ func (s *Service) detect(ctx context.Context) error {
 		var bestCount int
 		text := e.Title + " " + e.Summary
 		days := map[string]bool{}
+		candidateRefs := append([]Ref{}, e.MessageRefs...)
 		for _, ch := range cs {
 			rows, qerr := s.Hub.Messages.DB.Query("SELECT id,COALESCE(content,''),timestamp,is_from_me FROM messages WHERE chat_jid=? AND deleted_at IS NULL AND julianday(timestamp)>=julianday(?) AND julianday(timestamp)<=julianday(?)", ch.ID, s.now().AddDate(0, 0, -14), s.now())
 			if qerr != nil {
@@ -338,6 +379,10 @@ func (s *Service) detect(ctx context.Context) error {
 					inEffort = inEffort || ref.ChatJID == ch.ID && ref.MessageID == m.ID
 				}
 				if inEffort {
+					ref := Ref{ChatJID: ch.ID, MessageID: m.ID}
+					if !hasRef(candidateRefs, ref) {
+						candidateRefs = append(candidateRefs, ref)
+					}
 					text += " " + m.Content
 					if m.IsFromMe && attributed.Author.Type == "owner" {
 						days[m.Timestamp.UTC().Format("2006-01-02")] = true
@@ -400,40 +445,26 @@ func (s *Service) detect(ctx context.Context) error {
 		}
 		title := e.Title
 		if title == "" {
-			person := ""
-			if strings.HasSuffix(cs[0].ID, "@g.us") {
-				others := []string{}
-				for _, m := range memberships {
-					if m.Group == cs[0].ID && m.Person != "me" && names[m.Person] != "" {
-						others = append(others, names[m.Person])
-					}
-				}
-				if len(others) == 1 {
-					person = others[0]
-				}
-			} else if n := byChat[cs[0].ID].Name; n != "" && !strings.HasPrefix(n, "+") {
-				person = n
+			if word != "" {
+				title = suggestedTitle("Shared work", "", word)
+			} else {
+				title = "Review shared work"
 			}
-			title = suggestedTitle(byChat[cs[0].ID].Name, person, word)
 		}
+		title = strings.Join(strings.Fields(title)[:min(5, len(strings.Fields(title)))], " ")
 		sig := Suggestion{Signals: signals, Confidence: min(1, score), DetectedAt: s.now(), EffortIDs: []string{}}
 		if e.ID != "" {
 			sig.EffortIDs = append(sig.EffortIDs, e.ID)
 		}
-		in := Create{Title: short(title, 60), Kind: "long", EffortID: e.ID, Chats: cs, People: mergeEntities(e.People, chatContext.peopleFor(cs))}
-		blocked, berr := s.covered(Task{Title: in.Title, Chats: cs, EffortID: e.ID, Suggestion: &sig})
+		in := Create{Title: short(title, 60), Kind: "long", EffortID: e.ID, Chats: cs, People: mergeEntities(e.People, chatContext.peopleFor(cs)), evidenceRefs: candidateRefs}
+		blocked, berr := s.covered(Task{Title: in.Title, Goal: in.Title, Chats: cs, People: in.People, EffortID: e.ID, Suggestion: &sig, EvidenceRefs: candidateRefs})
 		if berr != nil {
 			return berr
 		}
 		if blocked {
 			continue
 		}
-		auto := sender != nil && s.mayAutomate(ctx)
-		var actor *model.Agent
-		if auto {
-			actor = sender
-		}
-		if _, err = s.create(actor, in, &sig, auto); err != nil {
+		if _, err = s.Suggest(nil, in, sig); err != nil {
 			return err
 		}
 	}
@@ -444,34 +475,6 @@ func (s *Service) covered(t Task) (bool, error) {
 	xs, err := s.records()
 	if err != nil {
 		return false, err
-	}
-	for _, r := range xs {
-		if !open(r.Task) && r.Status != "suggested" {
-			// Do not re-suggest work just dismissed or completed from the same
-			// old conversation. A genuinely newer chat can surface work again.
-			same := t.EffortID != "" && r.EffortID == t.EffortID
-			if topic(t.Title) == topic(r.Title) {
-				for _, a := range t.Chats {
-					for _, b := range r.Chats {
-						same = same || a.ID == b.ID
-					}
-				}
-			}
-			if same && r.ClosedAt != nil && !s.latestActivity(r.Task).After(*r.ClosedAt) {
-				return true, nil
-			}
-			continue
-		}
-		if t.EffortID != "" && r.EffortID == t.EffortID {
-			return true, nil
-		}
-		for _, a := range t.Chats {
-			for _, b := range r.Chats {
-				if a.ID == b.ID {
-					return true, nil
-				}
-			}
-		}
 	}
 	keys := dismissalKeys(t)
 	sort.Strings(keys)
@@ -484,30 +487,52 @@ func (s *Service) covered(t Task) (bool, error) {
 			return true, nil
 		}
 	}
+	// Match open tasks before suggestions, and before legacy closed-work suppression.
+	for _, suggestions := range []bool{false, true} {
+		for _, r := range xs {
+			eligible := duplicateOpen(r.Task)
+			if suggestions {
+				eligible = r.Status == "suggested"
+			}
+			if eligible && !r.Purged && !s.deadlinePassed(r.Task) && duplicate(t, r.Task) {
+				return true, s.attachDetected(t, r.ID)
+			}
+		}
+	}
+	// Coverage is chat-based, independent of the detector's guessed title.
+	// Do not mutate existing records when these suppression rules match.
+	if detectorChatsCovered(t.Chats, xs) {
+		return true, nil
+	}
+	for _, r := range xs {
+		if duplicateOpen(r.Task) || r.Status == "suggested" {
+			continue
+		}
+		// Preserve suppression of completed/dismissed old conversations. A
+		// genuinely newer chat can still surface work as before.
+		same := t.EffortID != "" && r.EffortID == t.EffortID
+		if topic(t.Title) == topic(r.Title) {
+			for _, a := range t.Chats {
+				for _, b := range r.Chats {
+					same = same || a.ID == b.ID
+				}
+			}
+		}
+		if same && r.ClosedAt != nil && !s.latestActivity(r.Task).After(*r.ClosedAt) {
+			return true, nil
+		}
+	}
+
 	return false, nil
 }
 
-// SuggestForAgent is for trusted activity detection and invented demo fixtures.
-// A denied lease still surfaces a suggestion but cannot start tracking automatically.
+// SuggestForAgent records detected work without promoting it, regardless of lease.
 func (s *Service) SuggestForAgent(ctx context.Context, a *model.Agent, in Create, sig Suggestion) (Task, error) {
 	if a == nil || a.Preset != "own" {
 		return Task{}, model.ErrForbidden
 	}
-	auto := s.mayAutomate(ctx)
-	if !auto {
-		return s.Suggest(nil, in, sig)
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
 	}
-	return s.create(a, in, &sig, true)
-}
-
-// mayAutomate asks the task-level hook first (tests), then the sync lease on the hub.
-// An engine that has never paired holds its own lease, so both default to true.
-func (s *Service) mayAutomate(ctx context.Context) bool {
-	if s.MayRunAutomations != nil {
-		return s.MayRunAutomations(ctx)
-	}
-	if s.Hub != nil && s.Hub.MayRunAutomations != nil {
-		return s.Hub.MayRunAutomations(ctx)
-	}
-	return true
+	return s.Suggest(a, in, sig)
 }

@@ -1,6 +1,13 @@
 import Foundation
 
 public struct CircleMapNode: Codable, Identifiable, Sendable, Equatable {
+  public var sharedGroupIds: [String]? = nil
+  public var needsYou: Bool? = nil
+  public var newThisWeek: Bool? = nil
+  public var messages30: Int? = nil
+  public var closeness: Double? = nil
+  public var lastContact: String? = nil
+  public var firstSeenAt: String? = nil
   public var id: String
   public var kind: String
   public var title: String

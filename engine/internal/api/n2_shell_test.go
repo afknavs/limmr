@@ -26,6 +26,9 @@ func TestN2TasksAndHomeReturnSameSafeCoverCandidate(t *testing.T) {
 	testkit.Must(t, png.Encode(&pixels, image.NewRGBA(image.Rect(0, 0, 80, 100))))
 	_, err = h.Messages.DB.Exec("UPDATE messages SET preview_thumbnail=? WHERE id='new-photo'", pixels.Bytes())
 	testkit.Must(t, err)
+	// Explicit owner selection; a post-creation chat photo cannot replace the default.
+	_, err = h.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json(?),'$.cover_item_id','picked') WHERE id=?", `[{"id":"picked","kind":"file","media_type":"image","message_ref":{"chat_jid":"`+testkit.Phone+`","message_id":"new-photo"}}]`, task.ID)
+	testkit.Must(t, err)
 	server := &Server{Hub: h, People: p, MCP: mc, Link: link, Port: 18888, ControlToken: "invented-n2-control"}
 	handler := server.Handler()
 	get := func(path, token string) *httptest.ResponseRecorder {
@@ -80,7 +83,10 @@ func TestN2TasksAndHomeReturnSameSafeCoverCandidate(t *testing.T) {
 	settings := h.Settings()
 	settings.HiddenChats = []string{testkit.Phone}
 	testkit.Must(t, h.SetSettings(settings))
-	if get(candidate.ThumbnailURL, "invented-n2-control").Code != 404 {
-		t.Fatal("hidden source preview still available")
+	fallback := get(candidate.ThumbnailURL, "invented-n2-control")
+	var safe struct{ Path string }
+	testkit.Must(t, json.Unmarshal(fallback.Body.Bytes(), &safe))
+	if fallback.Code != 200 || safe.Path == preview.Path || !strings.Contains(safe.Path, "/task-") {
+		t.Fatal("hidden source did not use stable fallback")
 	}
 }

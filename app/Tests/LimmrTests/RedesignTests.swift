@@ -37,8 +37,8 @@ struct RedesignTests {
   }
 
   @Test func windowFitsSmallLaptop() {
-    #expect(WindowMetrics.minimumWidth == 760)
-    #expect(WindowMetrics.minimumHeight == 520)
+    #expect(WindowMetrics.minimumWidth == 900)
+    #expect(WindowMetrics.minimumHeight == 600)
     #expect(WindowMetrics.defaultWidth == 1100)
     #expect(WindowMetrics.defaultHeight == 740)
   }

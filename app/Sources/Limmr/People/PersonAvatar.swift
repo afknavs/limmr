@@ -9,6 +9,8 @@ struct PersonAvatar: View {
   let name: String
   var size: CGFloat = 32
   var icon: EntityIcon? = nil
+  /// Disc colour behind initials and symbols; covers pass a lighter paper so the disc reads on surface2.
+  var fill: Color = LimmrTheme.surface2
   @Environment(\.colorScheme) private var scheme
   @Environment(\.colorSchemeContrast) private var contrast
   private var chosenIcon: EntityIcon? { icon ?? store.people.first { $0.id == id }?.icon }
@@ -27,11 +29,11 @@ struct PersonAvatar: View {
       } else if let icon = chosenIcon {
         Group {
           if (icon.kind == "emoji" || icon.kind == "monogram") { Text(icon.value) } else { Image(systemName: icon.value) }
-        }.font(.system(size: size * 0.44, weight: .medium)).foregroundStyle(NetworkMapStyle.color(0x1D1D20))
+        }.font(.system(size: size * 0.44, weight: .medium)).foregroundStyle(LimmrTheme.ink2)
           .frame(width: size, height: size).background(background)
       } else if Self.initials(name).isEmpty {
         Image(systemName: id.hasSuffix("@g.us") ? "person.2.fill" : "person.fill")
-          .font(.system(size: size * (id.hasSuffix("@g.us") ? 0.4 : 0.5))).foregroundStyle(NetworkMapStyle.color(0x1D1D20))
+          .font(.system(size: size * (id.hasSuffix("@g.us") ? 0.4 : 0.5))).foregroundStyle(LimmrTheme.ink2)
           .offset(y: id.hasSuffix("@g.us") ? 0 : size * 0.06)
           .frame(width: size, height: size).background(background)
       } else {
@@ -42,7 +44,7 @@ struct PersonAvatar: View {
             let font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: size * 0.4) } ?? base
             let text = NSAttributedString(string: Self.initials(name), attributes: [
               NSAttributedString.Key(kCTFontAttributeName as String): font,
-              NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor(calibratedRed: 29/255, green: 29/255, blue: 32/255, alpha: 1).cgColor])
+              NSAttributedString.Key(kCTForegroundColorAttributeName as String): NSColor(LimmrTheme.ink2).cgColor])
             let line = CTLineCreateWithAttributedString(text)
             let glyphs = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
             cg.translateBy(x: dimensions.width / 2 - glyphs.midX, y: dimensions.height / 2 + glyphs.midY)
@@ -67,7 +69,7 @@ struct PersonAvatar: View {
     }
   }
   /// Stable soft initial tile shared with the map; AvatarTint provides high-contrast ink.
-  private var background: Color { NetworkMapStyle.color(AvatarTint.rgb(id: id)) }
+  private var background: Color { fill }
 
 }
 

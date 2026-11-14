@@ -66,7 +66,7 @@ func Catalog() []Tool {
 	read := union("read", "Read messages and chat metadata. chat: chat_jid, limit/offset (newest first); around: chat_jid,message_id,radius 0..50; since: id (circle/topic; omit=all), since/cursor RFC3339, page_token. Follow next_page_token; inspect author.type.", "mode", "list_messages", "get_message_context", "catch_up")
 	choice(&read, "mode", "chat", "around", "since")
 	read.InputSchema["properties"].(map[string]any)["cursor"] = map[string]any{"type": "string"}
-	get := def("get", "Read one entity. kind=person|circle|group uses id; owner_profile needs no id; summaries uses id=chat JID and optional limit.", "kind", "id limit:integer")
+	get := def("get", "Read kind=person|circle|group by id; owner_profile needs no id; summaries: id=chat JID, optional limit.", "kind", "id limit:integer")
 	choice(&get, "kind", "person", "circle", "group", "owner_profile", "summaries")
 	people := union("people", "near: focus,depth,limit for graph neighbours; to_understand: frequent contacts missing context. Owner reviews proposals.", "view", "people_near")
 	choice(&people, "view", "near", "to_understand")
@@ -77,23 +77,23 @@ func Catalog() []Tool {
 	rp["relation_kind"] = map[string]any{"type": "string"}
 	rp["fields"] = map[string]any{"anyOf": []any{old["update_person"].InputSchema["properties"].(map[string]any)["fields"], old["update_owner_profile"].InputSchema["properties"].(map[string]any)["fields"]}}
 	choice(&remember, "kind", "fact", "relation", "person_update", "role", "owner_profile", "summary", "topic_add", "topic_update")
-	cs := union("circles", "list; propose: name,kind,chats,people,why,goal?; add/update: circle_id,chats,people,why (additive). Current chats; merge half-overlap. Own AIs: Undo; given AIs: review.", "action", "list_circles", "propose_circle", "add_to_circle")
+	cs := union("circles", "list; propose: name,kind,chats,people,why,goal?,task_override_reason?; add/update: circle_id,chats,people,why (additive). Current chats; merge half-overlap. Own AIs: Undo; given AIs: review.", "action", "list_circles", "propose_circle", "add_to_circle")
 	choice(&cs, "action", "list", "propose", "add", "update")
-	send := union("send", "Send text, file or react={emoji,message_id}. Own AIs quote owner_instruction; otherwise confirm returns final_text for consent. queue_for_approval only for requested review; draft_only never sends; draft_id sends a draft. One source: attachment_id|content_text|content_base64|url|file|path (local only); documents 100 MiB, images/video/audio 16 MiB, inline base64 8 MiB decoded. filename and as_document optional (needs: sending).", "", "send_message", "send_file", "send_draft")
+	send := union("send", "Send text/file or react={emoji,message_id}. recipient=chat|person id|phone. New: readable-group member or own quoted number; Limmr approval unless own local foreground quote names them. Own AIs: owner_instruction quote; else confirm final_text for consent. queue_for_approval=requested review; draft_only=never send; draft_id=send draft. One source: attachment_id|content_text|content_base64|url|file|path (local only). Documents 100 MiB; image/video/audio 16 MiB; decoded base64 8 MiB. filename,as_document optional (needs: sending).", "", "send_message", "send_file", "send_draft")
 	sp := send.InputSchema["properties"].(map[string]any)
 	delete(sp, "voice")
 	delete(sp, "signed")
 	sp["draft_only"] = map[string]any{"type": "boolean"}
 	sp["react"] = map[string]any{"type": "object", "properties": map[string]any{"emoji": map[string]any{"type": "string"}, "message_id": map[string]any{"type": "string"}}, "required": []string{"emoji", "message_id"}, "additionalProperties": false}
 	fileSchema(&send)
-	status := union("send_status", "Check status without sending; supply exactly one of upload_id, message_id, approval_id or key.", "", "get_send_status")
+	status := union("send_status", "Status, never sends: exactly one of upload_id|message_id|approval_id|key.", "", "get_send_status")
 	watch := union("watch", "Explicit grant_text; ask Allow. create: goal,grant_text,scope,match,watch_action; list; update: id,instruction?|digest?|status?|escalate?; stop: id; handoff_start: goal,grant_text,scope,runner,chat_jid; handoff_stop: id. Quiet hours/budgets apply.", "action", "create_watch", "list_watches", "update_watch", "stop_watch", "start_handoff", "stop_handoff")
 	watch.InputSchema["properties"].(map[string]any)["watch_action"] = map[string]any{"type": "string"}
 	choice(&watch, "action", "create", "list", "update", "stop", "handoff_start", "handoff_stop")
 	more := def("more", "{} lists rare action schemas, including efforts.*. {action,args} executes one; permissions and cached aliases remain supported.", "", "action args:object")
 	more.InputSchema["properties"].(map[string]any)["args"] = map[string]any{"type": "object", "additionalProperties": true}
 	who := old["whoami"]
-	who.Description = "Call first: identity, permissions, connection health and setup. Then scan chats."
+	who.Description = "Call first: identity, permissions, connection health, setup; then scan chats."
 	xs := []Tool{who, old["get_updates"], old["get_digest"], find, read, old["scan_chats"], get, people, brief, remember, cs, send, status, old["upload_attachment"], old["notify_me"], old["download_media"], watch, old["suggest"], more, taskTool()}
 	for i := range xs {
 		if isJob(xs[i].Name) {
@@ -111,9 +111,9 @@ func Catalog() []Tool {
 		case "notify_me":
 			xs[i].Description = "Notify owner on WhatsApp as this AI (needs: sending). Stable key required. Optional file source; as_document forces document. Uses You circle rules."
 		case "download_media":
-			xs[i].Description = "Download visible media (needs: media downloads). Local: path; remote: single-use download_url, valid 15 minutes."
+			xs[i].Description = "Visible media (needs: media downloads). Local path; remote single-use download_url expires in 15 minutes."
 		case "upload_attachment":
-			xs[i].Description = "Upload: local path or remote chunks (needs: sending). Documents 100 MiB; images/video/audio 16 MiB; inline base64 8 MiB decoded. Larger: link. Start chunks: filename,total_size,chunk_count,chunk_index,content_base64 (<=1 MiB encoded); continue: upload_id,chunk_index,content_base64. upload_id alone checks status. Expires after 1 hour; 4 active per AI, 256 MiB reserved. Send returned attachment_id."
+			xs[i].Description = "Upload local path/remote chunks (needs: sending). Documents 100 MiB; images/video/audio 16 MiB; inline base64 8 MiB decoded. Larger: link. Start chunks: filename,total_size,chunk_count,chunk_index,content_base64 (<=1 MiB encoded); continue: upload_id,chunk_index,content_base64. upload_id alone checks status. Expires in 1 hour; 4 active per AI, 256 MiB reserved. Send returned attachment_id."
 		}
 		if xs[i].Name == "send" || xs[i].Name == "notify_me" {
 			xs[i].Description += " During updates, retry the tool error after a minute."
@@ -436,7 +436,28 @@ func (s *Service) findJob(ctx context.Context, a model.Agent, args Args, act *mo
 	if len(messages) > 0 {
 		act.Count = len(messages)
 	}
-	return map[string]any{"candidates": candidates, "messages": messages, "needs_clarification": clarify}, nil
+	// Keep the established candidate fields and add a bounded, permission-checked
+	// member identity. It contains no private profile or unrelated memberships.
+	type contactCandidate struct {
+		circles.Candidate
+		Contact *model.ContactPerson `json:"contact,omitempty"`
+		Group   *model.ContactGroup  `json:"group,omitempty"`
+	}
+	enriched := make([]contactCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		item := contactCandidate{Candidate: candidate}
+		if candidate.Kind == "person" {
+			info, err := s.Hub.ContactMember(a, candidate.ID)
+			if err != nil && err != model.ErrNotFound {
+				return nil, err
+			}
+			if err == nil {
+				item.Contact, item.Group = info.FirstContactPerson, info.FirstContactGroup
+			}
+		}
+		enriched = append(enriched, item)
+	}
+	return map[string]any{"candidates": enriched, "messages": messages, "needs_clarification": clarify}, nil
 }
 
 func (s *Service) sendJob(ctx context.Context, a model.Agent, args Args, act *model.Activity) (any, error) {
@@ -501,6 +522,7 @@ func (s *Service) sendJob(ctx context.Context, a model.Agent, args Args, act *mo
 	options.DraftOnly = true
 	d, e := s.Hub.DraftSendKey(ctx, a, kind, args.str("recipient"), fields.str("text"), "", reply, attachment, args.str("key"), options)
 	act.Kind = "send_requested"
+	act.FirstContactInfo = d.FirstContactInfo
 	act.ChatJIDs = []string{d.ChatJID}
 	act.Count = 1
 	act.OwnerInstruction = d.OwnerInstruction

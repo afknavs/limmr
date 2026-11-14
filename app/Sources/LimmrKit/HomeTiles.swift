@@ -53,7 +53,7 @@ public enum HomeTiles {
                          uniquingKeysWith: { _, current in current })
     let hidden = Set(efforts.filter(\.hidden).map(\.id))
     return Array(all.values.compactMap { circle -> HomeCircleTile? in
-      guard circle.confirmed else { return nil }
+      guard circle.confirmed && circle.isLive else { return nil }
       let today = home.circles.first { $0.id == circle.id }
       let pinned = circle.pinned || today?.pinned == true
       guard pinned || circle.kind != "self" else { return nil }
@@ -169,7 +169,7 @@ public enum HomeTiles {
   public static func needsOtherTile(count: Int) -> Bool { count == 0 || !count.isMultiple(of: 2) }
   public static func otherCircles(circles: [Circle], tiles: [HomeCircleTile]) -> [Circle] {
     let shown = Set(tiles.map(\.id))
-    return circles.filter { $0.confirmed && !shown.contains($0.id) }.sorted { $0.name == $1.name ? $0.id < $1.id : $0.name < $1.name }
+    return circles.filter { $0.confirmed && $0.isLive && !shown.contains($0.id) }.sorted { $0.name == $1.name ? $0.id < $1.id : $0.name < $1.name }
   }
   public static func rows(count: Int) -> [[Int]] {
     guard count > 0 else { return [] }

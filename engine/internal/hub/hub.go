@@ -34,6 +34,7 @@ type Service struct {
 	parent             *Service
 	Repo               *Repo
 	Messages           *wa.Store
+	Recipients         wa.RecipientResolver
 	Messenger          Messenger
 	Home               string
 	Now                func() time.Time
@@ -58,6 +59,10 @@ func New(r *Repo, m *wa.Store, home string) *Service {
 func (s *Service) Settings() model.Settings {
 	var v model.Settings
 	_ = s.Repo.Get("settings", "main", &v)
+	if v.FirstContactLimit == nil {
+		limit := 5
+		v.FirstContactLimit = &limit
+	}
 	if v.CurrentDays == 0 {
 		v.CurrentDays = 180
 	}
@@ -69,6 +74,12 @@ func (s *Service) Settings() model.Settings {
 func (s *Service) SetSettings(v model.Settings) error {
 	s.shared().mu.Lock()
 	defer s.shared().mu.Unlock()
+	if v.FirstContactLimit == nil {
+		v.FirstContactLimit = s.Settings().FirstContactLimit
+	}
+	if v.FirstContactLimit != nil && (*v.FirstContactLimit < 0 || *v.FirstContactLimit > 100) {
+		return model.ErrInvalid
+	}
 	if v.AccessoryCue.Color != "" && !regexp.MustCompile(`^#[0-9a-fA-F]{6}$`).MatchString(v.AccessoryCue.Color) {
 		return model.ErrInvalid
 	}
@@ -286,7 +297,7 @@ func (s *Service) ChatAccess(a *model.Agent) func(string) bool {
 			for _, chat := range c.Chats {
 				j := canonical(chat.ChatJID)
 				sorted[j] = true
-				if p.Access.AllowsCircle(c.ID) {
+				if c.Live() && p.Access.AllowsCircle(c.ID) {
 					granted[j] = true
 				}
 			}
@@ -383,7 +394,7 @@ func (s *Service) Expire() error {
 			if e = s.Repo.Put("approvals", a.ID, a); e != nil {
 				return e
 			}
-			if e = s.recordUnlocked(model.Activity{AgentID: a.AgentID, Tool: "approval", Kind: "expired", ChatJIDs: []string{a.ChatJID}}); e != nil {
+			if e = s.recordUnlocked(model.Activity{FirstContactInfo: a.FirstContactInfo, AgentID: a.AgentID, Tool: "approval", Kind: "expired", ChatJIDs: []string{a.ChatJID}}); e != nil {
 				return e
 			}
 		}
@@ -413,8 +424,11 @@ func (s *Service) Decide(ctx context.Context, id string, approve bool, text *str
 	if !s.Now().Before(a.ExpiresAt) {
 		a.State = "expired"
 		_ = s.Repo.Put("approvals", id, a)
-		_ = s.recordUnlocked(model.Activity{AgentID: a.AgentID, Tool: "approval", Kind: "expired", ChatJIDs: []string{a.ChatJID}})
+		_ = s.recordUnlocked(model.Activity{FirstContactInfo: a.FirstContactInfo, AgentID: a.AgentID, Tool: "approval", Kind: "expired", ChatJIDs: []string{a.ChatJID}})
 		return a, model.ErrConflict
+	}
+	if a.FirstContact {
+		return s.decideFirstContact(ctx, a, approve, text, reason)
 	}
 	if !approve {
 		a.State = "denied"

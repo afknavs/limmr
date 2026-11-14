@@ -16,20 +16,24 @@ func superellipse(_ r: NSRect) -> NSBezierPath {
 func rgb(_ hex: UInt32) -> NSColor {
     NSColor(srgbRed: CGFloat(hex >> 16 & 0xff) / 255, green: CGFloat(hex >> 8 & 0xff) / 255, blue: CGFloat(hex & 0xff) / 255, alpha: 1)
 }
-func drawConductor(side: CGFloat) {
+func drawConductor(side: CGFloat, dark: Bool = false) {
     let inset = side * 100 / 1024, body = NSRect(x: inset, y: inset, width: side - 2 * inset, height: side - 2 * inset)
     let tile = superellipse(body)
     NSGraphicsContext.saveGraphicsState()
     let shadow = NSShadow()
-    shadow.shadowColor = NSColor(white: 0, alpha: 0.22); shadow.shadowBlurRadius = side * 0.02; shadow.shadowOffset = NSSize(width: 0, height: -side * 0.009)
-    shadow.set(); rgb(0xF4EFE7).setFill(); tile.fill()
+    shadow.shadowColor = NSColor(white: 0, alpha: dark ? 0 : 0.22); shadow.shadowBlurRadius = side * 0.02; shadow.shadowOffset = NSSize(width: 0, height: -side * 0.009)
+    shadow.set(); rgb(dark ? 0x2B2927 : 0xF4EFE7).setFill(); tile.fill()
     NSGraphicsContext.restoreGraphicsState()
-    NSGradient(starting: rgb(0xFCFAF6), ending: rgb(0xF3EEE5))!.draw(in: tile, angle: -90)
+    NSGradient(starting: rgb(dark ? 0x2B2927 : 0xFCFAF6), ending: rgb(dark ? 0x191817 : 0xF3EEE5))!.draw(in: tile, angle: -90)
+    if dark {
+      NSColor.white.withAlphaComponent(0.09).setStroke()
+      tile.lineWidth = side * 0.008; tile.stroke()
+    }
     let b = body.width
     func box(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> NSRect {
         NSRect(x: body.minX + x0 * b, y: body.minY + y0 * b, width: (x1 - x0) * b, height: (y1 - y0) * b)
     }
-    let r = b * 0.036, fillet = b * 0.03, ink = rgb(0x141413)
+    let r = b * 0.036, fillet = b * 0.03, ink = rgb(dark ? 0xF4EFE7 : 0x141413)
     ink.setFill()
     for part in [box(0.229, 0.250, 0.411, 0.878), box(0.178, 0.122, 0.822, 0.300), box(0.633, 0.122, 0.822, 0.533)] {
         NSBezierPath(roundedRect: part, xRadius: r, yRadius: r).fill()
@@ -48,8 +52,12 @@ func drawConductor(side: CGFloat) {
     rgb(0xF4461F).setFill()
     NSBezierPath(roundedRect: box(0.496, 0.589, 0.733, 0.822), xRadius: b * 0.02, yRadius: b * 0.02).fill()
 }
+guard CommandLine.arguments.count >= 2 else {
+    fputs("Usage: swift icon.swift <directory> [--dark] [--png-only]\n", stderr); exit(2)
+}
+let dark = CommandLine.arguments.contains("--dark")
 let directory = URL(fileURLWithPath: CommandLine.arguments[1])
-let iconset = directory.appendingPathComponent("Limmr.iconset")
+let iconset = directory.appendingPathComponent(dark ? "Limmr-dark.iconset" : "Limmr.iconset")
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 for points in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
@@ -57,11 +65,12 @@ for points in [16, 32, 128, 256, 512] {
         let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: size * 4, bitsPerPixel: 32)!
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-        drawConductor(side: CGFloat(size))
+        drawConductor(side: CGFloat(size), dark: dark)
         NSGraphicsContext.restoreGraphicsState()
         try bitmap.representation(using: .png, properties: [:])!.write(to: iconset.appendingPathComponent("icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"))
     }
 }
+if !CommandLine.arguments.contains("--png-only") {
 // PNG-backed ICNS chunks avoid iconutil's external image-conversion service.
 var chunks = Data()
 func bigEndian(_ value: Int) -> Data {
@@ -74,4 +83,6 @@ for (type, name) in [("icp4", "icon_16x16.png"), ("icp5", "icon_32x32.png"), ("i
 }
 var icns = Data("icns".utf8)
 icns.append(bigEndian(chunks.count + 8)); icns.append(chunks)
-try icns.write(to: directory.appendingPathComponent("Limmr.icns"), options: .atomic)
+try icns.write(to: directory.appendingPathComponent(dark ? "Limmr-dark.icns" : "Limmr.icns"), options: .atomic)
+
+}

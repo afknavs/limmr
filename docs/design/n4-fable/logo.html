@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+body{display:grid;grid-template-columns:1fr 1fr;font-family:Figtree,-apple-system}
+.h{height:800px;padding:44px 48px;display:flex;flex-direction:column;gap:28px}
+.l{background:#EFEBE4;color:#141413}.d{background:#141413;color:#F4EFE7}
+.h h5{font-size:12px;font-weight:600;opacity:.55}
+.big{display:flex;align-items:flex-end;gap:28px}.big figure{display:flex;flex-direction:column;gap:10px;font-size:12px;opacity:1}.big figcaption{opacity:.55}
+.sizes{display:flex;align-items:flex-end;gap:20px}
+.word{display:flex;align-items:center;gap:14px;font-size:34px;font-weight:700;letter-spacing:-.02em}
+.dock{display:flex;gap:12px;padding:10px 14px;border-radius:22px;align-self:flex-start}
+.l .dock{background:rgba(255,255,255,.6)}.d .dock{background:rgba(255,255,255,.08)}
+.dock i{width:56px;height:56px;border-radius:13px;display:block}
+.use{display:flex;gap:10px;align-items:center;font-size:14px;font-weight:500}
+.sq{width:10px;height:10px;border-radius:2.500px;background:#F4461F;display:inline-block}
+.pill{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:600}
+.l .pill{background:rgba(20,20,19,.07)}.d .pill{background:rgba(244,239,231,.1)}
+</style>
+<body>
+<div class="h l" id="L"></div><div class="h d" id="D"></div>
+<script>
+const half=(d)=>{const ink=d?'#F4EFE7':'#141413';const m=(s)=>`<svg width="${s}" height="${s}" viewBox="12 8 76 84">${GLY(ink)}</svg>`;
+return `<h5>${d?'Dark mode — new':'Light mode — your logo, unchanged'}</h5>
+<div class="big">${d?'':`<figure><img src="assets/limmr-icon-512.png" width="206" height="206" style="margin:-19px"><figcaption>The app icon today</figcaption></figure>`}<figure>${appicon(168,d)}<figcaption>${d?'Dark icon: same L, same orange square, charcoal tile':'Redrawn as vector, same shapes'}</figcaption></figure>${d?`<figure>${appicon(168,0)}<figcaption>Light icon, for comparison</figcaption></figure>`:''}</div>
+<h5>Small sizes</h5><div class="sizes">${[64,40,28,18].map(s=>appicon(s,d)).join('')}</div>
+<h5>In the app: the mark without its tile</h5><div class="word">${m(40)}Limmr</div>
+<h5>The orange square becomes the one colour that means “this needs you”</h5>
+<div class="use"><span class="pill"><i class="sq"></i>Needs you · 2</span><span class="pill">Tasks <i class="sq" style="width:18px;height:18px;border-radius:5px;display:grid;place-items:center;color:#fff;font-style:normal;font-size:11px">2</i></span><span class="pill"><i class="sq"></i>Six survey questions revised</span></div>
+<h5>In the Dock</h5><div class="dock"><i style="background:${d?'#3a3a3c':'#d9d6d0'}"></i>${appicon(56,d)}<i style="background:${d?'#3a3a3c':'#d9d6d0'}"></i><i style="background:${d?'#3a3a3c':'#d9d6d0'}"></i></div>`};
+L.innerHTML=half(0);D.innerHTML=half(1);
+</script></body>

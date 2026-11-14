@@ -178,7 +178,8 @@ func TestZ2ChatPeopleBackfillIsScopedAndIdempotent(t *testing.T) {
 		status, origin                string
 		hasSuggestion, existing, want bool
 	}{{"active", "agent", true, false, true}, {"suggested", "agent", true, false, true}, {"done", "agent", true, false, false}, {"active", "owner", true, false, false}, {"active", "agent", false, false, false}, {"active", "agent", true, true, false}} {
-		v := create(t, s, a, "long")
+		v, err := s.Create(a, Create{Title: "Backfill fixture", Kind: "long", Chats: []Entity{{ID: testkit.Phone}}, DifferentBecause: "Separate backfill scenario fixture"})
+		testkit.Must(t, err)
 		r, err := s.raw(v.ID)
 		testkit.Must(t, err)
 		r.Status = tc.status

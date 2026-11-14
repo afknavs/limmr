@@ -33,8 +33,13 @@ func TestZ2OwnerHistoryNamesAndNewestFirst(t *testing.T) {
 	}
 	private, err := s.Get(a, v.ID)
 	testkit.Must(t, err)
-	if len(private.History) != 0 {
-		t.Fatal("owner history crossed the agent boundary")
+	if len(private.History) != len(v.History) {
+		t.Fatal("fully visible agent history missing")
+	}
+	for i, event := range private.History {
+		if event != v.History[i] {
+			t.Fatal("agent history changed a visible event")
+		}
 	}
 	r, err := s.raw(v.ID)
 	testkit.Must(t, err)

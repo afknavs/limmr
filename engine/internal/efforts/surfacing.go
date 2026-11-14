@@ -462,3 +462,39 @@ func accountArgument(ms []model.Message) bool {
 	}
 	return true
 }
+
+// Project status at read time, preserving the request and its timeline in history.
+// A follow-up advances LastAt; an unrelated task summary does not extend expiry.
+func (s *Service) surfaceStatus(e Effort) (Effort, error) {
+	if e.Status != "on_you" {
+		return e, nil
+	}
+	if !s.Hub.Now().Before(e.LastAt.Add(model.NeedsYouTTL)) {
+		e.Status = "dormant"
+		return e, nil
+	}
+	var n int
+	err := s.Hub.Repo.DB.QueryRow(`SELECT count(*) FROM tasks WHERE json_extract(data,'$.effort_id')=? AND json_extract(data,'$.status') IN ('done','dropped')
+	 AND COALESCE(json_extract(data,'$.ended_as_suggestion'),0)=0
+	 AND COALESCE(json_extract(data,'$.close_reason'),'') NOT IN ('not_a_task','suggestion_expired')
+	 AND (json_extract(data,'$.suggestion') IS NULL OR json_extract(data,'$.auto_kept_at') IS NOT NULL
+	      OR EXISTS (SELECT 1 FROM task_events e WHERE e.task_id=tasks.id AND e.kind='kept'))`, e.ID).Scan(&n)
+	if err != nil {
+		return e, err
+	}
+	if n > 0 {
+		e.Status = "done"
+	}
+	return e, nil
+}
+func (s *Service) surfaceSnapshot(c cached) (cached, error) {
+	c.efforts = append([]Effort{}, c.efforts...)
+	for i, e := range c.efforts {
+		v, err := s.surfaceStatus(e)
+		if err != nil {
+			return c, err
+		}
+		c.efforts[i] = v
+	}
+	return c, nil
+}

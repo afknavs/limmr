@@ -18,7 +18,7 @@ func TestN1PerActionValidation(t *testing.T) {
 		action, field string
 		args          Args
 	}{
-		{"create", "lifespan_days", Args{"action": "create", "title": "Exam preparation", "kind": "long", "lifespan_days": 4}},
+		{"create", "lifespan_days", Args{"action": "create", "title": "Exam preparation", "goal": "Be ready for the exam", "kind": "long", "lifespan_days": 4}},
 		{"update", "checklist", Args{"action": "update", "id": "tsk_example", "checklist": []any{}}},
 		{"list", "status", Args{"action": "list", "status": "invisible"}},
 		{"get", "id", Args{"action": "get"}}, {"brief", "id", Args{"action": "brief"}},
@@ -64,7 +64,7 @@ func TestN1SemanticTaskErrorsNameReference(t *testing.T) {
 		{"check_in.to", Args{"action": "update", "id": v.ID, "check_in": map[string]any{"rule": "once", "at_time": "09:00", "to": "missing"}}},
 		{"waiting.on.id", Args{"action": "update", "id": v.ID, "waiting": map[string]any{"what": "Syllabus", "on": map[string]any{"id": "missing"}}}},
 		{"steps[0].id", Args{"action": "checklist", "id": v.ID, "op": "done", "steps": []any{map[string]any{"id": "missing"}}}},
-		{"chats[0].id", Args{"action": "create", "title": "Exam guide", "kind": "long", "chats": []any{map[string]any{"id": "missing"}}}},
+		{"chats[0].id", Args{"action": "create", "title": "Exam guide", "goal": "Prepare the exam guide", "kind": "long", "chats": []any{map[string]any{"id": "missing"}}}},
 	} {
 		_, err := s.Call(context.Background(), a.ID, "task", c.args)
 		if err == nil || !strings.Contains(err.Error(), c.field) || !strings.Contains(err.Error(), "example:") {

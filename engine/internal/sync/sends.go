@@ -58,6 +58,11 @@ func phaseRank(p string) int {
 // a fake. CLI-only sync never constructs a WhatsApp client.
 func (s *Service) Bind(h *hub.Service) { s.Hub = h; s.Messenger = h.Messenger; h.Messenger = s }
 func (s *Service) Send(ctx context.Context, a model.Approval) (string, error) {
+	if a.FirstContact {
+		if err := s.FirstContactReady(); err != nil {
+			return "", err
+		}
+	}
 	if !safeID(a.ID) || a.MessageID == "" {
 		return "", model.ErrInvalid
 	}
@@ -116,6 +121,9 @@ func (s *Service) Send(ctx context.Context, a model.Approval) (string, error) {
 		return "", e
 	}
 	defer tx.Rollback()
+	if a.FirstContact && (s.pairedTx(tx) || !s.standaloneReadyTx(tx)) {
+		return "", fmt.Errorf("New chats require synchronous standalone sending; nothing was queued")
+	}
 	result, e := tx.Exec(`INSERT OR IGNORE INTO objects VALUES('send_queue',?,?)`, q.ID, dbutil.JSON(q))
 	if e != nil {
 		return "", e
@@ -360,6 +368,11 @@ func (s *Service) Coordinate(ctx context.Context) error {
 					return e
 				}
 			}
+			continue
+		}
+		// A crash or pairing race must never turn a first contact into a
+		// later unattended send. Only its synchronous originating call sends.
+		if q.Approval.FirstContact {
 			continue
 		}
 		var l Lease

@@ -23,7 +23,7 @@ func (s *Service) AccessSummary(v model.Access) string {
 		cs, _ := List[model.Circle](s.Repo, "circles")
 		names := []string{}
 		for _, c := range cs {
-			if c.Confirmed && v.AllowsCircle(c.ID) {
+			if c.Confirmed && c.Live() && v.AllowsCircle(c.ID) {
 				names = append(names, c.Name)
 			}
 		}
@@ -42,7 +42,7 @@ func (s *Service) AccessSummary(v model.Access) string {
 	return text
 }
 func (s *Service) CircleAccess(a *model.Agent, c model.Circle) bool {
-	return a == nil || !a.Permissions.Access.Ended(s.Now()) && ((!c.Confirmed && c.CreatedBy == a.ID) || c.Confirmed && a.Permissions.Access.AllowsCircle(c.ID))
+	return a == nil || !c.Archived && !a.Permissions.Access.Ended(s.Now()) && ((!c.Confirmed && c.CreatedBy == a.ID) || c.Confirmed && a.Permissions.Access.AllowsCircle(c.ID))
 }
 
 // CirclePeople snapshots membership without importing the circle/people services.
@@ -57,7 +57,7 @@ func (s *Service) CirclePeople(a *model.Agent) (map[string]bool, error) {
 	}
 	allowed := s.ChatAccess(a)
 	for _, c := range cs {
-		if c.Confirmed && s.CircleAccess(a, c) && circleChatVisible(c, allowed) {
+		if c.Confirmed && c.Live() && s.CircleAccess(a, c) && circleChatVisible(c, allowed) {
 			for _, p := range c.People {
 				out[p.PersonID] = true
 			}

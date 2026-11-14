@@ -6,7 +6,6 @@ import (
 	"limmr/internal/dbutil"
 	"limmr/internal/hub"
 	"limmr/internal/model"
-	"limmr/internal/tasks"
 	"sort"
 	"strings"
 	"time"
@@ -42,7 +41,7 @@ func (s *Service) creationRules(a model.Agent, c model.Circle, why string) (stri
 		return "", e
 	}
 	for _, old := range cs {
-		if old.ID == c.ID || !old.Confirmed || old.Archived {
+		if old.ID == c.ID || !old.Confirmed || !old.Live() {
 			continue
 		}
 		ch, ps := 0, 0
@@ -146,7 +145,7 @@ func (s *Service) creationRules(a model.Agent, c model.Circle, why string) (stri
 		return "", e
 	}
 	for _, old := range all {
-		if old.Confirmed && !old.Archived {
+		if old.Confirmed && old.Live() {
 			n++
 		}
 	}
@@ -402,7 +401,7 @@ func (s *Service) ReviewAddition(id string, keep bool) (any, error) {
 			return nil, e
 		}
 		if v.AgentID == "structure" {
-			if !c.Confirmed || c.Archived {
+			if !c.Confirmed || !c.Live() {
 				return nil, model.ErrConflict
 			}
 			for _, id := range v.People {
@@ -501,56 +500,4 @@ func (s *Service) UndoAutoGroup(ids []string) error {
 		return e
 	}
 	return s.Hub.Record(model.Activity{AgentID: "you", Kind: "people_write", Tool: "undo_circle_change", Count: len(xs)})
-}
-
-// ProjectTask converts undersized project proposals before any circle is stored.
-func (s *Service) ProjectTask(a model.Agent, c model.Circle, why string) (string, error) {
-	if c.Kind != "project" {
-		return "", nil
-	}
-	named := map[string]bool{}
-	chats := map[string]bool{}
-	for _, p := range c.People {
-		var person model.Person
-		if p.PersonID != "me" && s.Hub.Repo.Get("people", p.PersonID, &person) == nil && model.Named(person) {
-			named[p.PersonID] = true
-		}
-	}
-	for _, ch := range c.Chats {
-		chats[ch.ChatJID] = true
-	}
-	if len(chats) >= 2 && len(named) >= 3 {
-		return "", nil
-	}
-	if len(c.Chats) == 0 || len(c.Chats) > 50 || len(c.People) > 50 || strings.TrimSpace(why) == "" || len(why) > 2000 {
-		return "", model.ErrInvalid
-	}
-	current := false
-	visible, _, err := s.Hub.Visible(&a)
-	if err != nil {
-		return "", err
-	}
-	for _, ch := range visible {
-		if chats[ch.JID] && s.Hub.Current(ch) {
-			current = true
-		}
-	}
-	if !current {
-		return "", model.ErrInvalid
-	}
-	in := tasks.Create{Title: c.Name, Kind: "long", Chats: []tasks.Entity{}, People: []tasks.Entity{}}
-	for _, ch := range c.Chats {
-		in.Chats = append(in.Chats, tasks.Entity{ID: ch.ChatJID})
-	}
-	for _, p := range c.People {
-		var person model.Person
-		if err = s.Hub.Repo.Get("people", p.PersonID, &person); err != nil {
-			return "", err
-		}
-		in.People = append(in.People, tasks.Entity{ID: p.PersonID, Name: person.Name})
-	}
-	sig := tasks.Suggestion{Signals: []string{why}, Confidence: 1, DetectedAt: s.Hub.Now(), EffortIDs: []string{}}
-	svc := &tasks.Service{Hub: s.Hub}
-	task, err := svc.Suggest(&a, in, sig)
-	return task.ID, err
 }

@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><script src="shell.js"></script>
+<style>
+.tb{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.t{overflow:hidden;height:276px;display:flex;flex-direction:column}
+.t .cover{height:156px;position:relative}
+.t .cover .chip{position:absolute;left:8px;top:8px;background:rgba(15,15,17,.72);color:#fff;backdrop-filter:blur(8px)}
+.t .cover .chip.need{color:#fff}
+.t .b{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.t .n{font-size:14px;font-weight:600}.t .x{font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t .f{margin-top:auto;display:flex;align-items:center;gap:8px}.t .f .steps{flex:1}
+.docc{background:var(--surface2);display:grid;place-items:center}
+.page{width:98px;height:128px;background:#F4F4F1;border-radius:3px;padding:10px 9px;color:#222;font-size:6.5px;line-height:1.5;box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.page b{display:block;font-size:8.5px;line-height:1.2;margin-bottom:5px}.page i{display:block;height:2px;background:#c9c9c4;margin:3px 0;border-radius:1px}
+.defc{background:var(--surface2);display:grid;place-items:center;color:var(--ink3)}
+.defc svg{width:34px;height:34px;stroke-width:1.2}
+.ended{margin-top:14px;height:48px;padding:0 14px;display:flex;align-items:center;gap:12px;font-size:14px}
+.ended .th{display:flex}.ended .th i{width:30px;height:22px;border-radius:5px;background-size:cover;margin-left:-8px;box-shadow:0 0 0 1.5px var(--surface);opacity:.7}
+</style>
+<body><main>
+<div class="top"><h1>Tasks</h1><span class="sub">2 need you · 3 working · 1 scheduled</span><span class="sp"></span><div class="search" id="s"></div></div>
+<div class="tb"><span class="seg"><span class="on">Open <span class="dim">6</span></span><span>Ended <span class="dim">18</span></span></span><span class="sp"></span><span class="btn" id="f1"></span><span class="btn" id="f2"></span><span class="seg" id="vw"></span></div>
+<div class="g" id="g"></div>
+<div class="card ended" id="en"></div>
+</main>
+<script>shell('tasks');s.innerHTML=ic('search')+'Search tasks<kbd>⌘F</kbd>';f1.innerHTML=ic('filter',13)+'All circles';f2.innerHTML=ic('sort',13)+'Last updated';
+vw.innerHTML=`<span class="on">${ic('grid')}Gallery</span><span>${ic('list')}List</span>`;
+const cov=c=>c=='doc'?`<div class="cover docc"><div class="page"><b>Survey draft<br>v3</b>Six questions on study habits<i></i><i></i><i style="width:70%"></i><i></i><i style="width:50%"></i><i></i><i style="width:80%"></i></div>`:c=='def'?`<div class="cover defc">${ic('cal')}`:`<div class="cover" style="background-image:url(assets/p${c}.jpg)">`;
+const t=(c,st,n,circ,next,d,tot,who)=>`<div class="card t">${cov(c)}${st}</div><div class="b"><div class="n">${n}</div><div class="meta">${circ}</div><div class="x">${next}</div><div class="f">${steps(d,tot,st.includes('live'))}<span class="dim" style="font-size:12px">${d}/${tot}</span>${who!=null?av(who,18):''}</div></div></div>`;
+const need='<span class="chip need"><i class="dot need"></i>Needs you</span>',live=a=>`<span class="chip live" style="color:#fff"><i class="dot live"></i>${a} working</span>`,sch=d=>`<span class="chip">${ic('cal',12)}${d}</span>`;
+g.innerHTML=t(2,need,'Open studio','Design Collective','Choose the poster layout before 4 PM',4,5,2)+t('doc',need,'Research proposal','University','Approve six revised survey questions',3,6,5)+t(3,live('Codex'),'Reading group notes','University','Comparing notes from 3 chats',2,4,6)+t(7,live('Claude Code'),'Portfolio review','Design Collective','Checking the project summaries',4,7,7)+
+t(11,live('Dot'),'Mum’s birthday trip','Family','Collecting dates from everyone',1,5,8)+t('def',sch('Sat 14 Nov'),'Saturday dinner','Family','Ends after the dinner · table for six',2,3,10);
+en.innerHTML=`${ic('check')}<b style="font-weight:600">Ended</b><span class="dim">18</span><span class="th" style="margin-left:14px">${[4,6,9,12,14].map(i=>`<i style="background-image:url(assets/p${i}.jpg)"></i>`).join('')}</span><span class="meta">Workshop 3 Nov archived itself yesterday · 1 follow-up started</span><span class="sp"></span>${ic('chev',13)}`;
+</script></body>

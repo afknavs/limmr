@@ -91,6 +91,14 @@ public struct Permissions: Codable, Sendable, Equatable {
 }
 
 public struct Approval: Codable, Identifiable, Sendable, Equatable {
+  public var firstContact: Bool? = nil
+  public var firstContactPerson: ContactPerson? = nil
+  public var firstContactGroup: ContactGroup? = nil
+  public var firstContactLine: String? {
+    guard firstContact == true, let person = firstContactPerson else { return nil }
+    let label = "New chat with \(person.name)"
+    return firstContactGroup.map { label + ", from " + $0.name } ?? label + ", at your request"
+  }
   public var id: String
   public var agentId: String
   public var chatJid: String
@@ -178,6 +186,14 @@ extension Message {
   }
 }
 public struct Activity: Codable, Identifiable, Sendable, Equatable {
+  public var firstContact: Bool? = nil
+  public var firstContactPerson: ContactPerson? = nil
+  public var firstContactGroup: ContactGroup? = nil
+  public var firstContactLine: String? {
+    guard firstContact == true, let person = firstContactPerson else { return nil }
+    let label = "New chat with \(person.name)"
+    return firstContactGroup.map { label + ", from " + $0.name } ?? label + ", at your request"
+  }
   public var taskId: String? = nil
   public var description: String? = nil
   public var ownerInstruction: String? = nil
@@ -221,6 +237,9 @@ public struct Activity: Codable, Identifiable, Sendable, Equatable {
   }
 }
 public struct HealthCheck: Codable, Identifiable, Sendable, Equatable {
+  public var engineStartedAt: String? = nil
+  public var linkPhase: String? = nil
+  public var linkPhaseAt: String? = nil
   public var id: String
   public var title: String
   public var state: String
@@ -410,6 +429,9 @@ public struct Graph: Codable, Sendable, Equatable {
   }
 }
 public struct Status: Codable, Sendable {
+  public var engineStartedAt: String? = nil
+  public var linkPhase: String? = nil
+  public var linkPhaseAt: String? = nil
   public var engineVersion: String? = nil
   public var linked: Bool
   public var connected: Bool
@@ -485,6 +507,7 @@ public struct AppSettings: Codable, Sendable, Equatable {
   public var accessoryCue = AccessoryCue()
   public var autoCircles: Bool = true
   public var maxCircles: Int = 8
+  public var firstContactLimit: Int = 5
   public var hiddenChats: [String]
   public var retentionDays: Int
   public var currentDays: Int
@@ -501,13 +524,14 @@ public struct AppSettings: Codable, Sendable, Equatable {
     self.owner = owner
   }
   enum CodingKeys: String, CodingKey {
-    case autoCircles, maxCircles, hiddenChats, retentionDays, currentDays, owner, accessoryCue
+    case autoCircles, maxCircles, firstContactLimit, hiddenChats, retentionDays, currentDays, owner, accessoryCue
   }
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     accessoryCue = try c.decodeIfPresent(AccessoryCue.self, forKey: .accessoryCue) ?? .init()
     autoCircles = try c.decodeIfPresent(Bool.self, forKey: .autoCircles) ?? true
     maxCircles = try c.decodeIfPresent(Int.self, forKey: .maxCircles) ?? 8
+    firstContactLimit = try c.decodeIfPresent(Int.self, forKey: .firstContactLimit) ?? 5
     hiddenChats = try c.decodeIfPresent([String].self, forKey: .hiddenChats) ?? []
     retentionDays = try c.decode(Int.self, forKey: .retentionDays)
     currentDays = try c.decodeIfPresent(Int.self, forKey: .currentDays) ?? 180
@@ -626,4 +650,16 @@ public struct EngineStartingResponse: Decodable, Sendable {
   public let stage: String
   public let progress: UInt64
   public var progressKey: String { "\(stage):\(progress)" }
+}
+
+/// Bounded directory identity attached to a first-contact send.
+public struct ContactPerson: Codable, Sendable, Equatable {
+  public var id: String?
+  public var name: String
+  public var phone: String?
+  public var role: String?
+}
+public struct ContactGroup: Codable, Sendable, Equatable {
+  public var id: String
+  public var name: String
 }

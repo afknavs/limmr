@@ -244,6 +244,15 @@ struct SourcesPrivacySettings: View {
       Stepper("Current chats: last \(store.settings.currentDays) days",
         value: store.settingsBinding(\.currentDays), in: 1...3650)
         .settingsMatch("Current chats", store: store)
+      VStack(alignment: .leading, spacing: 6) {
+        Stepper(value: store.settingsBinding(\.firstContactLimit), in: 0...20) {
+          LabeledContent("New chats an AI may start per day",
+            value: store.settings.firstContactLimit == 0 ? "Off" : "\(store.settings.firstContactLimit)")
+        }
+        Text("0 = off. WhatsApp may restrict accounts that message many strangers.")
+          .font(.footnote).foregroundStyle(AccessibleSecondary())
+      }.settingsMatch("New chats an AI may start per day", store: store)
+      SettingsFeedback(store: store)
     } header: { SettingsPaneTitle(title: "Privacy") }
   }
 }

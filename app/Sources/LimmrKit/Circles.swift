@@ -23,6 +23,7 @@ public enum SendRule: String, Codable, CaseIterable, Sendable {
   }
 }
 public struct Circle: Codable, Identifiable, Sendable, Equatable {
+  public var archived: Bool? = nil
   public var icon: EntityIcon? = nil
   public var id: String
   public var name: String
@@ -195,6 +196,7 @@ public struct CircleProposal: Codable, Identifiable, Sendable {
 }
 
 extension Circle {
+  public var isLive: Bool { archived != true }
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     icon = try c.decodeIfPresent(EntityIcon.self, forKey: .icon)
@@ -205,6 +207,7 @@ extension Circle {
     description = try c.decode(String.self, forKey: .description)
     sendRule = try c.decode(SendRule.self, forKey: .sendRule)
     createdBy = try c.decode(String.self, forKey: .createdBy)
+    archived = try c.decodeIfPresent(Bool.self, forKey: .archived)
     confirmed = try c.decode(Bool.self, forKey: .confirmed)
     updatedAt = try c.decode(String.self, forKey: .updatedAt)
     pinned = try c.decodeIfPresent(Bool.self, forKey: .pinned) ?? false

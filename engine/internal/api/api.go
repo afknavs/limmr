@@ -16,6 +16,7 @@ import (
 	"limmr/internal/people"
 	"limmr/internal/remote"
 	knowledgeSync "limmr/internal/sync"
+	"limmr/internal/tasks"
 	"limmr/internal/wa"
 	"net/http"
 	"strconv"
@@ -50,6 +51,14 @@ func JSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 func failure(w http.ResponseWriter, e error) {
+	var duplicate *tasks.CreationConflict
+	if errors.As(e, &duplicate) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		JSON(w, map[string]any{"error": map[string]any{"code": "possible_duplicate", "message": duplicate.Error()}, "candidates": duplicate.Candidates})
+		return
+	}
+
 	status, code, message := 500, "internal_error", "The operation could not be completed."
 	switch {
 	case errors.Is(e, model.ErrUpdating):
@@ -150,8 +159,8 @@ func (s *Server) Handler() http.Handler {
 	s.updateRoutes(add)
 	add("GET /v1/status", "status", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		state := s.Link.State()
-		linked := state.State == "ready" || state.State == "syncing"
-		connected := linked
+		linked := state.State == "ready" || state.State == "syncing" || state.State == "connecting"
+		connected := state.State == "ready" || state.State == "syncing"
 		if s.Health.Connection != nil {
 			linked = s.Health.Connection.Linked()
 			connected = s.Health.Connection.Connected()
@@ -170,7 +179,8 @@ func (s *Server) Handler() http.Handler {
 				agents = append(agents, map[string]any{"name": a.Name, "last_seen_at": a.LastSeenAt})
 			}
 		}
-		return map[string]any{"engine_version": health.Version, "linked": linked, "connected": connected, "account_name": name, "pending_approvals": statusHub.PendingCount(), "agents": agents, "health": health.Overall(s.Health.Checks(r.Context())), "details_pending": readCtx.Err() != nil}, nil
+		connection := s.Health.ConnectionStatus()
+		return map[string]any{"engine_started_at": connection.EngineStartedAt, "link_phase": connection.LinkPhase, "link_phase_at": connection.LinkPhaseAt, "engine_version": health.Version, "linked": linked, "connected": connected, "account_name": name, "pending_approvals": statusHub.PendingCount(), "agents": agents, "health": health.Overall(s.Health.Checks(r.Context())), "details_pending": readCtx.Err() != nil}, nil
 	})
 	add("GET /v1/link", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) { return s.Link.State(), nil })
 	add("POST /v1/link/start", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {

@@ -6,6 +6,7 @@ struct CirclePersonPage: View {
   @Bindable var store: AppStore
   let id: String
   var snapshotMenu = false
+  @State private var moreExpanded = false
   @State private var networkExpanded = false
   @Namespace private var networkNamespace
   @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -48,7 +49,7 @@ struct CirclePersonPage: View {
           }
           NetworkMapView(store: store,
             map: PersonNetworkPresentation.map(store.circleMap, id: id, name: store.personName(id), circles: store.circles),
-            selected: id, namespace: networkNamespace) { node in
+            selected: id, namespace: networkNamespace, paper: true) { node in
               if let node, node.kind == "person", node.id != id { store.circlePath.append(.person(node.id)) }
               else if let node, node.kind == "circle" { store.circlePath.append(.circle(node.id)) }
             }
@@ -64,9 +65,15 @@ struct CirclePersonPage: View {
   }
   private var profileContent: some View {
     ScrollView {
-      LazyVStack(alignment: .leading, spacing: 24) {
+      LazyVStack(alignment: .leading, spacing: 12) {
         Button(store.peopleBackTitle, systemImage: "chevron.left") { store.leavePeopleRoute() }.peopleQuietButton()
         if let person {
+          PaperProfileHero(store: store, person: person, showMap: {
+            store.circlePath = []; store.mapSelection = MapSelection(person: id)
+          }) { menuItems(person) }
+            .dropDestination(for: URL.self) { urls, _ in guard let url = urls.first else { return false }; Task { await importPhoto(url) }; return true }
+          PaperPersonBody(store: store, person: person) { value in Task { await patch(["notes": value]) } }.id(id)
+          DisclosureGroup("Details, suggestions and history", isExpanded: Binding(get: { moreExpanded || snapshotMenu }, set: { moreExpanded = $0 })) {
           header(person).zIndex(snapshotMenu ? 1 : 0)
           if showsNeighbourhood {
             PersonNetworkHeader(store: store, id: id, namespace: networkNamespace) {
@@ -84,9 +91,10 @@ struct CirclePersonPage: View {
               Task { await patch(["notes": value]) }
             }.padding(.top, 8)
           }.font(.callout)
+          }
         } else { ProgressView("Loading profile…") }
         ActionFeedback(store: store, action: "profile")
-      }.frame(maxWidth: 760).padding(24).frame(maxWidth: .infinity)
+      }.padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 20).frame(maxWidth: .infinity).paperReadingWidth()
     }.navigationBarBackButtonHidden(true).background { AppBackground() }
       .task(id: id) {
         store.selectedPerson = id

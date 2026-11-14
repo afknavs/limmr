@@ -4,8 +4,8 @@ import SwiftUI
 struct CirclePage: View {
   @Bindable var store: AppStore
   let id: String
+  @State private var showCircleControls = false
   @State private var showHistory = false
-  @State private var archivedHere = false
   @State private var addingChat = false
   @State private var selectedChat = ""
   @State private var chatQuery = ""
@@ -16,6 +16,19 @@ struct CirclePage: View {
           Button(store.peopleBackTitle, systemImage: "chevron.left") { store.leavePeopleRoute() }.buttonStyle(
             .plain
           ).font(.callout)
+          if let archived = store.archivedCircles.first(where: { $0.id == id }) {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("This circle is archived").font(.title2)
+              Button("Restore") { Task { await store.setCircleArchived(archived, archived: false) } }.buttonStyle(PaperButtonStyle())
+              ActionFeedback(store: store, action: "circle-\(id)")
+            }
+          } else if let detail = store.circleDetails[id] {
+            PaperCircleContents(store: store, detail: detail) { showCircleControls.toggle() }
+          } else if let error = store.circleError {
+            Text(error)
+            Button("Try again") { Task { await store.loadCircle(id) } }.buttonStyle(PaperButtonStyle())
+          } else { ProgressView("Loading circle…") }
+          DisclosureGroup("Circle details and controls", isExpanded: $showCircleControls) {
           if let detail = store.circleDetails[id] {
             header(detail.circle)
             ActionFeedback(store: store, action: "circle-\(id)")
@@ -178,12 +191,13 @@ struct CirclePage: View {
           } else {
             ProgressView("Loading circle…")
           }
+          }
         }
-        .frame(maxWidth: 1000).padding(20).frame(maxWidth: .infinity)
+        .padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 20).paperReadingWidth()
       }
     }
     .navigationBarBackButtonHidden(true)
-    .background { Color(nsColor: .windowBackgroundColor) }
+    .background(LimmrTheme.panel)
     .task(id: id) {
       await store.loadCircle(id)
       await store.refreshAllTasks()
@@ -201,17 +215,8 @@ struct CirclePage: View {
           Text(circle.kind.capitalized).font(.callout).foregroundStyle(.secondary)
         }
         Spacer()
-        Button(archivedHere ? "Undo archive" : "Archive", systemImage: "archivebox") {
-          Task {
-            let archive = !archivedHere
-            await store.perform(action: "circle-\(id)") {
-              _ = try await store.backend.request("/v1/circles/\(id)", method: "PATCH",
-                body: Wire.data(["archived": archive]))
-              archivedHere = archive
-              await store.refresh()
-              await store.loadCircle(id)
-            }
-          }
+        Button("Archive", systemImage: "archivebox") {
+          Task { await store.setCircleArchived(circle, archived: true) }
         }.limmrButton().font(.callout).disabled(store.busy)
         Button(circle.pinned ? "Unpin" : "Pin", systemImage: circle.pinned ? "pin.slash" : "pin") {
           Task { await store.togglePin(circle) }

@@ -8,6 +8,7 @@ import SwiftUI
   let assetPreviews = TaskAssetTileCache()
   var task: TrackedTask?
   var error: String?
+  var historyErrors: [String: String] = [:]
   var saving = false
   var efforts: [EffortDetailResponse] = []
   let id: String
@@ -47,12 +48,36 @@ import SwiftUI
       self.task = written
     }
   }
+  func removeMembers(chats: [String] = [], people: [String] = []) async {
+    guard !saving else { return }
+    saving = true; error = nil
+    defer { saving = false }
+    do { task = try await client.removeMembers(id, chats: chats, people: people) }
+    catch { self.error = "The task could not be saved. Try again." }
+  }
   func change(_ action: () async throws -> TrackedTask) async {
     guard !saving else { return }
     saving = true; error = nil
     defer { saving = false }
     do { task = try await action(); await load(force: true) }
     catch { self.error = "The task could not be saved. Try again." }
+  }
+  func undoChange(_ event: TaskHistoryEvent, now: Date) async {
+    guard !saving, event.canUndo(now: now), let changeId = event.changeId else { return }
+    saving = true; historyErrors[changeId] = nil
+    defer { saving = false }
+    do {
+      task = try await client.undoChange(id, changeId: changeId)
+      task = try await client.get(id)
+      loadedAt = Date()
+    } catch { historyErrors[changeId] = error.localizedDescription }
+  }
+  func resolveSuggestion(_ action: TaskSurfacingAction) async {
+    guard !saving, task?.status == "suggested" else { return }
+    saving = true; error = nil
+    defer { saving = false }
+    do { task = try await client.surface(id, action: action); loadedAt = Date() }
+    catch { self.error = error.localizedDescription }
   }
 }
 
@@ -78,14 +103,15 @@ struct TaskPage: View {
     VStack(alignment: .leading, spacing: 0) {
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-          HStack {
-            Button(store.activityBackTitle, systemImage: "chevron.left") { store.leaveActivityRoute() }.buttonStyle(.bordered)
-            Spacer()
-          }
+          Button { store.leaveActivityRoute() } label: {
+            HStack(spacing: 6) { Image(systemName: "chevron.left").font(.system(size: 10, weight: .semibold)); Text(store.activityBackTitle) }
+              .font(LimmrTheme.font(12, .semibold)).foregroundStyle(LimmrTheme.ink2).padding(.horizontal, 12).frame(height: 28)
+              .background(LimmrTheme.surface2, in: RoundedRectangle(cornerRadius: 12)).contentShape(Rectangle())
+          }.buttonStyle(.plain).accessibilityLabel(store.activityBackTitle)
           TaskWorkspaceView(store: store, id: id)
-        }.padding(20).frame(maxWidth: 1120).frame(maxWidth: .infinity)
+        }.padding(.horizontal, 28).padding(.top, 24).padding(.bottom, 24).paperReadingWidth()
       }.defaultScrollAnchor(startAtHistory ? .bottom : .top)
-    }.navigationBarBackButtonHidden(true).background { Color(nsColor: .windowBackgroundColor) }
+    }.navigationBarBackButtonHidden(true).n1PageSurface()
   }
 }
 
@@ -130,10 +156,13 @@ struct TaskWorkspaceContent: View {
   @State private var assetQuery = ""
   @State private var schedule = false
   @State private var waiting = false
+  @Environment(\.limmrWindowWidth) private var windowWidth
+  private var summaryRow: TaskSummary? { (store.allTasks + store.home.tasks).first { $0.id == task.id } }
+  private var hairline: some View { Rectangle().fill(LimmrTheme.hairline).frame(height: 1) }
   private var now: Date { store.presentationNow }
   private var closed: Bool { ["done", "dropped"].contains(task.status) }
   private var linkedEfforts: [Effort] { model.efforts.map(\.effort) }
-  private var needsYou: Bool { task.needsYou || linkedEfforts.contains { $0.status == "on_you" } }
+  private var needsYou: Bool { !closed && task.status != "suggested" && task.needsYou }
   private var reply: Message? {
     model.efforts.filter { $0.effort.status == "on_you" }.flatMap(\.timeline).compactMap(\.message)
       .filter { !$0.isFromMe }.sorted { $0.timestamp > $1.timestamp }.first
@@ -147,135 +176,178 @@ struct TaskWorkspaceContent: View {
     return store.agentName(value)
   }
   private var chats: [EffortEntity] {
-    unique(task.chats + linkedEfforts.flatMap(\.chats))
+    unique(task.chats)
   }
   private var people: [EffortEntity] {
-    unique(task.people + linkedEfforts.flatMap(\.people))
+    unique(task.people)
   }
   private func unique(_ values: [EffortEntity]) -> [EffortEntity] {
     var seen = Set<String>(); return values.filter { seen.insert($0.id).inserted }
   }
   var body: some View {
-    VStack(alignment: .leading, spacing: 18) {
-      HStack(alignment: .top) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text(embedded ? "Task workspace" : task.title).font(embedded ? .title3.weight(.semibold) : .largeTitle.bold())
-          Text("\(task.kind == "short" ? "Short task" : "Ongoing task") · \(closed ? "Closed" : task.status.capitalized)")
-            .font(.caption).foregroundStyle(.secondary)
+    let width = PaperLayout.contentWidth(windowWidth), wide = !embedded && width >= 900
+    return VStack(alignment: .leading, spacing: 20) {
+      HStack(alignment: .top, spacing: 16) {
+        if !embedded, let summaryRow {
+          PaperTaskArtwork(store: store, task: summaryRow).frame(width: 112, height: 84).clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        Spacer()
-        Menu {
-          if closed { Button("Reopen task") { reopen() } }
-          else {
-            Button(task.status == "quiet" ? "Wake task" : "Make quiet") { patch(.init(status: task.status == "quiet" ? "active" : "quiet")) }
-            Button("Done") { patch(.init(status: "done")) }
-            Button("Not now") { patch(.init(status: "dropped")) }
+        VStack(alignment: .leading, spacing: 8) {
+          Text(embedded ? "Task workspace" : task.title).font(embedded ? LimmrTheme.TypeScale.section : LimmrTheme.TypeScale.page)
+            .fixedSize(horizontal: false, vertical: true)
+          if let prior = task.followsContext {
+            Button("Follows: \(prior.title)") { store.openTask(prior.id) }.buttonStyle(.plain).font(LimmrTheme.font(12, .semibold)).foregroundStyle(LimmrTheme.ink2)
           }
-          if embedded { Button("Open task") { store.openTask(task.id) } }
-        } label: { Image(systemName: "ellipsis").frame(width: 24, height: 24) }
-          .menuStyle(.borderedButton).fixedSize().accessibilityLabel("Task actions")
-      }
-      HStack(alignment: .top) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text(task.circleIds.isEmpty ? "No circle" : task.circleIds.map { store.circleName($0) }.joined(separator: " · ")).font(.callout)
+          PaperFlow(spacing: 6) {
+            Text("\(TaskListPresentation.kind(task.kind)) · \(closed ? "Closed" : task.status.capitalized)")
+              .font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2).frame(height: 24)
+            ForEach(task.circleIds, id: \.self) { PaperChip(text: store.circleName($0), kind: "plain") }
+            if task.circleIds.isEmpty { PaperChip(text: "No circle", kind: "plain") }
+            Menu {
+              Button("No circle") { var request = TaskPatch(); request.circleIds = []; patch(request) }
+              ForEach(store.circles) { circle in
+                Button((task.circleIds.contains(circle.id) ? "✓ " : "") + circle.name) {
+                  var request = TaskPatch(); request.circleIds = task.circleIds.contains(circle.id) ? task.circleIds.filter { $0 != circle.id } : task.circleIds + [circle.id]; patch(request)
+                }
+              }
+            } label: { Text("Change circles").font(LimmrTheme.font(12, .semibold)).foregroundStyle(LimmrTheme.ink2) }
+              .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(height: 24)
+          }
           ForEach(task.circleSuggestions, id: \.circleId) { suggestion in
             HStack {
-              Text("Suggested \(store.circleName(suggestion.circleId)) · \(suggestion.reason)").font(.caption).foregroundStyle(.secondary)
-              Button("Undo") { var request = TaskPatch(); request.circleIds = task.circleIds.filter { $0 != suggestion.circleId }; patch(request) }
+              Text("Suggested \(store.circleName(suggestion.circleId)) · \(suggestion.reason)").font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
+              Button("Undo") { var request = TaskPatch(); request.circleIds = task.circleIds.filter { $0 != suggestion.circleId }; patch(request) }.buttonStyle(PaperButtonStyle())
             }
           }
         }
-        Spacer()
-        Menu("Change circles") {
-          Button("No circle") { var request = TaskPatch(); request.circleIds = []; patch(request) }
-          ForEach(store.circles) { circle in
-            Button((task.circleIds.contains(circle.id) ? "✓ " : "") + circle.name) {
-              var request = TaskPatch(); request.circleIds = task.circleIds.contains(circle.id) ? task.circleIds.filter { $0 != circle.id } : task.circleIds + [circle.id]; patch(request)
-            }
+        Spacer(minLength: 12)
+        if task.status == "suggested" {
+          HStack {
+            Button("Keep") { resolveSuggestion(.keep) }.buttonStyle(PaperButtonStyle(primary: true))
+            Button("Dismiss") { resolveSuggestion(.dismiss) }.buttonStyle(PaperButtonStyle())
+          }.disabled(model.saving)
+        } else {
+          HStack(spacing: 8) {
+            if !closed && !embedded { Button("Done") { patch(.init(status: "done")) }.buttonStyle(PaperButtonStyle()).accessibilityLabel("Mark task done") }
+            Menu {
+              if closed { Button("Reopen task") { reopen() } }
+              else {
+                Button(task.status == "quiet" ? "Wake task" : "Make quiet") { patch(.init(status: task.status == "quiet" ? "active" : "quiet")) }
+                Button("Done") { patch(.init(status: "done")) }
+                Button("Not now") { patch(.init(status: "dropped")) }
+              }
+              if embedded { Button("Open task") { store.openTask(task.id) } }
+            } label: { Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(LimmrTheme.ink2).frame(width: 28, height: 28) }
+              .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 32, height: 28)
+              .background(LimmrTheme.surface2, in: RoundedRectangle(cornerRadius: 12)).accessibilityLabel("Task actions")
           }
-        }.fixedSize()
-      }
-      ViewThatFits(in: .horizontal) {
-        HStack(alignment: .top, spacing: 16) {
-          statusPanel.frame(minWidth: 340, maxWidth: .infinity)
-          TaskNotesWidget(model: model, task: task).frame(width: 300)
         }
-        VStack(spacing: 16) { TaskNotesWidget(model: model, task: task); statusPanel }
       }
-      filesPanel
-      ViewThatFits(in: .horizontal) {
-        HStack(alignment: .top, spacing: 16) {
-          historyPanel.frame(minWidth: 340, maxWidth: .infinity)
-          peoplePanel.frame(width: 300)
+      // Wide windows: the work (status, files, history) on the left, who and notes in a side column.
+      if wide {
+        HStack(alignment: .top, spacing: 24) {
+          VStack(alignment: .leading, spacing: 20) { statusPanel; filesPanel; historyPanel }.frame(maxWidth: .infinity, alignment: .leading)
+          VStack(alignment: .leading, spacing: 20) { peoplePanel; TaskNotesWidget(model: model, task: task) }
+            .frame(width: min(380, max(300, width * 0.27)), alignment: .leading)
         }
-        VStack(spacing: 16) { peoplePanel; historyPanel }
+      } else {
+        statusPanel; TaskNotesWidget(model: model, task: task); filesPanel; peoplePanel; historyPanel
       }
-      if let error = model.error { Text(error).font(.callout).foregroundStyle(.secondary) }
-    }.disabled(model.saving).frame(maxWidth: embedded ? 760 : 1072, alignment: .leading)
+      if let error = model.error { Text(error).font(LimmrTheme.font(14)).foregroundStyle(LimmrTheme.ink2) }
+    }.font(LimmrTheme.TypeScale.body).foregroundStyle(LimmrTheme.ink)
+      .disabled(model.saving).frame(maxWidth: embedded ? 760 : .infinity, alignment: .leading)
       .sheet(isPresented: $schedule) { TaskScheduleEditor(model: model, task: task, now: now) { await store.refreshTaskHome() } }
       .sheet(isPresented: $waiting) { TaskWaitingEditor(model: model, task: task, now: now) { await store.refreshTaskHome() } }
   }
   private var statusPanel: some View {
-    block("Status & next step") {
+    block("Where it stands") {
       if closed {
         HStack {
           Text(task.closeReason == "lifespan" || task.closeReason == "agent_done" ? "Closed automatically" : "Task closed")
           Spacer()
-          Button("Undo") { reopen() }.buttonStyle(.bordered)
+          Button("Undo") { reopen() }.buttonStyle(PaperButtonStyle())
+        }
+      } else if let until = task.laterUntil, let at = Timestamp.date(until), now < at {
+        HStack {
+          Text("Left for later until " + TaskLaterTime.status(until))
+          Spacer()
+          Button("Bring back") { Task { await store.bringBackTask(task.id) } }.buttonStyle(PaperButtonStyle())
         }
       } else if needsYou {
-        Label("Needs you", systemImage: "circle.fill").font(.callout.weight(.medium)).foregroundStyle(.orange)
+        PaperChip(text: "Needs you", kind: "need")
       }
       if !summary.text.isEmpty {
-        Text(summary.text).font(.callout).textSelection(.enabled)
-        if !summary.updatedBy.isEmpty { Text("by " + summaryAuthor).font(.caption).foregroundStyle(.secondary) }
+        Text(summary.text).font(LimmrTheme.font(14)).textSelection(.enabled)
+        if !summary.updatedBy.isEmpty { Text("by " + summaryAuthor).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2) }
       }
-      else if !task.goal.isEmpty { Text(task.goal).font(.callout).textSelection(.enabled) }
-      else { Text("Follow the latest chat activity below.").font(.callout).foregroundStyle(.secondary) }
+      else if !task.goal.isEmpty { Text(task.goal).font(LimmrTheme.font(14)).textSelection(.enabled) }
+      else { Text("Follow the latest chat activity below.").font(LimmrTheme.font(14)).foregroundStyle(LimmrTheme.ink2) }
       if !task.checklist.isEmpty {
-        ProgressView(value: task.progress.fraction)
+        PaperSteps(progress: task.progress).frame(maxWidth: 280).accessibilityLabel("\(task.progress.done) of \(task.progress.total) steps done")
         ForEach(task.checklist.sorted { $0.order < $1.order }) { step in
           Toggle(step.text, isOn: Binding(get: { step.done }, set: { done in
             Task { await model.change { try await model.client.step(task.id, step: step.id, done: done) }; await store.refreshTaskHome() }
           })).toggleStyle(.checkbox).disabled(closed)
         }
       }
-      if let value = task.compact(now: now).waiting { Text(TaskPresentation.waiting(value)).font(.callout) }
+      if let value = task.compact(now: now).waiting { Text(TaskPresentation.waiting(value)).font(LimmrTheme.font(14)) }
       compactCheckIn
-      if !closed { Button(task.waiting == nil ? "Set waiting" : "Edit waiting") { waiting = true }.buttonStyle(.bordered) }
-      if task.kind == "short" { Text("Closes after \(task.lifespanDays ?? 14) quiet days").font(.caption).foregroundStyle(.secondary) }
+      if !closed { Button(task.waiting == nil ? "Set waiting" : "Edit waiting") { waiting = true }.buttonStyle(PaperButtonStyle()) }
+      if task.kind == "short" { Text("Closes after \(task.lifespanDays ?? 14) quiet days").font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2) }
     }
   }
+  private func whoRow<Leading: View>(_ name: String, action: @escaping () -> Void, @ViewBuilder leading: () -> Leading) -> some View {
+    Button(action: action) {
+      HStack(spacing: 10) {
+        leading().frame(width: 28, height: 28)
+        Text(name).font(LimmrTheme.font(14, .medium)).lineLimit(1)
+        Spacer(minLength: 8)
+        Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(LimmrTheme.ink3)
+      }.padding(.horizontal, 14).frame(height: 44).contentShape(Rectangle())
+    }.quietCard().help(name)
+  }
   private var peoplePanel: some View {
-    block("People · \(people.count)") {
-      ForEach(chats) { chat in
-        Button(chat.name, systemImage: chat.id.hasSuffix("@g.us") ? "person.3" : "bubble.left") { openChat(chat.id) }
-          .buttonStyle(.bordered).lineLimit(1)
-      }
-      if people.isEmpty { Text("No known participants yet.").font(.callout).foregroundStyle(.secondary) }
-      LazyVGrid(columns: [GridItem(.adaptive(minimum: 115))], alignment: .leading, spacing: 8) {
-        ForEach(people) { person in
-          Button(person.name, systemImage: "person.crop.circle") {
-            store.selectPage(.circles); store.circlePath = [.person(person.id)]
-          }.buttonStyle(.bordered).lineLimit(1).help(person.name)
+    VStack(alignment: .leading, spacing: 10) {
+      Text("People · \(people.count)").font(LimmrTheme.TypeScale.section)
+      VStack(alignment: .leading, spacing: 0) {
+        if people.isEmpty && chats.isEmpty { Text("No known participants yet.").font(LimmrTheme.font(14)).foregroundStyle(LimmrTheme.ink2).padding(14) }
+        ForEach(chats) { chat in
+          whoRow(chat.name) { openChat(chat.id) } leading: {
+            Image(systemName: chat.id.hasSuffix("@g.us") ? "person.2.fill" : "bubble.left.fill").font(.system(size: 11)).foregroundStyle(LimmrTheme.ink3)
+              .frame(width: 28, height: 28).background(LimmrTheme.surface2, in: SwiftUI.Circle())
+          }.contextMenu {
+            Button("Remove from task") { Task { await model.removeMembers(chats: [chat.id]) } }
+              .disabled(model.saving)
+          }
+          if chat.id != chats.last?.id || !people.isEmpty { hairline }
         }
-      }
+        ForEach(people) { person in
+          whoRow(person.name) { store.selectPage(.circles); store.circlePath = [.person(person.id)] } leading: {
+            PersonAvatar(store: store, id: person.id, name: person.name, size: 28)
+          }.contextMenu {
+            if person.id != "me" {
+              Button("Remove from task") { Task { await model.removeMembers(people: [person.id]) } }
+                .disabled(model.saving)
+            }
+          }
+          if person.id != people.last?.id { hairline }
+        }
+      }.frame(maxWidth: .infinity, alignment: .leading).n1Card().clipShape(RoundedRectangle(cornerRadius: LimmrTheme.cardRadius))
     }
   }
   private var filesPanel: some View {
     block("Files & links") {
-      HStack(spacing: 10) {
-        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-        TextField("Search files & links", text: $assetQuery).textFieldStyle(.plain)
-          .accessibilityHint("Search descriptions, names, text in images, people and chats")
-      }.padding(9).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
-      Picker("Show", selection: $assetFilter) {
-        ForEach(["All", "Images", "Files", "Links"], id: \.self) { Text($0).tag($0) }
-      }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 320)
+      PaperFlow(spacing: 8) {
+        HStack(spacing: 8) {
+          Image(systemName: "magnifyingglass").foregroundStyle(LimmrTheme.ink3)
+          TextField("Search files & links", text: $assetQuery).textFieldStyle(.plain).font(LimmrTheme.font(14))
+            .accessibilityHint("Search descriptions, names, text in images, people and chats")
+        }.padding(.horizontal, 12).frame(width: 280, height: 28).background(LimmrTheme.surface2, in: RoundedRectangle(cornerRadius: 12))
+        PaperSegments(values: ["All", "Images", "Files", "Links"], selection: $assetFilter).accessibilityLabel("Show")
+      }
       let items = TaskAssetsPresentation.items(task.items, filter: assetFilter, query: assetQuery)
       if items.isEmpty {
         Text(task.items.isEmpty ? "Files and links shared in this task’s chats appear here." : "No matching files or links.")
-          .font(.callout).foregroundStyle(.secondary)
+          .font(LimmrTheme.font(14)).foregroundStyle(LimmrTheme.ink2)
       }
       LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 8)], alignment: .leading, spacing: 8) {
         ForEach(items) { item in
@@ -291,7 +363,7 @@ struct TaskWorkspaceContent: View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 8) {
         Label("Check-in · " + (task.checkIn.map { $0.rule == "reply" ? "When someone replies" : TaskPresentation.checkIn($0.nextAt) } ?? "Not scheduled"), systemImage: "clock")
-          .font(.caption).foregroundStyle(.secondary)
+          .font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
         if !closed {
           Menu {
             ForEach(["Tomorrow morning", "In 3 days", "Next week", "When someone replies"], id: \.self) { option in
@@ -299,19 +371,19 @@ struct TaskWorkspaceContent: View {
             }
             Button("Custom…") { schedule = true }
             if task.checkIn != nil { Button("Remove") { patch(.init(clearCheckIn: true)) } }
-          } label: { Image(systemName: "ellipsis").font(.caption) }
-            .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Schedule check-in")
+          } label: { Text("Change").font(LimmrTheme.font(12, .semibold)) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("Schedule check-in")
         }
       }
       if let fired = task.history.first(where: { $0.kind == "due" }) {
         Text("Last check-in fired \(store.relativeTime(fired.at))")
-          .font(.caption).foregroundStyle(.secondary)
+          .font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
         let received = task.history.contains { $0.kind == "check_in_received" && $0.at >= fired.at }
         Text(received ? "Sent to your dot" : "Waiting for your dot to sync")
-          .font(.caption).foregroundStyle(.secondary)
+          .font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
         let agent = task.createdBy.name.isEmpty || task.createdBy.agentId == "you" ? "your AI" : task.createdBy.name
         Text("Waiting for \(agent) to check in. Limmr can’t wake an AI; it checks in on its own schedule.")
-          .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+          .font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2).fixedSize(horizontal: false, vertical: true)
       }
     }
   }
@@ -319,29 +391,78 @@ struct TaskWorkspaceContent: View {
     block("History") {
       let latest = task.latest
       if latest.isEmpty {
-        Text(summary.text.isEmpty ? "No recent chat activity yet." : summary.text).font(.callout).textSelection(.enabled)
+        Text(summary.text.isEmpty ? "No recent chat activity yet." : summary.text).font(LimmrTheme.font(14)).textSelection(.enabled)
       }
-      ForEach(Array(latest.enumerated()), id: \.offset) { _, message in
+      ForEach(Array(latest.enumerated()), id: \.offset) { index, message in
         VStack(alignment: .leading, spacing: 4) {
-          HStack { Text(message.sender).font(.callout.weight(.semibold)); Spacer(); Text(store.relativeTime(message.timestamp)).font(.caption).foregroundStyle(.secondary) }
-          Text(message.text).font(.callout).lineLimit(3).textSelection(.enabled)
-          Text(message.chat).font(.caption).foregroundStyle(.secondary)
-        }.padding(.vertical, 4)
+          HStack(alignment: .firstTextBaseline) {
+            Text(message.sender).font(LimmrTheme.font(14, .semibold))
+            Text(message.chat).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2).lineLimit(1)
+            Spacer()
+            Text(store.relativeTime(message.timestamp)).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink3)
+          }
+          Text(message.text).font(LimmrTheme.font(14)).lineLimit(3).textSelection(.enabled)
+        }.padding(.vertical, 2)
+        if index < latest.count - 1 { hairline }
       }
       if closed && (task.history.contains { $0.text == "Closed automatically" } || ["lifespan", "agent_done"].contains(task.closeReason ?? "")) {
-        HStack { Text("Closed automatically").font(.callout); Spacer(); Button("Undo") { reopen() }.buttonStyle(.bordered) }
+        HStack { Text("Closed automatically").font(LimmrTheme.font(14)); Spacer(); Button("Undo") { reopen() }.buttonStyle(PaperButtonStyle()) }
       }
-      DisclosureGroup("Details", isExpanded: $showAllHistory) {
-        VStack(alignment: .leading, spacing: 10) {
-          ForEach(Array(task.history.enumerated()), id: \.offset) { _, event in
-            HStack(alignment: .firstTextBaseline) {
-              Text(event.text).font(.caption); Spacer()
-              Text(store.relativeTime(event.at)).font(.caption).foregroundStyle(.secondary)
+      // Automatic changes stay on the task and remain visible without opening Details.
+      ForEach(Array(task.history.filter { $0.changeId != nil }.enumerated()), id: \.offset) { _, event in
+        historyRow(event)
+      }
+      VStack(alignment: .leading, spacing: 0) {
+        Button { showAllHistory.toggle() } label: {
+          HStack(spacing: 8) {
+            Text("Details").font(LimmrTheme.font(12, .semibold)).foregroundStyle(LimmrTheme.ink2)
+            Spacer()
+            Image(systemName: showAllHistory ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(LimmrTheme.ink3)
+          }.padding(.horizontal, 12).frame(height: 32).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityValue(showAllHistory ? "Expanded" : "Collapsed")
+        if showAllHistory {
+          VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(task.history.filter { $0.changeId == nil }.enumerated()), id: \.offset) { _, event in
+              historyRow(event)
+            }
+            if let suggestion = task.suggestion { Text(suggestion.signals.joined(separator: " · ")).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2) }
+          }.padding(.horizontal, 12).padding(.bottom, 12).task { await model.loadDetails() }
+        }
+      }.background(LimmrTheme.surface2, in: RoundedRectangle(cornerRadius: 12))
+    }
+  }
+  private func historyRow(_ event: TaskHistoryEvent) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: 3) {
+          Text(event.text).font(LimmrTheme.font(12)).fixedSize(horizontal: false, vertical: true)
+          if let reason = event.reason, !reason.isEmpty, !event.text.contains(reason) {
+            Text(reason).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
+          }
+        }
+        Spacer(minLength: 8)
+        Text(store.relativeTime(event.at)).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2)
+        if event.undone { Text("Undone").font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2) }
+        else {
+          TimelineView(.periodic(from: now, by: 1)) { context in
+            if event.canUndo(now: store.snapshot ? now : context.date) {
+              Button("Undo") { Task { await model.undoChange(event, now: store.presentationNow) } }
+                .buttonStyle(PaperButtonStyle()).disabled(model.saving)
+                .accessibilityLabel("Undo \(event.text)")
             }
           }
-          if let suggestion = task.suggestion { Text(suggestion.signals.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
-        }.padding(.top, 10).task { await model.loadDetails() }
-      }.padding(10).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+      if let id = event.changeId, let error = model.historyErrors[id] {
+        Text(error).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink2).textSelection(.enabled)
+      }
+    }.padding(.vertical, 3)
+  }
+  private func resolveSuggestion(_ action: TaskSurfacingAction) {
+    Task {
+      await model.resolveSuggestion(action)
+      if let target = model.task, target.id != task.id { store.openTask(target.id) }
+      await store.refreshAllTasks(); await store.refreshTaskHome()
     }
   }
   private func suggestCheckIn(_ option: String) {
@@ -364,16 +485,17 @@ struct TaskWorkspaceContent: View {
   }
   private func patch(_ request: TaskPatch) {
     Task { await model.change {
-      if task.status == "suggested" { _ = try await model.client.surface(task.id, action: .keep) }
-      return try await model.client.patch(task.id, request)
+      let targetID: String
+      if task.status == "suggested" { targetID = try await model.client.surface(task.id, action: .keep).id }
+      else { targetID = task.id }
+      return try await model.client.patch(targetID, request)
     }; await store.refreshTaskHome() }
   }
   private func block<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-    GroupBox {
-      VStack(alignment: .leading, spacing: 8) { content() }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(8)
-    } label: {
-      Text(title).font(.headline)
+    VStack(alignment: .leading, spacing: 10) {
+      Text(title).font(LimmrTheme.TypeScale.section)
+      VStack(alignment: .leading, spacing: 10) { content() }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(16).n1Card()
     }
   }
 }

@@ -14,7 +14,7 @@ import (
 
 func circleFixture(t *testing.T, r *rig, kind, rule string, asMe bool, jids ...string) model.Circle {
 	t.Helper()
-	v := model.Circle{Name: "Café Atlas", Kind: kind, SendRule: rule, People: []model.CirclePerson{{PersonID: "maya", Role: "client"}}}
+	v := model.Circle{Name: "Café Atlas", Kind: kind, TaskOverrideReason: "Ongoing studio collaboration across projects", SendRule: rule, People: []model.CirclePerson{{PersonID: "maya", Role: "client"}}}
 	for _, j := range jids {
 		v.Chats = append(v.Chats, model.CircleChat{ChatJID: j, Role: "main"})
 	}
@@ -404,7 +404,7 @@ func TestSuccessfulCircleProtocolEveryToolAudited(t *testing.T) {
 	if suggestion.DraftText != "The sketches are ready." {
 		t.Fatal("suggestion body changed")
 	}
-	run("propose_circle", map[string]any{"name": "Studio", "kind": "project", "chats": []string{groupB}, "people": []string{}, "why": "Shared work."})
+	run("propose_circle", map[string]any{"name": "Studio", "kind": "community", "chats": []string{groupB}, "people": []string{}, "why": "Shared work."})
 	run("set_person_role", map[string]any{"circle_id": c.ID, "person_id": "maya", "role": "reviewer"})
 	run("add_topic", map[string]any{"circle_id": c.ID, "title": "Sketch review", "chats": []string{chatA}, "people": []string{"maya"}, "keywords": []string{"sketch"}})
 	circle, e := s.Circle(&r.a, c.ID)

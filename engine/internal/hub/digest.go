@@ -116,7 +116,7 @@ func (s *Service) GetDigest(a *model.Agent, o DigestOptions, circles DigestCircl
 	selected := []model.Circle{}
 	circleIDs := []string{}
 	for _, c := range cs {
-		if !c.Confirmed || c.Archived || o.CircleID != "" && c.ID != o.CircleID {
+		if !c.Confirmed || !c.Live() || o.CircleID != "" && c.ID != o.CircleID {
 			continue
 		}
 		chats := []model.CircleChat{}

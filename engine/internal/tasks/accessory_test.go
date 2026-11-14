@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"limmr/internal/model"
 	"net/http"
@@ -255,5 +256,73 @@ func TestAccessoryTestSilentSavedColorAndDelayedOwnership(t *testing.T) {
 	g := &Accessory{URL: "http://fake-accessory.invalid", TokenPath: filepath.Join(t.TempDir(), "missing")}
 	if g.Test(context.Background(), model.AccessoryCue{}) {
 		t.Fatal("unavailable reported running")
+	}
+}
+
+func TestAccessorySnoozeExpiresSilentlyIncludingWholeIntervalDowntime(t *testing.T) {
+	for _, duringSnooze := range []bool{false, true} {
+		t.Run(fmt.Sprint("running_during_snooze=", duringSnooze), func(t *testing.T) {
+			s, _, now := fixture(t)
+			path := filepath.Join(t.TempDir(), "token")
+			if err := os.WriteFile(path, []byte("invented-test-credential"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			posts, deletes := 0, 0
+			client := &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+				if r.URL.Host != "fake-accessory.invalid" {
+					t.Fatal("unexpected endpoint")
+				}
+				w := httptest.NewRecorder()
+				switch r.Method {
+				case "POST":
+					posts++
+					w.WriteString(`{"ok":true}`)
+				case "GET":
+					w.WriteString(`{"active":{"source":"limmr"}}`)
+				case "DELETE":
+					deletes++
+					w.WriteString(`{"ok":true}`)
+				default:
+					t.Fatal("unknown fake method")
+				}
+				return w.Result(), nil
+			})}
+			makeClient := func() *Accessory {
+				return &Accessory{State: s.Hub.Repo, URL: "http://fake-accessory.invalid", TokenPath: path, Client: client}
+			}
+			ctx, config := context.Background(), model.AccessoryCue{Enabled: true}
+			g := makeClient()
+			// An ordinary need cues, disappears, and must be forgotten even while
+			// a different task is snoozed. Never cue that snoozed task beforehand.
+			ordinary := record{Task: Task{ID: "ordinary", Title: "Study plan", NeedsYou: true}}
+			g.Sync(ctx, []record{ordinary}, config, *now)
+			until := now.Add(time.Hour)
+			snoozed := record{Task: Task{ID: "later", Title: "Appointment", NeedsYou: true, LaterAt: now, LaterUntil: &until}}
+			if duringSnooze {
+				g.Sync(ctx, []record{snoozed}, config, now.Add(time.Minute))
+				if deletes != 1 || g.seen[ordinary.ID] {
+					t.Fatal("snooze retained ordinary need or failed to clear own cue")
+				}
+			}
+			g = makeClient() // Recover persisted runtime; skip the rest/all of the snooze.
+			g.Sync(ctx, []record{snoozed}, config, until.Add(time.Minute))
+			if !attentionAt(snoozed, until.Add(time.Minute)).NeedsYou {
+				t.Fatal("expired task did not return")
+			}
+			if posts != 1 {
+				t.Fatal("snooze expiry emitted a new cue")
+			}
+			g.Sync(ctx, []record{snoozed, ordinary}, config, until.Add(2*time.Minute))
+			if posts != 2 {
+				t.Fatal("ordinary reappearing need did not cue")
+			}
+			// A new reason clears LaterUntil in the task service; it can cue again.
+			g.Sync(ctx, nil, config, until.Add(3*time.Minute))
+			snoozed.LaterUntil = nil
+			g.Sync(ctx, []record{snoozed}, config, until.Add(12*time.Minute))
+			if posts != 3 {
+				t.Fatal("new need after snooze could not cue")
+			}
+		})
 	}
 }

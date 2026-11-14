@@ -10,11 +10,18 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_candidate": {
+        "item_id": "default:0",
+        "thumbnail_url": "/v1/tasks/tsk_demo_application/cover/thumbnail?default=default:0",
+        "title": "Task cover"
+      },
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
         "name": "You"
       },
+      "goal": "Prepare the fundraiser application",
       "id": "tsk_demo_application",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",
@@ -36,6 +43,40 @@
       "title": "Prepare the fundraiser application"
     },
     {
+      "circle_ids": [],
+      "cover_candidate": {
+        "item_id": "default:0",
+        "thumbnail_url": "/v1/tasks/tsk_demo_cv/cover/thumbnail?default=default:0",
+        "title": "Task cover"
+      },
+      "cover_item_id": "default:0",
+      "created_at": "2026-10-17T12:00:00Z",
+      "created_by": {
+        "agent_id": "agent-2",
+        "name": "Codex"
+      },
+      "goal": "Review the family CV",
+      "id": "tsk_demo_cv",
+      "kind": "long",
+      "last_active_at": "2026-10-17T12:00:00Z",
+      "needs_you": false,
+      "origin": "agent",
+      "progress": {
+        "done": 0,
+        "total": 0
+      },
+      "status": "suggested",
+      "suggestion": {
+        "confidence": 0.75,
+        "detected_at": "2026-10-17T12:00:00Z",
+        "effort_ids": [],
+        "signals": [
+          "Atlas has sent 4 messages here in the last 14 days"
+        ]
+      },
+      "title": "Review the family CV"
+    },
+    {
       "circle_ids": [
         "flatmates"
       ],
@@ -45,11 +86,18 @@
           "reason": "A linked chat is in this circle"
         }
       ],
+      "cover_candidate": {
+        "item_id": "default:0",
+        "thumbnail_url": "/v1/tasks/tsk_demo_guide/cover/thumbnail?default=default:0",
+        "title": "Task cover"
+      },
+      "cover_item_id": "default:0",
       "created_at": "2026-10-17T12:00:00Z",
       "created_by": {
         "agent_id": "you",
         "name": "You"
       },
+      "goal": "Print the revision guide",
       "id": "tsk_demo_guide",
       "kind": "long",
       "last_active_at": "2026-10-17T12:00:00Z",

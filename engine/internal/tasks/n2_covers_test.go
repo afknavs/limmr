@@ -52,37 +52,21 @@ func TestN2CoverCandidatesUseMetadataAndPriority(t *testing.T) {
 	if c := get(); c == nil || c.ItemID != "chosen" || !strings.HasPrefix(c.ThumbnailURL, "/v1/tasks/") {
 		t.Fatalf("owner choice: %+v", c)
 	}
-	set(items, "", false)
+	set(items, "first", false)
 	if c := get(); c == nil || c.ItemID != "first" {
-		t.Fatalf("first workspace image: %+v", c)
-	}
-	set(items[:1], "", false)
-	if c := get(); c == nil || c.MediaID != "older-media" {
-		t.Fatalf("file preferred to newer embedded thumbnail: %+v", c)
+		t.Fatalf("explicit workspace image: %+v", c)
 	}
 	preview, e := s.CoverPreview(nil, v.ID)
 	testkit.Must(t, e)
 	if !regularFile(preview["path"].(string)) {
-		t.Fatal("downloaded thumbnail missing")
+		t.Fatal("selected preview missing")
 	}
-	testkit.Must(t, os.Remove(s.coverMediaPath(&CoverCandidate{ChatJID: testkit.Phone, MediaID: "older-media"})))
-	if c := get(); c == nil || c.MediaID != "new-media" {
-		t.Fatal("thumbnail-only fallback missing", c)
-	}
-	coverOriginal(t, s, testkit.Phone, "older-media", 80, 100)
-	_, err = s.Hub.Messages.DB.Exec("UPDATE messages SET deleted_at=? WHERE id='new-media'", *now)
-	testkit.Must(t, err)
-	if c := get(); c == nil || c.MediaID != "older-media" {
-		t.Fatalf("deleted source retained: %+v", c)
-	}
-	_, err = s.Hub.Messages.DB.Exec("UPDATE messages SET deleted_at=? WHERE media_type='image'", *now)
-	testkit.Must(t, err)
-	if c := get(); c == nil || c.ItemID != "link" || c.LinkURL == "" {
-		t.Fatalf("link fallback: %+v", c)
-	}
-	set(nil, "", false)
-	if c := get(); c != nil {
-		t.Fatalf("expected typographic fallback: %+v", c)
+	// Unselected workspace files, links and newer chat media never replace the pin.
+	for _, subset := range [][]Item{items, items[:1], nil} {
+		set(subset, "", false)
+		if c := get(); c == nil || c.ItemID != defaultCoverID(v.ID) || c.MediaID != "" || c.LinkURL != "" {
+			t.Fatalf("unstable fallback: %+v", c)
+		}
 	}
 	set(items, "chosen", true)
 	if c := get(); c != nil {
@@ -95,31 +79,35 @@ func TestN2CoverSourceVisibilityRechecked(t *testing.T) {
 	v := create(t, s, a, "long")
 	testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: "photo", ChatJID: testkit.Phone, MediaType: "image", Timestamp: *now}))
 	coverOriginal(t, s, testkit.Phone, "photo", 80, 100)
+	pinFixtureCover(t, s, &v, testkit.Phone, "photo")
 	c := s.coverCandidate(nil, v)
 	if c == nil {
 		t.Fatal("photo missing")
 	}
 	a.Permissions.Chats.Mode = "only"
 	a.Permissions.Chats.JIDs = []string{testkit.Group}
-	if s.coverCandidate(a, v) != nil {
+	if c := s.coverCandidate(a, v); c == nil || c.ItemID != defaultCoverID(v.ID) || c.MediaID != "" {
 		t.Fatal("inaccessible media exposed")
 	}
 	settings := s.Hub.Settings()
 	settings.HiddenChats = []string{testkit.Phone}
 	testkit.Must(t, s.Hub.SetSettings(settings))
-	if s.coverCandidate(nil, v) != nil {
+	if c := s.coverCandidate(nil, v); c == nil || c.ItemID != defaultCoverID(v.ID) || c.MediaID != "" {
 		t.Fatal("hidden media exposed")
 	}
-	if _, err := s.CoverPreview(nil, v.ID); err == nil {
-		t.Fatal("hidden cached preview exposed")
+	preview, err := s.CoverPreview(nil, v.ID)
+	testkit.Must(t, err)
+	if !strings.HasPrefix(filepath.Base(preview["path"].(string)), "task-") {
+		t.Fatal("hidden source did not use built-in fallback")
 	}
 }
 
 func TestN2RecentListUsesRecencyBeforeNeedsYou(t *testing.T) {
 	s, a, now := fixture(t)
 	older := create(t, s, a, "long")
-	newer := create(t, s, a, "long")
-	_, err := s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.last_active_at',?,'$.needs_you',json('true')) WHERE id=?", now.Add(-time.Hour).Format(time.RFC3339Nano), older.ID)
+	newer, err := s.Create(a, Create{Title: "Book transport", Goal: "Reserve the coach", Kind: "long", Chats: []Entity{{ID: testkit.Phone}}})
+	testkit.Must(t, err)
+	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.last_active_at',?,'$.needs_you',json('true')) WHERE id=?", now.Add(-time.Hour).Format(time.RFC3339Nano), older.ID)
 	testkit.Must(t, err)
 	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.last_active_at',?,'$.needs_you',json('false')) WHERE id=?", now.Format(time.RFC3339Nano), newer.ID)
 	testkit.Must(t, err)

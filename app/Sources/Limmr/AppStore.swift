@@ -16,9 +16,21 @@ import SwiftUI
   var writingMacBriefs = false
   var macBriefNotice: String?
   var allTasks: [TaskSummary] = []
+  var taskLaterNotices: [String: String] = [:]
+  var taskLaterSaving: Set<String> = []
+  var archivedCircles: [LimmrKit.Circle] = []
+  var showArchivedCircles = false
+  var archivedCircleUndo: LimmrKit.Circle?
+  let connectionLaunchedAt = Date()
+  var connectionDropAt: Date?
+
   var allTasksError: String?
   var home = HomeResponse.empty { didSet { syncEffortNaming(); notifyTaskCheckIns() } }
-  var circles: [LimmrKit.Circle] = []
+  private var circleRecords: [LimmrKit.Circle] = []
+  var circles: [LimmrKit.Circle] {
+    get { circleRecords.filter { $0.isLive } }
+    set { circleRecords = newValue.filter { $0.isLive } }
+  }
   var circleMap = CircleMap.empty
   var presence: [AgentPresence] = []
   var contactsImportTask: Task<Void, Never>?
@@ -209,24 +221,30 @@ import SwiftUI
   var peopleSearchResults: [Person]?
   private(set) var loadedRoutes: Set<String> = []
   func hasLoaded(_ path: String) -> Bool {
-    loadedRoutes.contains(path.components(separatedBy: "?")[0])
+    loadedRoutes.contains(loadKey(path))
   }
   func isLoading(_ path: String) -> Bool {
-    let route = path.components(separatedBy: "?")[0]
+    let route = loadKey(path)
     return !loadedRoutes.contains(route)
-      && !loadFailures.keys.contains { $0.components(separatedBy: "?")[0] == route }
+      && !loadFailures.keys.contains { loadKey($0) == route }
   }
   func read<T: Decodable & Sendable>(_ path: String) async throws -> T {
     let data = try await CalmLoadRetry.request(backend, path: path, pause: retryPause)
     return try await Task.detached(priority: .userInitiated) { try Wire.decode(T.self, from: data, route: path) }.value
+  }
+  // Archived circles are a separate resource, not a pagination/filter variant
+  // of the live list. Its success must never erase a live-list failure.
+  private func loadKey(_ path: String) -> String {
+    if path == "/v1/circles?archived=1" { return path }
+    return path.components(separatedBy: "?")[0]
   }
   func load<T: Decodable & Sendable>(_ path: String, title: String, apply: (T) -> Void)
     async
   {
     let generation = backendGeneration
     let source = backend
-    let route = path.components(separatedBy: "?")[0]
-    for key in Array(loadFailures.keys) where key.components(separatedBy: "?")[0] == route {
+    let route = loadKey(path)
+    for key in Array(loadFailures.keys) where loadKey(key) == route {
       loadFailures[key] = nil
     }
     updateRefreshError()
@@ -243,7 +261,7 @@ import SwiftUI
         payloads[path] = data
       }
       loadedRoutes.insert(route)
-      for key in Array(loadFailures.keys) where key.components(separatedBy: "?")[0] == route {
+      for key in Array(loadFailures.keys) where loadKey(key) == route {
         loadFailures[key] = nil
       }
     } catch is CancellationError {
@@ -279,7 +297,10 @@ import SwiftUI
       }
     }
     guard generation == backendGeneration else { return }
-    await load("/v1/status", title: "Connection") { (v: Status) in status = v }
+    await load("/v1/status", title: "Connection") { (v: Status) in
+      if v.linked && !v.connected { if connectionDropAt == nil { connectionDropAt = Date() } }
+      else { connectionDropAt = nil }
+      status = v }
     guard generation == backendGeneration, !Task.isCancelled else { return }
     // A down helper cannot answer the remaining reads. Keep their placeholders pending,
     // rather than spending a separate retry window on every endpoint.
@@ -319,7 +340,7 @@ import SwiftUI
       changes = v.changes
     }
     guard generation == backendGeneration else { return }
-    await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v }
+    await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v; reconcileLaterNotices(v.tasks) }
     // Seed Tasks and warm recent covers independently of lazy view appearance.
     await prepareTaskCovers()
     // Home owns the short activity calendar: load it before slower map/setup enrichment.
@@ -329,9 +350,11 @@ import SwiftUI
     if page == .tasks || page == .circles && !circlePath.isEmpty { await refreshAllTasks() }
     if home.effortsReady == false { retryHomeUntilEffortsReady() }
     guard generation == backendGeneration else { return }
-    await load("/v1/circles", title: "Circles") { (v: CirclesResponse) in circles = v.circles }
+    await load("/v1/circles", title: "Circles") { (v: CirclesResponse) in circles = v.circles.filter { $0.isLive } }
     guard generation == backendGeneration else { return }
-    await load("/v1/map" + (circleMap.cursor.map { "?since=" + $0 } ?? ""), title: "People map") {
+    await load("/v1/circles?archived=1", title: "Archived circles") { (v: CirclesResponse) in archivedCircles = v.circles.filter { $0.archived == true } }
+    let mapPath = demo || snapshot ? "/v1/map" + (circleMap.cursor.map { "?since=" + $0 } ?? "") : "/v1/map/mesh"
+    await load(mapPath, title: "People map") {
       (v: CircleMap) in
       let arrivals = mapEventDiff.ingest(v.events)
       circleMap = circleMap.applying(v)
@@ -471,7 +494,7 @@ import SwiftUI
       for _ in 0..<attempts {
         try? await Task.sleep(for: pause)
         guard !Task.isCancelled, generation == backendGeneration else { return }
-        await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v }
+        await load("/v1/home", title: "Home") { (v: HomeResponse) in home = v; reconcileLaterNotices(v.tasks) }
     // Home owns the short activity calendar: load it before slower map/setup enrichment.
     if history == nil || Date().timeIntervalSince(lastUsageRefresh) >= 60 {
       await refreshHistory()
@@ -642,6 +665,7 @@ import SwiftUI
     home = .empty
     homeEfforts = []
     homeEffortsReady = false
+    taskLaterNotices = [:]; taskLaterSaving = []; archivedCircles = []; archivedCircleUndo = nil; showArchivedCircles = false
     circles = []
     circleMap = .empty
     presence = []

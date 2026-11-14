@@ -107,52 +107,96 @@ type CircleSuggestion struct {
 	CircleID string `json:"circle_id"`
 	Reason   string `json:"reason"`
 }
+
+// OwnerRequest quotes the owner's ask. MessageRef is an accessible message ID.
+type OwnerRequest struct {
+	Text       string `json:"text"`
+	MessageRef string `json:"message_ref,omitempty"`
+}
+type AskedByOwner struct {
+	OwnerRequest
+	AgentID string    `json:"agent_id"`
+	At      time.Time `json:"at"`
+}
+
+type FinishHint struct {
+	Why         string    `json:"why"`
+	MessageRefs []Ref     `json:"message_refs"`
+	At          time.Time `json:"at"`
+}
+
 type Task struct {
-	CircleSuggestions []CircleSuggestion `json:"circle_suggestions,omitempty"`
-	CirclesEdited     bool               `json:"circles_edited,omitempty"`
-	OwnerNotes        []OwnerNote        `json:"owner_notes,omitempty"`
-	Cover             *Item              `json:"cover,omitempty"`
-	CoverItemID       string             `json:"cover_item_id,omitempty"`
-	CoverRemoved      bool               `json:"cover_removed,omitempty"`
-	EndAt             *time.Time         `json:"end_at,omitempty"`
-	EndCondition      string             `json:"end_condition,omitempty"`
-	LastActiveAt      time.Time          `json:"last_active_at"`
-	Latest            []LatestMessage    `json:"latest,omitempty"`
-	SummaryAttempt    *SummaryAttempt    `json:"summary_attempt,omitempty"`
-	History           []Event            `json:"history,omitempty"`
-	Origin            string             `json:"origin"`
-	Suggestion        *Suggestion        `json:"suggestion,omitempty"`
-	AutoKeptAt        *time.Time         `json:"auto_kept_at,omitempty"`
-	UndoChangeID      string             `json:"undo_change_id,omitempty"`
-	ID                string             `json:"id"`
-	Title             string             `json:"title"`
-	Goal              string             `json:"goal"`
-	Kind              string             `json:"kind"`
-	Status            string             `json:"status"`
-	EffortID          string             `json:"effort_id,omitempty"`
-	Chats             []Entity           `json:"chats"`
-	People            []Entity           `json:"people"`
-	CircleIDs         []string           `json:"circle_ids"`
-	CreatedBy         Credit             `json:"created_by"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	ClosedAt          *time.Time         `json:"closed_at,omitempty"`
-	CloseReason       string             `json:"close_reason,omitempty"`
-	Summary           Summary            `json:"summary"`
-	Items             []Item             `json:"items"`
-	Checklist         []Step             `json:"checklist"`
-	Progress          Progress           `json:"progress"`
-	CheckIn           *CheckIn           `json:"check_in,omitempty"`
-	Waiting           *Waiting           `json:"waiting,omitempty"`
-	LifespanDays      int                `json:"lifespan_days,omitempty"`
-	UpdatesSent       []SentUpdate       `json:"updates_sent"`
-	NeedsYou          bool               `json:"needs_you"`
-	NeedsYouReason    string             `json:"needs_you_reason,omitempty"`
+	LaterUntil *time.Time  `json:"later_until,omitempty"`
+	LaterAt    *time.Time  `json:"later_at,omitempty"`
+	FinishHint *FinishHint `json:"finish_hint,omitempty"`
+	// Response-only result of Keep; never stored on either task.
+	AttachedToExisting bool               `json:"attached_to_existing,omitempty"`
+	Membership         *Membership        `json:"membership_provenance,omitempty"`
+	RemovedMembers     RemovedMembers     `json:"removed_members,omitempty"`
+	EvidenceRefs       []Ref              `json:"evidence_refs,omitempty"`
+	AskedByOwner       *AskedByOwner      `json:"asked_by_owner,omitempty"`
+	Follows            string             `json:"follows,omitempty"`
+	FollowsContext     *Task              `json:"follows_context,omitempty"`
+	MergedInto         string             `json:"merged_into,omitempty"`
+	Subject            *Entity            `json:"subject,omitempty"`
+	SubjectEvidence    []Ref              `json:"subject_evidence,omitempty"`
+	SubjectEdited      bool               `json:"subject_edited,omitempty"`
+	CircleSuggestions  []CircleSuggestion `json:"circle_suggestions,omitempty"`
+	CirclesEdited      bool               `json:"circles_edited,omitempty"`
+	OwnerNotes         []OwnerNote        `json:"owner_notes,omitempty"`
+	Cover              *Item              `json:"cover,omitempty"`
+	CoverItemID        string             `json:"cover_item_id,omitempty"`
+	CoverRemoved       bool               `json:"cover_removed,omitempty"`
+	EndAt              *time.Time         `json:"end_at,omitempty"`
+	EndCondition       string             `json:"end_condition,omitempty"`
+	LastActiveAt       time.Time          `json:"last_active_at"`
+	Latest             []LatestMessage    `json:"latest,omitempty"`
+	SummaryAttempt     *SummaryAttempt    `json:"summary_attempt,omitempty"`
+	History            []Event            `json:"history,omitempty"`
+	Origin             string             `json:"origin"`
+	Suggestion         *Suggestion        `json:"suggestion,omitempty"`
+	AutoKeptAt         *time.Time         `json:"auto_kept_at,omitempty"`
+	UndoChangeID       string             `json:"undo_change_id,omitempty"`
+	ID                 string             `json:"id"`
+	Title              string             `json:"title"`
+	Goal               string             `json:"goal"`
+	Kind               string             `json:"kind"`
+	Status             string             `json:"status"`
+	EffortID           string             `json:"effort_id,omitempty"`
+	Chats              []Entity           `json:"chats"`
+	People             []Entity           `json:"people"`
+	CircleIDs          []string           `json:"circle_ids"`
+	CreatedBy          Credit             `json:"created_by"`
+	CreatedAt          time.Time          `json:"created_at"`
+	UpdatedAt          time.Time          `json:"updated_at"`
+	ClosedAt           *time.Time         `json:"closed_at,omitempty"`
+	CloseReason        string             `json:"close_reason,omitempty"`
+	Summary            Summary            `json:"summary"`
+	Items              []Item             `json:"items"`
+	Checklist          []Step             `json:"checklist"`
+	Progress           Progress           `json:"progress"`
+	CheckIn            *CheckIn           `json:"check_in,omitempty"`
+	Waiting            *Waiting           `json:"waiting,omitempty"`
+	LifespanDays       int                `json:"lifespan_days,omitempty"`
+	LifespanSet        bool               `json:"lifespan_set,omitempty"`
+	UpdatesSent        []SentUpdate       `json:"updates_sent"`
+	NeedsYou           bool               `json:"needs_you"`
+	NeedsYouReason     string             `json:"needs_you_reason,omitempty"`
 }
 
 // Record-only fields never cross API boundaries.
 type record struct {
+	ownerActivity      bool
+	closureReason      string
+	OwnerOpenedAt      *time.Time `json:"owner_opened_at,omitempty"`
+	ReopenedAt         *time.Time `json:"reopened_at,omitempty"`
+	FinishHintAfter    time.Time  `json:"finish_hint_after,omitempty"`
+	FinishHintEffort   string     `json:"finish_hint_effort,omitempty"`
+	NeedsYouAt         *time.Time `json:"needs_you_at,omitempty"`
 	eventActor         string
+	statusReason       string
+	silentChange       bool
+	EndedAsSuggestion  bool `json:"ended_as_suggestion,omitempty"`
 	CoverReviewPending bool `json:"cover_review_pending,omitempty"`
 	Task
 	PauseChecklistClose bool   `json:"pause_checklist_close,omitempty"`
@@ -171,6 +215,20 @@ type WaitingSummary struct {
 	Days   int       `json:"days"`
 }
 type TaskSummary struct {
+	LaterUntil *time.Time `json:"later_until,omitempty"`
+	// MCP suggestion evidence; owner/control summaries retain their existing shape.
+	Chats             []Entity           `json:"chats,omitempty"`
+	People            []Entity           `json:"people,omitempty"`
+	ChatCount         *int               `json:"chat_count,omitempty"`
+	PeopleCount       *int               `json:"people_count,omitempty"`
+	// Faces are the first few people (or, without people, group chats) a card can draw.
+	Faces     []Entity `json:"faces,omitempty"`
+	FaceCount int      `json:"face_count,omitempty"`
+	FinishHint        *FinishHint        `json:"finish_hint,omitempty"`
+	Goal              string             `json:"goal"`
+	Follows           string             `json:"follows,omitempty"`
+	MergedInto        string             `json:"merged_into,omitempty"`
+	CoverItemID       string             `json:"cover_item_id,omitempty"`
 	CoverCandidate    *CoverCandidate    `json:"cover_candidate,omitempty"`
 	ClosedAt          *time.Time         `json:"closed_at,omitempty"`
 	CloseReason       string             `json:"close_reason,omitempty"`
@@ -197,9 +255,13 @@ type TaskSummary struct {
 	EffortID          string             `json:"effort_id,omitempty"`
 }
 type Event struct {
-	At   time.Time `json:"at"`
-	Kind string    `json:"kind"`
-	Text string    `json:"text"`
+	ChangeID  string    `json:"change_id,omitempty"`
+	UndoUntil string    `json:"undo_until,omitempty"`
+	Reason    string    `json:"reason,omitempty"`
+	Undone    bool      `json:"undone,omitempty"`
+	At        time.Time `json:"at"`
+	Kind      string    `json:"kind"`
+	Text      string    `json:"text"`
 }
 type FeedItem struct {
 	TaskSummary

@@ -21,13 +21,18 @@ extension AppStore {
       taskWorkspaceCache.removeAll(); taskWorkspaceOrder.removeAll(); taskWorkspaceGeneration = backendGeneration
     }
     if let cached = taskWorkspaceCache[id] {
-      taskWorkspaceOrder.removeAll { $0 == id }; taskWorkspaceOrder.append(id)
+      // A mounted destination asks for its workspace during view construction.
+      // Rewriting the same observed order there continually invalidates the scene.
+      if taskWorkspaceOrder.last != id {
+        taskWorkspaceOrder.removeAll { $0 == id }; taskWorkspaceOrder.append(id)
+      }
       return cached
     }
     var seed = initial
     if seed == nil, let card = (allTasks + home.tasks).first(where: { $0.id == id }) {
       var value = TrackedTask()
       value.id = id; value.title = card.title; value.kind = card.kind; value.status = card.status
+      value.laterUntil = card.laterUntil
       value.progress = card.progress; value.needsYou = card.needsYou; value.createdAt = card.createdAt ?? ""
       value.lastActiveAt = card.lastActiveAt; value.circleIds = card.circleIds
       seed = value
@@ -64,7 +69,7 @@ extension AppStore {
   }
   func refreshTaskHome() async {
     let generation = backendGeneration
-    if let value: HomeResponse = try? await backend.get("/v1/home"), generation == backendGeneration { home = value }
+    if let value: HomeResponse = try? await backend.get("/v1/home"), generation == backendGeneration { home = value; reconcileLaterNotices(value.tasks) }
   }
   func quietTask(_ id: String, status: String) async {
     guard !taskActions.contains(id) else { return }
@@ -72,12 +77,13 @@ extension AppStore {
     let generation = backendGeneration
     do {
       let client = TaskClient(backend: backend)
-      let before = try await client.get(id)
-      if before.status == "suggested" { _ = try await client.surface(id, action: .keep) }
-      _ = try await client.patch(id, .init(status: status))
+      var before = try await client.get(id)
+      if before.status == "suggested" { before = try await client.surface(id, action: .keep) }
+      _ = try await client.patch(before.id, .init(status: status))
       guard generation == backendGeneration else { return }
       taskQuietUndo = before; taskQuietNotice = status == "done" ? "Task marked done" : status == "quiet" ? "Task made quiet" : status == "active" ? "Task awake" : "Task set aside"
-      taskWorkspaceCache[id] = nil; taskWorkspaceOrder.removeAll { $0 == id }
+      taskWorkspaceCache[id] = nil; taskWorkspaceCache[before.id] = nil
+      taskWorkspaceOrder.removeAll { $0 == id || $0 == before.id }
       await refreshTaskHome(); await refreshAllTasks(); taskActionErrors[id] = nil
     } catch { if generation == backendGeneration { taskActionErrors[id] = "Couldn’t save this task. Try again." } }
   }

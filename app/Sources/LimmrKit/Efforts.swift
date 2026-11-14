@@ -3,6 +3,7 @@ import Foundation
 public struct EffortEntity: Codable, Sendable, Identifiable, Equatable {
   public var id: String
   public var name: String
+  public init(id: String, name: String) { self.id = id; self.name = name }
 }
 public struct EffortMessageRef: Codable, Sendable, Equatable {
   public var chatJid: String

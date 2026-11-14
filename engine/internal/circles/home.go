@@ -145,7 +145,7 @@ func (s *Service) Home() (any, error) {
 			today = append(today, map[string]any{"circle": c, "brief": b, "new_messages": n, "open_asks": asks, "upcoming": upcoming})
 		}
 	}
-	sg, e := s.Hub.Suggestions()
+	sg, e := s.ReviewSuggestions()
 	if e != nil {
 		return nil, e
 	}

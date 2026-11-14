@@ -6,11 +6,35 @@ import (
 	"time"
 )
 
-func closureLabel(r record) string {
-	if r.CloseReason == "lifespan" || r.CloseReason == "agent_done" || r.CloseReason == "done" && r.Progress.Total > 0 && r.Progress.Done == r.Progress.Total {
-		return "Closed automatically"
+// Stored close_reason values remain the wire contract; history explains them.
+func closureReason(r record) string {
+	if r.closureReason != "" {
+		return r.closureReason
 	}
-	return "Task closed"
+	switch r.CloseReason {
+	case "obsolete":
+		return "no activity"
+	case "lifespan":
+		return "its end time passed"
+	case "agent_done":
+		return "the AI marked it done"
+	case "merged":
+		return "merged into another task"
+	case "owner":
+		return "you set it aside"
+	case "failed":
+		return "it was marked unsuccessful"
+	case "not_a_task":
+		return "it was dismissed as not a task"
+	case "suggestion_expired":
+		return "the suggestion expired"
+	default:
+		return "you marked it done"
+	}
+}
+func (s *Service) closureEvent(tx *sql.Tx, r record, key string) error {
+	reason := closureReason(r)
+	return s.event(tx, r, key, "task_closed", "Ended: "+reason, map[string]string{"reason": reason, "close_reason": r.CloseReason, "merged_into": r.MergedInto})
 }
 
 func (s *Service) latestActivity(t Task) time.Time {
@@ -45,6 +69,8 @@ func (s *Service) Reopen(id string) (Task, error) {
 		if r.Status != "done" && r.Status != "dropped" {
 			return model.ErrConflict
 		}
+		r.ReopenedAt = ptrTime(s.now())
+		s.ownerTaskActivity(r)
 		r.Status = "active"
 		if r.Waiting != nil {
 			r.Status = "waiting"

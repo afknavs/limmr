@@ -26,6 +26,15 @@ func coverTestPNG(t *testing.T, w, h int) []byte {
 	return b.Bytes()
 }
 
+// Fixtures use explicit selections; production never rescans chat recency for a cover.
+func pinFixtureCover(t *testing.T, s *Service, task *Task, chat, id string) {
+	t.Helper()
+	item := Item{ID: "pin-" + id, Kind: "file", Source: "chat", AttachmentID: "fixture-media", MediaType: "image", Title: "Selected image", MessageRef: &Ref{ChatJID: chat, MessageID: id}}
+	_, err := s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json(?),'$.cover_item_id',?) WHERE id=?", dbutil.JSON([]Item{item}), item.ID, task.ID)
+	testkit.Must(t, err)
+	task.CoverItemID = item.ID
+}
+
 type coverFake struct {
 	wa.Fake      // Includes the send recorder: cover work must leave it empty.
 	service      *Service
@@ -102,6 +111,13 @@ func sparseCoverFixture(t *testing.T) (*Service, *coverFake, []Task) {
 		}
 	}
 	testkit.Must(t, tx.Commit())
+	for i := range tasks {
+		id := "image-15"
+		if i >= 20 {
+			id = "image-49"
+		}
+		pinFixtureCover(t, s, &tasks[i], tasks[i].Chats[0].ID, id)
+	}
 	fake := &coverFake{service: s, connected: true}
 	s.CoverMedia = fake
 	return s, fake, tasks
@@ -129,7 +145,7 @@ func TestN2SparsePixelsBeforeAfterAndRecentDownloads(t *testing.T) {
 	}
 	before := 0
 	for _, task := range tasks {
-		if c := s.selectCoverCandidate(nil, task, false); c != nil && s.coverHasPixels(c) {
+		if c := s.coverCandidate(nil, task); c != nil && s.coverHasPixels(c) {
 			before++
 		}
 	}
@@ -142,8 +158,8 @@ func TestN2SparsePixelsBeforeAfterAndRecentDownloads(t *testing.T) {
 	}
 	passes.Wait()
 	after := pictureCount(t, s, tasks)
-	t.Logf("1,500 images; 60 stored thumbnails (4%%); picture tasks: old selector %d/30 -> pixel selector %d/30 -> fetch %d/30", before, selected, after)
-	if before != 10 || selected != 30 || after != 30 || len(f.calls) != 10 || len(f.Sent) != 0 || f.peak != 1 {
+	t.Logf("1,500 images; 60 stored thumbnails (4%%); pinned picture tasks: before %d/30 -> read %d/30 -> fetch %d/30", before, selected, after)
+	if before != 30 || selected != 30 || after != 30 || len(f.calls) != 10 || len(f.Sent) != 0 || f.peak != 1 {
 		t.Fatal(before, selected, after, len(f.calls), len(f.Sent))
 	}
 	for _, task := range tasks[20:] {
@@ -161,6 +177,7 @@ func TestN2CoverAttemptPersistsFailureAndNextDay(t *testing.T) {
 	s, a, now := fixture(t)
 	task := create(t, s, a, "long")
 	testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: "missing", ChatJID: testkit.Phone, MediaType: "image", Timestamp: *now}))
+	pinFixtureCover(t, s, &task, testkit.Phone, "missing")
 	f := &coverFake{service: s, connected: false, fail: true}
 	s.CoverMedia = f
 	s.fetchRecentCovers(context.Background())
@@ -190,8 +207,9 @@ func TestN2CoverAttemptPersistsFailureAndNextDay(t *testing.T) {
 }
 func TestN2CoverWorkerCancelsInFlightOnShutdown(t *testing.T) {
 	s, a, now := fixture(t)
-	create(t, s, a, "long")
+	task := create(t, s, a, "long")
 	testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: "blocked", ChatJID: testkit.Phone, MediaType: "image", Timestamp: *now}))
+	pinFixtureCover(t, s, &task, testkit.Phone, "blocked")
 	f := &coverFake{service: s, connected: true, started: make(chan struct{}, 1)}
 	s.CoverMedia = f
 	ctx, cancel := context.WithCancel(context.Background())
@@ -250,6 +268,7 @@ func TestN2BoundedCachedThumbnails(t *testing.T) {
 			task := create(t, s, a, "long")
 			testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: "large", ChatJID: testkit.Phone, MediaType: "image", Timestamp: *now}))
 			coverOriginal(t, s, testkit.Phone, "large", size[0], size[1])
+			pinFixtureCover(t, s, &task, testkit.Phone, "large")
 			source := s.coverMediaPath(&CoverCandidate{ChatJID: testkit.Phone, MediaID: "large"})
 			original, err := os.ReadFile(source)
 			testkit.Must(t, err)
@@ -282,99 +301,56 @@ func TestN2BoundedCachedThumbnails(t *testing.T) {
 	}
 }
 
-func TestN2WorkspaceAndChatSkipMissingPixels(t *testing.T) {
+func TestPinnedCoverSurvivesNewerPixelsAndMissingOriginal(t *testing.T) {
 	s, a, now := fixture(t)
 	task := create(t, s, a, "long")
-	items := []Item{}
-	for i, id := range []string{"old-workspace", "new-workspace", "missing-workspace"} {
-		testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: id, ChatJID: testkit.Phone, MediaType: "image", Timestamp: now.Add(time.Duration(i) * time.Minute)}))
-		items = append(items, Item{ID: id, Kind: "file", MediaType: "image", AddedAt: now.Add(time.Duration(i) * time.Minute), MessageRef: &Ref{ChatJID: testkit.Phone, MessageID: id}})
-	}
-	items = append(items, Item{ID: "link", Kind: "link", URL: "https://example.invalid/guide"})
-	_, err := s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json(?)) WHERE id=?", dbutil.JSON(items), task.ID)
-	testkit.Must(t, err)
-	for _, id := range []string{"old-workspace", "new-workspace"} {
-		coverOriginal(t, s, testkit.Phone, id, 40, 50)
-	}
-	if c := s.coverCandidate(nil, task); c == nil || c.ItemID != "new-workspace" {
-		t.Fatal("newest drawable workspace missing", c)
-	}
-	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json(?)) WHERE id=?", dbutil.JSON(items[3:]), task.ID)
-	testkit.Must(t, err)
-	if c := s.coverCandidate(nil, task); c == nil || c.MediaID != "new-workspace" {
-		t.Fatal("newest drawable chat missing", c)
-	}
-	for _, id := range []string{"old-workspace", "new-workspace"} {
-		testkit.Must(t, os.Remove(s.coverMediaPath(&CoverCandidate{ChatJID: testkit.Phone, MediaID: id})))
-	}
-	if c := s.coverCandidate(nil, task); c == nil || c.ItemID != "link" || c.LinkURL == "" {
-		t.Fatal("missing images blocked link", c)
-	}
-	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json('[]')) WHERE id=?", task.ID)
-	testkit.Must(t, err)
-	if c := s.coverCandidate(nil, task); c != nil {
-		t.Fatal("missing images blocked typography", c)
-	}
-	f := &coverFake{service: s, connected: true}
-	s.CoverMedia = f
-	settings := s.Hub.Settings()
-	settings.HiddenChats = []string{testkit.Phone}
-	testkit.Must(t, s.Hub.SetSettings(settings))
-	s.fetchRecentCovers(context.Background())
-	settings.HiddenChats = nil
-	testkit.Must(t, s.Hub.SetSettings(settings))
-	_, err = s.Hub.Messages.DB.Exec("UPDATE messages SET deleted_at=? WHERE media_type='image'", *now)
-	testkit.Must(t, err)
-	s.fetchRecentCovers(context.Background())
-	if len(f.calls) != 0 {
-		t.Fatal("invisible source downloaded")
-	}
-}
-
-func TestVideoWorkspacePrefersFileThenNewestThumbnail(t *testing.T) {
-	s, a, now := fixture(t)
-	task := create(t, s, a, "long")
-	items := []Item{}
-	for i, id := range []string{"older-file", "newer-file", "newest-thumb"} {
+	for i, id := range []string{"chosen", "newer"} {
 		testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: id, ChatJID: testkit.Phone, MediaType: "image", Timestamp: now.Add(time.Duration(i) * time.Minute)}))
 		_, err := s.Hub.Messages.DB.Exec("UPDATE messages SET preview_thumbnail=? WHERE id=?", coverTestPNG(t, 80, 100), id)
 		testkit.Must(t, err)
-		items = append(items, Item{ID: id, Kind: "file", MediaType: "image", AddedAt: now.Add(time.Duration(i) * time.Minute), MessageRef: &Ref{ChatJID: testkit.Phone, MessageID: id}})
-	}
-	_, err := s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.items',json(?)) WHERE id=?", dbutil.JSON(items), task.ID)
-	testkit.Must(t, err)
-	for _, id := range []string{"older-file", "newer-file"} {
 		coverOriginal(t, s, testkit.Phone, id, 80, 100)
 	}
-	if c := s.coverCandidate(nil, task); c == nil || c.ItemID != "newer-file" {
-		t.Fatal("workspace did not prefer newest file", c)
+	pinFixtureCover(t, s, &task, testkit.Phone, "chosen")
+	for _, remove := range []bool{false, true} {
+		if remove {
+			testkit.Must(t, os.Remove(s.coverMediaPath(&CoverCandidate{ChatJID: testkit.Phone, MediaID: "chosen"})))
+		}
+		c := s.coverCandidate(nil, task)
+		if c == nil || c.MediaID != "chosen" || !s.coverHasPixels(c) {
+			t.Fatal("selection changed", c)
+		}
 	}
-	for _, id := range []string{"older-file", "newer-file"} {
-		testkit.Must(t, os.Remove(s.coverMediaPath(&CoverCandidate{ChatJID: testkit.Phone, MediaID: id})))
+	_, err := s.Hub.Messages.DB.Exec("UPDATE messages SET deleted_at=? WHERE id='chosen'", *now)
+	testkit.Must(t, err)
+	c := s.coverCandidate(nil, task)
+	if c == nil || c.ItemID != defaultCoverID(task.ID) || c.MediaID != "" {
+		t.Fatal("deleted pin did not fall back", c)
 	}
-	if c := s.coverCandidate(nil, task); c == nil || c.ItemID != "newest-thumb" || !s.coverHasPixels(c) || s.coverHasFile(c) {
-		t.Fatal("workspace thumbnail fallback missing", c)
+	f := &coverFake{service: s, connected: true}
+	s.CoverMedia = f
+	s.fetchRecentCovers(context.Background())
+	if len(f.calls) != 0 {
+		t.Fatal("deleted source downloaded")
 	}
 }
 
-func TestVideoChatScanBoundedToFiftyNewestImages(t *testing.T) {
+func TestDefaultCoverNeverScansNewChatImages(t *testing.T) {
 	s, a, now := fixture(t)
 	task := create(t, s, a, "long")
 	for i := 0; i < 51; i++ {
-		testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: fmt.Sprintf("photo-%02d", i), ChatJID: testkit.Phone, MediaType: "image", Timestamp: now.Add(time.Duration(i) * time.Minute)}))
+		id := fmt.Sprintf("photo-%02d", i)
+		testkit.Must(t, s.Hub.Messages.PutMessage(model.Message{ID: id, ChatJID: testkit.Phone, MediaType: "image", Timestamp: now.Add(time.Duration(i) * time.Minute)}))
 	}
-	coverOriginal(t, s, testkit.Phone, "photo-00", 80, 100)
-	if c := s.coverCandidate(nil, task); c != nil {
-		t.Fatal("scanned beyond fifty newest images", c)
+	coverOriginal(t, s, testkit.Phone, "photo-50", 80, 100)
+	c := s.coverCandidate(nil, task)
+	if c == nil || c.ItemID != defaultCoverID(task.ID) {
+		t.Fatal("chat recency replaced default", c)
 	}
-	_, err := s.Hub.Messages.DB.Exec("UPDATE messages SET preview_thumbnail=? WHERE id='photo-50'", coverTestPNG(t, 80, 100))
-	testkit.Must(t, err)
-	if c := s.coverCandidate(nil, task); c == nil || c.MediaID != "photo-50" {
-		t.Fatal("bounded thumbnail fallback missing", c)
-	}
-	coverOriginal(t, s, testkit.Phone, "photo-01", 80, 100)
-	if c := s.coverCandidate(nil, task); c == nil || c.MediaID != "photo-01" {
-		t.Fatal("fiftieth file not preferred", c)
+	f := &coverFake{service: s, connected: true}
+	s.CoverMedia = f
+	s.fetchRecentCovers(context.Background())
+	if len(f.calls) != 0 {
+		t.Fatal("default pin fetched unrelated chat image")
 	}
 }
 

@@ -239,7 +239,7 @@ func TestWaitingNudgeDraftTemplateIncomingAndSkip(t *testing.T) {
 		t.Fatal("skipped nudge requeued")
 	}
 }
-func TestShortCloseAndRetention(t *testing.T) {
+func TestShortExplicitCloseAndPermanentHistory(t *testing.T) {
 	for _, reason := range []string{"done", "checklist", "lifespan"} {
 		t.Run(reason, func(t *testing.T) {
 			s, a, now := fixture(t)
@@ -250,10 +250,15 @@ func TestShortCloseAndRetention(t *testing.T) {
 			case "done":
 				got, err = s.Update(a, v.ID, map[string]any{"status": "done"})
 			case "checklist":
+				_, err = s.Update(a, v.ID, map[string]any{"end_condition": "checklist_done"})
+				testkit.Must(t, err)
 				got, err = s.Checklist(a, v.ID, "add", []Step{{Text: "Confirm appointment"}})
 				testkit.Must(t, err)
 				got, err = s.Checklist(a, v.ID, "done", got.Checklist)
 			case "lifespan":
+				end := *now
+				_, err = s.Update(a, v.ID, map[string]any{"end_at": end})
+				testkit.Must(t, err)
 				*now = now.AddDate(0, 0, 14)
 				testkit.Must(t, s.Tick(context.Background()))
 				got, err = s.Get(a, v.ID)
@@ -271,15 +276,19 @@ func TestShortCloseAndRetention(t *testing.T) {
 			}
 			var n int
 			testkit.Must(t, s.Hub.Repo.DB.QueryRow("SELECT count(*) FROM agent_updates WHERE kind='task_closed'").Scan(&n))
-			if n != 1 {
-				t.Fatal("close update missing")
+			wantUpdates := 0
+			if reason == "done" {
+				wantUpdates = 1
+			}
+			if n != wantUpdates {
+				t.Fatal("wrong close update count", n)
 			}
 			*now = now.AddDate(0, 0, 91)
 			testkit.Must(t, s.Tick(context.Background()))
 			r, err := s.raw(v.ID)
 			testkit.Must(t, err)
-			if !r.Purged || r.Title != v.Title || r.Goal != "" || len(r.People) != 0 || len(r.Checklist) != 0 {
-				t.Fatal("retention kept workspace")
+			if r.Purged || r.Title != v.Title || r.Goal != v.Goal || len(r.People) != len(v.People) || len(r.Checklist) != len(got.Checklist) {
+				t.Fatal("ended task lost permanent history")
 			}
 		})
 	}

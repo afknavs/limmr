@@ -8,13 +8,13 @@ struct CircleChangeRow: View {
   var body: some View {
     HStack(spacing: 14) {
       VStack(alignment: .leading, spacing: 3) {
-        Text(change.text).font(.callout)
-        Text(store.relativeTime(change.at)).font(.caption).foregroundStyle(AccessibleSecondary())
+        Text(change.text).font(LimmrTheme.font(14)).foregroundStyle(LimmrTheme.ink)
+        Text(store.relativeTime(change.at)).font(LimmrTheme.font(12)).foregroundStyle(LimmrTheme.ink3)
       }
       Spacer(minLength: 8)
-      Button("Review", action: review).limmrButton()
+      Button("Review", action: review).buttonStyle(PaperButtonStyle())
       Button("Undo all") { Task { await store.undoCircleChanges(change.changeIds) } }
-        .limmrButton().disabled(store.busy)
+        .buttonStyle(PaperButtonStyle()).disabled(store.busy)
     }
   }
 }

@@ -22,12 +22,13 @@
       "reason": "A linked chat is in this circle"
     }
   ],
+  "cover_item_id": "default:0",
   "created_at": "2026-10-17T12:00:00Z",
   "created_by": {
     "agent_id": "agent-2",
     "name": "Codex"
   },
-  "goal": "",
+  "goal": "Book a dentist appointment",
   "history": [
     {
       "at": "2026-10-17T12:00:00Z",
@@ -66,6 +67,14 @@
     }
   ],
   "lifespan_days": 14,
+  "membership_provenance": {
+    "chats": {
+      "15550100007@s.whatsapp.net": "agent:agent-2"
+    },
+    "people": {
+      "person-07": "backfill"
+    }
+  },
   "needs_you": false,
   "origin": "agent",
   "people": [
@@ -78,6 +87,7 @@
     "done": 0,
     "total": 1
   },
+  "removed_members": {},
   "status": "active",
   "summary": {
     "text": "",

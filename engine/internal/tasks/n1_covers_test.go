@@ -61,7 +61,7 @@ func TestN1CoverUpgradeReevaluatesOnceAndKeepsOwnerChoice(t *testing.T) {
 	testkit.Must(t, err)
 	item := v.Items[0]
 	// Model an earlier app's automatic choice, then run the real upgrade migration.
-	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.cover',json(?)) WHERE id=?", dbutil.JSON(item), v.ID)
+	_, err = s.Hub.Repo.DB.Exec("UPDATE tasks SET data=json_set(data,'$.cover',json(?),'$.cover_item_id','') WHERE id=?", dbutil.JSON(item), v.ID)
 	testkit.Must(t, err)
 	owner, err := s.Create(a, Create{Title: "Owner pick", Kind: "long", Chats: []Entity{{ID: testkit.Phone}}})
 	testkit.Must(t, err)

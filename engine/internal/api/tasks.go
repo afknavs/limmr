@@ -14,6 +14,59 @@ import (
 
 func (s *Server) taskRoutes(add func(string, string, route)) {
 	svc := s.MCP.TaskService()
+	add("POST /v1/tasks/{id}/later", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b struct {
+			Until *time.Time `json:"until"`
+		}
+		if r.ContentLength != 0 {
+			if err := decode(r, &b); err != nil {
+				return nil, err
+			}
+		}
+		return svc.Later(r.PathValue("id"), b.Until)
+	})
+	add("DELETE /v1/tasks/{id}/later", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		return svc.BringBack(r.PathValue("id"))
+	})
+	add("POST /v1/tasks/{id}/remove", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b struct {
+			Chats  []string `json:"chats"`
+			People []string `json:"people"`
+		}
+		if err := decode(r, &b); err != nil {
+			return nil, err
+		}
+		return svc.RemoveMembers(nil, r.PathValue("id"), b.Chats, b.People)
+	})
+	add("POST /v1/tasks/{id}/changes/{change}/undo", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		return svc.UndoMembershipChange(nil, r.PathValue("id"), r.PathValue("change"))
+	})
+	add("POST /v1/tasks/{id}/merge", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b struct {
+			FromID string `json:"from_id"`
+		}
+		if err := decode(r, &b); err != nil {
+			return nil, err
+		}
+		return svc.Merge(nil, r.PathValue("id"), b.FromID)
+	})
+	add("POST /v1/tasks/{id}/cover", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b struct {
+			ItemID string `json:"item_id"`
+		}
+		if err := decode(r, &b); err != nil {
+			return nil, err
+		}
+		return svc.SetCover(nil, r.PathValue("id"), b.ItemID)
+	})
+	add("POST /v1/circles/{id}/convert-to-task", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
+		var b tasks.Create
+		if err := decode(r, &b); err != nil {
+			return nil, err
+		}
+		return svc.ConvertCircle(nil, r.PathValue("id"), b)
+	})
+
 	add("GET /v1/tasks/{id}/cover/thumbnail", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		w.Header().Set("Cache-Control", "no-store")
 		return svc.CoverPreview(nil, r.PathValue("id"))
@@ -164,7 +217,7 @@ func (s *Server) taskRoutes(add func(string, string, route)) {
 		return map[string]any{"tasks": xs}, err
 	})
 	add("GET /v1/tasks/{id}", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
-		return svc.Get(nil, r.PathValue("id"))
+		return svc.GetForOwner(r.PathValue("id"))
 	})
 	add("POST /v1/tasks", "admin", func(w http.ResponseWriter, r *http.Request, p principal) (any, error) {
 		var b tasks.Create
