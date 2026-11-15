@@ -22,7 +22,7 @@ import (
 )
 
 // Version is embedded by the release build and must match the signed feed.
-var Version = "0.1.0"
+var Version = "0.11.0"
 
 type Connection interface {
 	Linked() bool
